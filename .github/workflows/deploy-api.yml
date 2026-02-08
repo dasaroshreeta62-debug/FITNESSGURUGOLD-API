@@ -15,7 +15,7 @@ jobs:
 
       # Optional: install Composer deps if Laravel or similar
       - name: Install PHP dependencies
-        if: fileExists('composer.json')
+        if: ${{ hashFiles('composer.json') != '' }}
         run: composer install --no-dev --optimize-autoloader
 
      
