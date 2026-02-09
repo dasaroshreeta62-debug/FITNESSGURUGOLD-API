@@ -1,36 +1,40 @@
-name: Deploy API to Hostinger
+name: 🚀 Deploy API to Hostinger
 
 on:
   push:
     branches:
-      - master     # change to 'main' if your default branch is main
+      - master      # change to "main" if that's your default branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout repository code
+      # Step 1: Checkout your repository
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Install PHP dependencies (if applicable)
+      # Step 2: Install PHP dependencies (if composer.json exists)
       - name: Install PHP dependencies
         if: ${{ hashFiles('composer.json') != '' }}
         run: composer install --no-dev --optimize-autoloader
 
-      # Step 3: Deploy using secure FTPS (works with Hostinger)
+      # Step 3: Clean previous sync state (recommended)
+      - name: Clear previous FTP sync state
+        run: rm -f api/.ftp-deploy-sync-state.json
+
+      # Step 4: Deploy API via FTPS (same server as frontend)
       - name: 🚀 Upload API to Hostinger via FTPS
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
-          server: ${{ secrets.FTP_HOST }}          # e.g. ftp.yourdomain.com or srv674.hstgr.io
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps                           # use FTPS (explicit FTP over TLS)
+          server: ftp.fitnessguru.org.in           # ✅ IPv4 public FTP endpoint
+          username: ${{ secrets.FTP_USERNAME }}    # Hostinger FTP username
+          password: ${{ secrets.FTP_PASSWORD }}    # Hostinger FTP password
+          protocol: ftps                           # explicit FTP over TLS
           port: 21
           local-dir: api/                          # local folder to upload
-          server-dir: ${{ secrets.FTP_TARGET }}    # target folder on Hostinger (e.g. /public_html/api/)
-          exclude: |                               # exclude unnecessary files
+          server-dir: /public_html/api/            # destination folder on Hostinger
+          exclude: |                               # skip unnecessary files
             **/.git*
             **/.github*
             node_modules/**
@@ -38,6 +42,6 @@ jobs:
             tests/**
             README.md
             .env.example
-          dangerous-clean-slate: true              # deletes remote files not in your local folder
-          timeout: 60                              # optional: helps avoid hanging connections
-          log-level: verbose                       # optional: prints detailed connection logs
+          dangerous-clean-slate: true              # remove remote files not present locally
+          timeout: 60                              # connection timeout (seconds)
+          log-level: verbose                       # detailed output for debugging
