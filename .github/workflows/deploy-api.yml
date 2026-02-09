@@ -3,7 +3,7 @@ name: Deploy API to Hostinger
 on:
   push:
     branches:
-      - master   
+      - master
 
 jobs:
   deploy:
@@ -13,27 +13,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Optional: install Composer deps if Laravel or similar
+      # Optional: install PHP dependencies if your API uses Composer
       - name: Install PHP dependencies
         if: ${{ hashFiles('composer.json') != '' }}
         run: composer install --no-dev --optimize-autoloader
 
-     
-
-      - name: Upload API to Hostinger via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      #  Secure SFTP deployment (works with Hostinger)
+      - name: Upload API to Hostinger via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
-          server: ${{ secrets.FTP_HOST }}
+          server: ${{ secrets.FTP_HOST }}          # e.g. srv674.hstgr.io or ftp.yourdomain.com
+          port: 22                                 # SFTP default port
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: api/             # upload all repo contents
-          server-dir: ${{ secrets.FTP_TARGET }}   
-          exclude: |                # keep repo clean
-            */.git
-            */.github
+          local_path: api/                         # local folder to upload
+          remote_path: ${{ secrets.FTP_TARGET }}   # target folder on server
+          sftp_only: true
+          exclude: |                               # files/folders to skip
+            **/.git*
+            **/.github*
             node_modules/**
             vendor/**
             tests/**
             README.md
             .env.example
-          dangerous-clean-slate: true
+          remove_extra_files: true                 # same as dangerous-clean-slate
+          overwrite: true
