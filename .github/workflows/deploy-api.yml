@@ -3,33 +3,34 @@ name: Deploy API to Hostinger
 on:
   push:
     branches:
-      - master
+      - master     # change to 'main' if your default branch is main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Checkout repository code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Optional: install PHP dependencies if your API uses Composer
+      # Step 2: Install PHP dependencies (if applicable)
       - name: Install PHP dependencies
         if: ${{ hashFiles('composer.json') != '' }}
         run: composer install --no-dev --optimize-autoloader
 
-      #  Secure SFTP deployment (works with Hostinger)
-      - name: Upload API to Hostinger via SFTP
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+      # Step 3: Deploy using secure FTPS (works with Hostinger)
+      - name: 🚀 Upload API to Hostinger via FTPS
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
-          server: ${{ secrets.FTP_HOST }}          # e.g. srv674.hstgr.io or ftp.yourdomain.com
-          port: 22                                 # SFTP default port
+          server: ${{ secrets.FTP_HOST }}          # e.g. ftp.yourdomain.com or srv674.hstgr.io
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          local_path: api/                         # local folder to upload
-          remote_path: ${{ secrets.FTP_TARGET }}   # target folder on server
-          sftp_only: true
-          exclude: |                               # files/folders to skip
+          protocol: ftps                           # use FTPS (explicit FTP over TLS)
+          port: 21
+          local-dir: api/                          # local folder to upload
+          server-dir: ${{ secrets.FTP_TARGET }}    # target folder on Hostinger (e.g. /public_html/api/)
+          exclude: |                               # exclude unnecessary files
             **/.git*
             **/.github*
             node_modules/**
@@ -37,5 +38,6 @@ jobs:
             tests/**
             README.md
             .env.example
-          remove_extra_files: true                 # same as dangerous-clean-slate
-          overwrite: true
+          dangerous-clean-slate: true              # deletes remote files not in your local folder
+          timeout: 60                              # optional: helps avoid hanging connections
+          log-level: verbose                       # optional: prints detailed connection logs
