@@ -1,4 +1,10 @@
 <?php
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+header('Content-Type: application/json');
+echo json_encode(["status" => "ok", "message" => "API reachable"]);
+exit;
+
 header('Content-Type: application/json');
 require_once "db_connection.php";
 require_once "../vendor/autoload.php";
