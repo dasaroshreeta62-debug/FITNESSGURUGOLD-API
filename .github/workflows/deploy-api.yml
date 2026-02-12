@@ -1,0 +1,31 @@
+name:  Deploy API to Hostinger (SFTP)
+
+on:
+  push:
+    branches:
+      - master       # or "main" if that's your default
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Optional: install PHP dependencies
+      - name: Install PHP dependencies
+        if: ${{ hashFiles('composer.json') != '' }}
+        run: composer install --no-dev --optimize-autoloader
+
+      - name: 🚀 Upload API via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          server: ftp.fitnessguru.org.in          # same host
+          port: 22                                # SSH/SFTP port
+          username: ${{ secrets.FTP_USERNAME }}   # your SSH/FTP username
+          password: ${{ secrets.FTP_PASSWORD }}   # same password
+          local_path: api/                        # folder to upload
+          remote_path: /public_html/api/          # destination folder
+          sftp_only: true                         # force SFTP
+          delete_remote_files: false              # keep existing files (set true to clean)
