@@ -24,7 +24,19 @@ function route(string $method, string $path): void
         case $method === 'POST' && $path === '/api/auth/register':
             $controller->register();
             return;
+        
+        case $method === 'GET' && $path === '/api/users/profile':
+            $controller->profile();
+            return;
 
+        case $method === 'PUT' && $path === '/api/users/update':
+            $controller->updateProfile();
+            return;
+        
+        case $method === 'GET' && $path === '/api/users/list':
+            $controller->listUsers();
+            return;
+            
         // ================= DEFAULT =================
         default:
             http_response_code(404);

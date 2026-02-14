@@ -195,4 +195,180 @@ class Workflow
             ]
         ];
     }
+    public function getProfile(string $accessToken): array
+    {
+        // 🔍 DEBUG: log received token
+        // error_log('ACCESS TOKEN RECEIVED: ' . $accessToken);
+
+        try {
+            // Decode JWT
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            // 🔍 DEBUG: log decoded payload
+            // error_log('JWT DECODED: ' . print_r($decoded, true));
+
+            $userId = (int)$decoded->sub;
+
+            // Fetch user profile
+            $user = $this->model->getUserProfileById($userId);
+
+            if (!$user) {
+                http_response_code(404);
+                return [
+                    "status" => "error",
+                    "message" => "User not found"
+                ];
+            }
+
+            return [
+                "status" => "success",
+                "user" => [
+                    "user_id"   => (int)$user['user_id'],
+                    "gym_id"    => (int)$user['gym_id'],
+                    "branch_id" => (int)$user['branch_id'],
+                    "name"      => $user['name'],
+                    "email"     => $user['email'],
+                    "phone"     => $user['phone'],
+                    "role"      => strtoupper($user['role']),
+                    "status"    => ((int)$user['status'] === 1) ? "ACTIVE" : "INACTIVE"
+                ]
+            ];
+
+        } catch (\Throwable $e) {
+            // 🔥 VERY IMPORTANT DEBUG
+            error_log('JWT ERROR: ' . $e->getMessage());
+
+            http_response_code(401);
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired token"
+            ];
+        }
+    }
+    public function updateProfile(string $accessToken, array $data): array
+    {
+        try {
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            $userId = (int)$decoded->sub;
+            $role   = strtoupper($decoded->role);
+
+            $user = $this->model->getUserProfileById($userId);
+            if (!$user) {
+                http_response_code(404);
+                return [
+                    "status" => "error",
+                    "message" => "User not found"
+                ];
+            }
+
+            // Allowed fields
+            $updateData = [
+                'name'  => trim($data['name'] ?? $user['name']),
+                'phone' => trim($data['phone'] ?? $user['phone']),
+                'email' => trim($data['email'] ?? $user['email'])
+            ];
+
+            // Email uniqueness check
+            if ($updateData['email'] !== $user['email']) {
+                if ($this->model->getUserByEmail($updateData['email'])) {
+                    http_response_code(409);
+                    return [
+                        "status" => "error",
+                        "message" => "Email already in use"
+                    ];
+                }
+            }
+
+            // Admin-only fields
+            if ($role === 'ADMIN') {
+                if (isset($data['role'])) {
+                    $updateData['role'] = strtoupper($data['role']);
+                }
+                if (isset($data['status'])) {
+                    $updateData['status'] = (int)$data['status'];
+                }
+            }
+
+            $this->model->updateUserProfile($userId, $updateData);
+
+            $updatedUser = $this->model->getUserProfileById($userId);
+
+            return [
+                "status" => "success",
+                "message" => "Profile updated successfully",
+                "user" => [
+                    "user_id"    => (int)$updatedUser['user_id'],
+                    "gym_id"     => (int)$updatedUser['gym_id'],
+                    "branch_id"  => (int)$updatedUser['branch_id'],
+                    "name"       => $updatedUser['name'],
+                    "email"      => $updatedUser['email'],
+                    "phone"      => $updatedUser['phone'],
+                    "role"       => strtoupper($updatedUser['role']),
+                    "status"     => ((int)$updatedUser['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                    "updatedDate"=> gmdate('Y-m-d\TH:i:s\Z')
+                ]
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(403);
+            return [
+                "status" => "error",
+                "message" => "You are not allowed to edit this profile"
+            ];
+        }
+    }
+
+    public function listUsers(string $accessToken, array $filters): array
+    {
+        try {
+            // Decode JWT
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            $role = strtoupper($decoded->role ?? '');
+
+            // Admin-only access
+            if (!in_array($role, ['ADMIN', 'SUPER_ADMIN'])) {
+                http_response_code(403);
+                return [
+                    "status" => "error",
+                    "message" => "Access denied — admin privileges required"
+                ];
+            }
+
+            $page  = max(1, (int)$filters['page']);
+            $limit = max(1, (int)$filters['limit']);
+            $offset = ($page - 1) * $limit;
+
+            // Fetch data
+            $users  = $this->model->getUsers($filters, $limit, $offset);
+            $total  = $this->model->countUsers($filters);
+
+            return [
+                "status" => "success",
+                "meta" => [
+                    "page"  => $page,
+                    "limit"=> $limit,
+                    "total"=> $total
+                ],
+                "users" => $users
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(401);
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired token"
+            ];
+        }
+    }
 }

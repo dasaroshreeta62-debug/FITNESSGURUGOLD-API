@@ -107,4 +107,87 @@ class Controller
         $response = $this->workflow->register($input);
         echo json_encode($response);
     }
+    public function profile(): void
+    {
+        // 🔍 DEBUG: log all incoming headers
+        // error_log(print_r(getallheaders(), true));
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $response = $this->workflow->getProfile($accessToken);
+        echo json_encode($response);
+    }
+    public function updateProfile(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        // ✅ Try JSON first
+        $input = json_decode(file_get_contents("php://input"), true);
+
+        // ✅ Fallback to form-data / x-www-form-urlencoded
+        if (empty($input)) {
+            $input = $_POST;
+        }
+
+        if (empty($input)) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Invalid request body"
+            ]);
+            return;
+        }
+
+        $response = $this->workflow->updateProfile($accessToken, $input);
+        echo json_encode($response);
+    }
+    public function listUsers(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        // Query params
+        $filters = [
+            'role'      => $_GET['role'] ?? null,
+            'status'    => $_GET['status'] ?? null,
+            'gym_id'    => $_GET['gym_id'] ?? null,
+            'branch_id' => $_GET['branch_id'] ?? null,
+            'page'      => (int)($_GET['page'] ?? 1),
+            'limit'     => (int)($_GET['limit'] ?? 20),
+        ];
+
+        $response = $this->workflow->listUsers($accessToken, $filters);
+        echo json_encode($response);
+    }
 }
