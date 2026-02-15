@@ -190,4 +190,80 @@ class Controller
         $response = $this->workflow->listUsers($accessToken, $filters);
         echo json_encode($response);
     }
+    public function getGyms(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $filters = [
+            'status'  => $_GET['status'] ?? null,
+            'city_id' => $_GET['city_id'] ?? null,
+            'page'    => (int)($_GET['page'] ?? 1),
+            'limit'   => (int)($_GET['limit'] ?? 20),
+        ];
+
+        $response = $this->workflow->getGyms($accessToken, $filters);
+        echo json_encode($response);
+    }
+    public function createGym(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        // Try JSON first
+        $input = json_decode(file_get_contents("php://input"), true);
+        if (empty($input)) {
+            $input = $_POST;
+        }
+
+        if (empty($input['gym_name']) || empty($input['city_id'])) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Gym name and city are required"
+            ]);
+            return;
+        }
+
+        $response = $this->workflow->createGym($accessToken, $input);
+        echo json_encode($response);
+    }
+    public function getGymDetails(int $gymId): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $response = $this->workflow->getGymDetails($accessToken, $gymId);
+        echo json_encode($response);
+    }
 }

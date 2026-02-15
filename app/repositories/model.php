@@ -8,8 +8,10 @@ class Model
 
     public function __construct()
     {
-        global $conn;
-        $this->db = $conn;
+        // global $conn;
+        // $this->db = $conn;
+        $this->db = Database::getConnection();
+
     }
 
     // /* ===================== USERS ===================== */
@@ -251,4 +253,144 @@ class Model
 
         return (int)$stmt->fetchColumn();
     }
+    public function getGyms(array $filters): array
+    {
+        $sql = "SELECT
+                    gym_id,
+                    gym_name,
+                    email,
+                    phone_number,
+                    city_id,
+                    status,
+                    createdDate
+                FROM gyms
+                WHERE 1=1";
+
+        $params = [];
+
+        if (!empty($filters['status'])) {
+            $sql .= " AND status = :status";
+            $params[':status'] = $filters['status'];
+        }
+
+        if (!empty($filters['city_id'])) {
+            $sql .= " AND city_id = :city_id";
+            $params[':city_id'] = (int)$filters['city_id'];
+        }
+
+        $limit  = max(1, (int)$filters['limit']);
+        $offset = (max(1, (int)$filters['page']) - 1) * $limit;
+
+        $sql .= " ORDER BY gym_id DESC LIMIT :limit OFFSET :offset";
+
+        $stmt = $this->db->prepare($sql);
+
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function countGyms(array $filters): int
+    {
+        $sql = "SELECT COUNT(*) FROM gyms WHERE 1=1";
+        $params = [];
+
+        if (!empty($filters['status'])) {
+            $sql .= " AND status = :status";
+            $params[':status'] = $filters['status'];
+        }
+
+        if (!empty($filters['city_id'])) {
+            $sql .= " AND city_id = :city_id";
+            $params[':city_id'] = (int)$filters['city_id'];
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        return (int)$stmt->fetchColumn();
+    }
+    public function createGym(array $data): int
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO gyms (
+                gym_name,
+                email,
+                phone_number,
+                address_line1,
+                city_id,
+                district,
+                state,
+                country,
+                pincode,
+                status,
+                createdDate
+            ) VALUES (
+                :gym_name,
+                :email,
+                :phone_number,
+                :address_line1,
+                :city_id,
+                :district_id,
+                :state_id,
+                :country_id,
+                :pincode,
+                1,
+                NOW()
+            )
+        ");
+
+        $stmt->execute([
+            'gym_name'      => trim($data['gym_name']),
+            'email'         => $data['email'] ?? null,
+            'phone_number'  => $data['phone_number'] ?? null,
+            'address_line1' => $data['address_line1'] ?? null,
+            'city_id'       => (int)$data['city_id'],
+            'district_id'   => (int)($data['district_id'] ?? null),
+            'state_id'      => (int)($data['state_id'] ?? null),
+            'country_id'    => (int)($data['country_id'] ?? null),
+            'pincode'       => $data['pincode'] ?? null
+        ]);
+
+        return (int)$this->db->lastInsertId();
+    }
+    public function getGymById(int $gymId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT
+                g.gym_id,
+                g.gym_name,
+                g.email,
+                g.phone_number,
+                g.address_line1,
+                c.city_name     AS city,
+                s.state_name    AS state,
+                co.country_name AS country,
+                g.pincode,
+                g.status
+            FROM gyms g
+            LEFT JOIN cities c    ON c.city_id = g.city_id
+            LEFT JOIN states s    ON s.state_id = g.state_id
+            LEFT JOIN countries co ON co.country_id = g.country_id
+            WHERE g.gym_id = :gym_id
+            AND g.status != 'DELETED'
+            LIMIT 1
+        ");
+
+        $stmt->execute([
+            'gym_id' => $gymId
+        ]);
+
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $result ?: null;
+    }
+
 }

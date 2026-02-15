@@ -371,4 +371,133 @@ class Workflow
             ];
         }
     }
+    public function getGyms(string $accessToken, array $filters): array
+    {
+        try {
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            if (!in_array(strtoupper($decoded->role), ['ADMIN', 'SUPER_ADMIN'])) {
+                http_response_code(403);
+                return [
+                    "status" => "error",
+                    "message" => "Access denied"
+                ];
+            }
+
+            $data  = $this->model->getGyms($filters);
+            $total = $this->model->countGyms($filters);
+
+            return [
+                "status" => "success",
+                "meta" => [
+                    "page"  => $filters['page'],
+                    "limit"=> $filters['limit'],
+                    "total"=> $total
+                ],
+                "gyms" => $data
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(401);
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired token"
+            ];
+        }
+    }
+    public function createGym(string $accessToken, array $data): array
+    {
+        try {
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            // SUPER ADMIN only
+            if (strtoupper($decoded->role) !== 'SUPER_ADMIN') {
+                http_response_code(403);
+                return [
+                    "status" => "error",
+                    "message" => "Only Super Admin can create gyms"
+                ];
+            }
+
+            // Create gym
+            $gymId = $this->model->createGym($data);
+
+            http_response_code(201);
+
+            return [
+                "status" => "success",
+                "message" => "Gym created successfully",
+                "gym" => [
+                    "gym_id"       => $gymId,
+                    "gym_name"     => $data['gym_name'],
+                    "email"        => $data['email'] ?? null,
+                    "phone_number" => $data['phone_number'] ?? null,
+                    "status"       => "ACTIVE"
+                ]
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(401);
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired token"
+            ];
+        }
+    }
+    public function getGymDetails(string $accessToken, int $gymId): array
+    {
+        try {
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            $role = strtoupper($decoded->role);
+
+            if (!in_array($role, ['SUPER_ADMIN', 'GYM_ADMIN'])) {
+                http_response_code(403);
+                return [
+                    "status" => "error",
+                    "message" => "Access denied"
+                ];
+            }
+
+            // Gym admin can access only own gym
+            if ($role === 'GYM_ADMIN' && (int)$decoded->gym_id !== $gymId) {
+                http_response_code(403);
+                return [
+                    "status" => "error",
+                    "message" => "Unauthorized gym access"
+                ];
+            }
+
+            $gym = $this->model->getGymById($gymId);
+
+            if (!$gym) {
+                http_response_code(404);
+                return [
+                    "status" => "error",
+                    "message" => "Gym not found"
+                ];
+            }
+
+            return [
+                "status" => "success",
+                "gym" => $gym
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(401);
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired token"
+            ];
+        }
+    }
 }

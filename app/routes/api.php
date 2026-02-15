@@ -36,7 +36,20 @@ function route(string $method, string $path): void
         case $method === 'GET' && $path === '/api/users/list':
             $controller->listUsers();
             return;
-            
+
+        case $method === 'GET' && $path === '/api/gyms':
+            $controller->getGyms();
+            return;
+
+        case $method === 'POST' && $path === '/api/gyms':
+            $controller->createGym();
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/gyms/(\d+)$#', $path, $matches):
+            $controller->getGymDetails((int)$matches[1]);
+            return;
+
+
         // ================= DEFAULT =================
         default:
             http_response_code(404);
