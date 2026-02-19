@@ -49,6 +49,29 @@ function route(string $method, string $path): void
             $controller->getGymDetails((int)$matches[1]);
             return;
 
+        case $method === 'PUT' && preg_match('#^/api/gyms/(\d+)$#', $path, $matches):
+            $controller->updateGym((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && $path === '/api/countryList':
+            $controller->listCountry();
+            return;
+
+        case $method === 'GET' && $path === '/api/stateList':
+            $controller->listState();
+            return;
+        
+        case $method === 'GET' && $path === '/api/districtList':
+            $controller->listDistrict();
+            return;
+        
+        case $method === 'GET' && $path === '/api/gymBranchList':
+            $controller->listGymBranches();
+            return;
+
+        case $method === 'POST' && $path === '/api/addMember':
+            $controller->addMember();
+            return;
 
         // ================= DEFAULT =================
         default:

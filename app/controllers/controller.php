@@ -250,6 +250,61 @@ class Controller
     }
     public function getGymDetails(int $gymId): void
     {
+        $headers = array_change_key_case(getallheaders(), CASE_LOWER);
+
+        if (empty($headers['authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        if (!preg_match('/Bearer\s(\S+)/', $headers['authorization'], $matches)) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Invalid Authorization header format"
+            ]);
+            return;
+        }
+
+        $accessToken = $matches[1];
+
+        $response = $this->workflow->getGymDetails($accessToken, $gymId);
+        echo json_encode($response);
+    }
+    public function updateGym(int $gymId): void
+    {
+        $headers = array_change_key_case(getallheaders(), CASE_LOWER);
+
+        if (empty($headers['authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        if (!preg_match('/Bearer\s(\S+)/', $headers['authorization'], $matches)) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Invalid Authorization header format"
+            ]);
+            return;
+        }
+
+        $accessToken = $matches[1];
+        $payload = json_decode(file_get_contents("php://input"), true) ?? [];
+
+        $response = $this->workflow->updateGym($accessToken, $gymId, $payload);
+        echo json_encode($response);
+    }
+    public function listCountry(): void
+    {
         $headers = getallheaders();
 
         if (empty($headers['Authorization'])) {
@@ -263,7 +318,106 @@ class Controller
 
         $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
 
-        $response = $this->workflow->getGymDetails($accessToken, $gymId);
+        // No filters required for now
+        $response = $this->workflow->listCountry($accessToken);
         echo json_encode($response);
+    }
+    public function listState(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        // No filters required for now
+        $response = $this->workflow->listState($accessToken);
+        echo json_encode($response);
+    }
+    public function listDistrict(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        // No filters required for now
+        $response = $this->workflow->listDistrict($accessToken);
+        echo json_encode($response);
+    }
+    public function listGymBranches(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $filters = [
+            'gym_id' => isset($_GET['gym_id']) ? (int)$_GET['gym_id'] : null
+        ];
+
+        $response = $this->workflow->listGymBranches($accessToken, $filters);
+        echo json_encode($response);
+    }
+    public function addMember()
+    {
+        // SUPPORT BOTH form-data AND raw JSON
+        $data = $_POST;
+
+        if (empty($data)) {
+            $data = json_decode(file_get_contents("php://input"), true);
+        }
+
+        if (
+            empty($data['full_name']) ||
+            empty($data['email']) ||
+            empty($data['phone']) ||
+            empty($data['password'])
+        ) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Required fields missing"
+            ]);
+            return;
+        }
+
+        $success = $this->workflow->addMember($data);
+
+        if ($success) {
+            echo json_encode([
+                "status" => "success",
+                "message" => "Member added successfully"
+            ]);
+        } else {
+            http_response_code(500);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Failed to add member"
+            ]);
+        }
     }
 }

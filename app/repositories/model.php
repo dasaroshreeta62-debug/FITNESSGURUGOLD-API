@@ -14,14 +14,6 @@ class Model
 
     }
 
-    // /* ===================== USERS ===================== */
-
-    // public function getAllUsers(): array
-    // {
-    //     $stmt = $this->db->query("SELECT * FROM users");
-    //     return $stmt->fetchAll();
-    // }
-
     public function getUserByEmail(string $email): ?array
     {
         $stmt = $this->db->prepare(
@@ -377,10 +369,9 @@ class Model
                 g.status
             FROM gyms g
             LEFT JOIN cities c    ON c.city_id = g.city_id
-            LEFT JOIN states s    ON s.state_id = g.state_id
-            LEFT JOIN countries co ON co.country_id = g.country_id
+            LEFT JOIN states s    ON s.state_id = g.state
+            LEFT JOIN countries co ON co.country_id = g.country
             WHERE g.gym_id = :gym_id
-            AND g.status != 'DELETED'
             LIMIT 1
         ");
 
@@ -391,6 +382,140 @@ class Model
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return $result ?: null;
+    }
+    public function updateGymById(int $gymId, array $data): bool
+    {
+        $allowedFields = [
+            'gym_name',
+            'email',
+            'phone_number',
+            'status'
+        ];
+
+        $fields = [];
+        $params = ['gym_id' => (int)$gymId];
+
+        foreach ($data as $key => $value) {
+            if (in_array($key, $allowedFields)) {
+                $fields[] = "$key = :$key";
+                $params[$key] = $value;
+            }
+        }
+
+        if (empty($fields)) {
+            return false;
+        }
+
+        $sql = "UPDATE gyms SET " . implode(', ', $fields) . " WHERE gym_id = :gym_id";
+
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($params);
+    }
+    public function getState(): array
+    {
+        $sql = "SELECT 
+                    state_id,
+                    country_id,
+                    state_name,
+                    status,
+                    createdDate,
+                    createdTime
+                FROM states
+                ORDER BY state_name ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute();
+
+        $states = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map(function ($c) {
+            return [
+                "state_id"   => (int)$c['state_id'],
+                "country_id" => (int)$c['country_id'],
+                "state_name" => $c['state_name'],
+                "status"     => ((int)$c['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "created_at" => $c['createdDate'] . 'T' . $c['createdTime'] . 'Z'
+            ];
+        }, $states);
+    }
+    public function getDistrict(): array
+    {
+        $sql = "SELECT 
+                    district_id,
+                    state_id,
+                    district_name,
+                    status,
+                    createdDate,
+                    createdTime
+                FROM districts
+                ORDER BY district_name ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute();
+
+        $states = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map(function ($c) {
+            return [
+                "district_id"   => (int)$c['district_id'],
+                "state_id" => (int)$c['state_id'],
+                "district_name" => $c['district_name'],
+                "status"     => ((int)$c['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "created_at" => $c['createdDate'] . 'T' . $c['createdTime'] . 'Z'
+            ];
+        }, $states);
+    }
+    public function getGymBranches(array $filters): array
+    {
+        $sql = "SELECT 
+                    branch_id,
+                    gym_id,
+                    branch_name,
+                    status,
+                    createdDate,
+                    createdTime
+                FROM gym_branches
+                WHERE 1=1";
+
+        $params = [];
+
+        $sql .= " ORDER BY branch_id ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        $branches = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map(function ($b) {
+            return [
+                "branch_id"   => (int)$b['branch_id'],
+                "gym_id"      => (int)$b['gym_id'],
+                "branch_name" => $b['branch_name'],
+                "status"      => ((int)$b['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "created_at"  => $b['createdDate'] . 'T' . $b['createdTime'] . 'Z'
+            ];
+        }, $branches);
+    }
+    public function insertMember(array $data): bool
+    {
+        $sql = "INSERT INTO members (
+                    full_name, email, phone, password,
+                    branch_id, join_date, status, membership_plan,
+                    dob, gender, blood_group,
+                    height, weight, fitness_level, goal_focus,
+                    country, state, district, city,
+                    address_line1, address_line2, emergency_phone
+                ) VALUES (
+                    :full_name, :email, :phone, :password,
+                    :branch_id, :join_date, :status, :membership_plan,
+                    :dob, :gender, :blood_group,
+                    :height, :weight, :fitness_level, :goal_focus,
+                    :country, :state, :district, :city,
+                    :address_line1, :address_line2, :emergency_phone
+                )";
+
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($data);
     }
 
 }

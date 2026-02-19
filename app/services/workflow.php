@@ -460,7 +460,7 @@ class Workflow
 
             $role = strtoupper($decoded->role);
 
-            if (!in_array($role, ['SUPER_ADMIN', 'GYM_ADMIN'])) {
+            if (!in_array($role, ['SUPER_ADMIN', 'ADMIN'])) {
                 http_response_code(403);
                 return [
                     "status" => "error",
@@ -469,7 +469,7 @@ class Workflow
             }
 
             // Gym admin can access only own gym
-            if ($role === 'GYM_ADMIN' && (int)$decoded->gym_id !== $gymId) {
+            if ($role === 'ADMIN' && (int)$decoded->gym_id !== $gymId) {
                 http_response_code(403);
                 return [
                     "status" => "error",
@@ -500,4 +500,205 @@ class Workflow
             ];
         }
     }
+    public function updateGym(string $accessToken, int $gymId, array $data): array
+    {
+        try {
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            $role = strtoupper($decoded->role ?? '');
+            $tokenGymId = (int)($decoded->gym_id ?? 0);
+
+            // Role validation
+            if (!in_array($role, ['SUPER_ADMIN', 'GYM_ADMIN'])) {
+                http_response_code(403);
+                return [
+                    "status" => "error",
+                    "message" => "Access denied"
+                ];
+            }
+
+            // Gym admin restriction
+            if ($role === 'GYM_ADMIN' && $tokenGymId !== $gymId) {
+                http_response_code(403);
+                return [
+                    "status" => "error",
+                    "message" => "Unauthorized gym access"
+                ];
+            }
+
+            // Prevent Gym Admin from updating status
+            if ($role === 'GYM_ADMIN' && isset($data['status'])) {
+                unset($data['status']);
+            }
+
+            if (empty($data)) {
+                http_response_code(400);
+                return [
+                    "status" => "error",
+                    "message" => "No data provided for update"
+                ];
+            }
+
+            $updated = $this->model->updateGymById($gymId, $data);
+
+            if (!$updated) {
+                http_response_code(404);
+                return [
+                    "status" => "error",
+                    "message" => "Gym not found or no changes made"
+                ];
+            }
+
+            $gym = $this->model->getGymById($gymId);
+
+            return [
+                "status" => "success",
+                "message" => "Gym updated successfully",
+                "gym" => $gym
+            ];
+
+        } catch (\Throwable $e) {
+            error_log('UPDATE GYM JWT ERROR: ' . $e->getMessage());
+
+            http_response_code(401);
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired token"
+            ];
+        }
+    }
+    public function listCountry(string $accessToken): array
+    {
+        try {
+            // Decode JWT
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            $role = strtoupper($decoded->role ?? '');
+
+            // Optional: role validation
+            // if (!in_array($role, ['ADMIN', 'SUPER_ADMIN'])) {
+            //     throw new Exception('Unauthorized role');
+            // }
+
+            $countries = $this->model->getCountry();
+
+            return [
+                "status" => "success",
+                "data"   => $countries
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(401);
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired token"
+            ];
+        }
+    }
+    public function listState(string $accessToken): array
+    {
+        try {
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            $role = strtoupper($decoded->role ?? '');
+
+            // Optional role check
+            // if (!in_array($role, ['ADMIN', 'SUPER_ADMIN'])) {
+            //     http_response_code(403);
+            //     return [
+            //         "status" => "error",
+            //         "message" => "Unauthorized access"
+            //     ];
+            // }
+
+            $states = $this->model->getState();
+
+            return [
+                "status" => "success",
+                "data"   => $states
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(401);
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired token"
+            ];
+        }
+    }
+    public function listDistrict(string $accessToken): array
+    {
+        try {
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            $role = strtoupper($decoded->role ?? '');
+
+            // Optional role check
+            // if (!in_array($role, ['ADMIN', 'SUPER_ADMIN'])) {
+            //     http_response_code(403);
+            //     return [
+            //         "status" => "error",
+            //         "message" => "Unauthorized access"
+            //     ];
+            // }
+
+            $states = $this->model->getDistrict();
+
+            return [
+                "status" => "success",
+                "data"   => $states
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(401);
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired token"
+            ];
+        }
+    }
+    public function addMember(array $data): bool
+    {
+        $payload = [
+            "name"       => $data['name'],
+            "email"           => $data['email'],
+            "phone"           => $data['phone'],
+            "password"        => password_hash($data['password'], PASSWORD_BCRYPT),
+
+            "branch_id"       => $data['branch_id'] ?? null,
+            "join_date"       => $data['join_date'] ?? date('Y-m-d'),
+            "status"          => $data['status'] ?? 'Active',
+            "membership_plan" => $data['membership_plan'] ?? null,
+            
+            "dob"             => $data['dob'] ?? null,
+            "gender"          => $data['gender'] ?? null,
+            "blood_group"     => $data['blood_group'] ?? null,
+            "height"          => $data['height'] ?? null,
+            "weight"          => $data['weight'] ?? null,
+            "fitness_level"   => $data['fitness_level'] ?? null,
+            "goal_focus"      => $data['goal_focus'] ?? null,
+            "country"         => $data['country'] ?? null,
+            "state"           => $data['state'] ?? null,
+            "district"        => $data['district'] ?? null,
+            "city"            => $data['city'] ?? null,
+            "address_line1"   => $data['address_line1'] ?? null,
+            "address_line2"   => $data['address_line2'] ?? null,
+            "emergency_phone" => $data['emergency_phone'] ?? null
+        ];
+
+        return $this->model->insertMember($payload);
+    }
+
 }
