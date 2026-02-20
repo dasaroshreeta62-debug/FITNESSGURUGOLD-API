@@ -498,24 +498,126 @@ class Model
     }
     public function insertMember(array $data): bool
     {
-        $sql = "INSERT INTO members (
-                    full_name, email, phone, password,
-                    branch_id, join_date, status, membership_plan,
-                    dob, gender, blood_group,
-                    height, weight, fitness_level, goal_focus,
-                    country, state, district, city,
-                    address_line1, address_line2, emergency_phone
-                ) VALUES (
-                    :full_name, :email, :phone, :password,
-                    :branch_id, :join_date, :status, :membership_plan,
-                    :dob, :gender, :blood_group,
-                    :height, :weight, :fitness_level, :goal_focus,
-                    :country, :state, :district, :city,
-                    :address_line1, :address_line2, :emergency_phone
-                )";
+        try {
+            $this->db->beginTransaction();
 
-        $stmt = $this->db->prepare($sql);
-        return $stmt->execute($data);
+            /* ========== USERS ========== */
+            $stmtUser = $this->db->prepare("
+                INSERT INTO users (
+                    name, email, phone, password,
+                    branch_id, status, role, gym_id
+                ) VALUES (
+                    :name, :email, :phone, :password,
+                    :branch_id, :status, :role, :gym_id
+                )
+            ");
+
+            $stmtUser->execute([
+                'name'      => $data['name'],
+                'email'     => $data['email'],
+                'phone'     => $data['phone'],
+                'password'  => password_hash($data['password'], PASSWORD_BCRYPT),
+                'branch_id' => $data['branch_id'],
+                'status'    => $data['status'],
+                'role'      => 'MEMBER',
+                'gym_id'    => $data['gym_id'],
+            ]);
+
+            $user_id = $this->db->lastInsertId();
+
+            /* ========== USERS PROFILE ========== */
+            $stmtProfile = $this->db->prepare("
+                INSERT INTO users_profile (
+                    user_id, name, date_of_joining, membership_plan,
+                    date_of_birth, gender, blood_group,
+                    height_cm, weight_kg, fitness_level, goal_focus,
+                    country_id, state_id, district_id, city_id,
+                    address_line1, address_line2, emergency_contact
+                ) VALUES (
+                    :user_id, :name, :date_of_joining, :membership_plan,
+                    :date_of_birth, :gender, :blood_group,
+                    :height_cm, :weight_kg, :fitness_level, :goal_focus,
+                    :country_id, :state_id, :district_id, :city_id,
+                    :address_line1, :address_line2, :emergency_contact
+                )
+            ");
+
+            $stmtProfile->execute([
+                'user_id'           => $user_id,
+                'name'              => $data['name'],
+                'date_of_joining'   => $data['join_date'],
+                'membership_plan'   => $data['membership_plan'],
+                'date_of_birth'     => $data['dob'],
+                'gender'            => $data['gender'],
+                'blood_group'       => $data['blood_group'],
+                'height_cm'         => $data['height'],
+                'weight_kg'         => $data['weight'],
+                'fitness_level'     => $data['fitness_level'],
+                'goal_focus'        => $data['goal_focus'],
+                'country_id'        => $data['country'],
+                'state_id'          => $data['state'],
+                'district_id'       => $data['district'],
+                'city_id'           => $data['city'],
+                'address_line1'     => $data['address_line1'],
+                'address_line2'     => $data['address_line2'],
+                'emergency_contact' => $data['emergency_contact']
+            ]);
+
+            /* ========== GET PLAN DURATION ========== */
+            $stmtPlan = $this->db->prepare("
+                SELECT duration_months
+                FROM membership_plans
+                WHERE plan_id = :plan_id
+                AND gym_id = :gym_id
+                AND branch_id = :branch_id
+                AND status = 1
+            ");
+
+            $stmtPlan->execute([
+                'plan_id'   => $data['membership_plan'],
+                'gym_id'    => $data['gym_id'],
+                'branch_id' => $data['branch_id']
+            ]);
+
+            $plan = $stmtPlan->fetch(PDO::FETCH_ASSOC);
+
+            if (!$plan) {
+                throw new Exception('Invalid membership plan');
+            }
+
+            $startDate = new DateTime($data['join_date']);
+            $endDate   = (clone $startDate)->modify("+{$plan['duration_months']} months");
+
+            /* ========== SUBSCRIPTIONS ========== */
+            $stmtSub = $this->db->prepare("
+                INSERT INTO subscriptions (
+                    gym_id, branch_id, user_id, plan_id, trainer_id,
+                    start_date, end_date, status
+                ) VALUES (
+                    :gym_id, :branch_id, :user_id, :plan_id, :trainer_id,
+                    :start_date, :end_date, 1
+                )
+            ");
+
+            $stmtSub->execute([
+                'gym_id'     => $data['gym_id'],
+                'branch_id'  => $data['branch_id'],
+                'user_id'    => $user_id,
+                'plan_id'    => $data['membership_plan'],
+                'trainer_id' => $data['trainer_id'] ?? null,
+                'start_date' => $startDate->format('Y-m-d'),
+                'end_date'   => $endDate->format('Y-m-d')
+            ]);
+
+            $this->db->commit();
+            return true;
+
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log('Insert Member Error: ' . $e->getMessage());
+            return false;
+        }
     }
+
 
 }

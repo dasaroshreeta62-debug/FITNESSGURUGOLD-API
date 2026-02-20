@@ -672,30 +672,33 @@ class Workflow
     public function addMember(array $data): bool
     {
         $payload = [
-            "name"       => $data['name'],
-            "email"           => $data['email'],
-            "phone"           => $data['phone'],
-            "password"        => password_hash($data['password'], PASSWORD_BCRYPT),
+            'name'             => $data['name'],
+            'email'            => $data['email'],
+            'phone'            => $data['phone'],
+            'password'         => password_hash($data['password'], PASSWORD_BCRYPT),
 
-            "branch_id"       => $data['branch_id'] ?? null,
-            "join_date"       => $data['join_date'] ?? date('Y-m-d'),
-            "status"          => $data['status'] ?? 'Active',
-            "membership_plan" => $data['membership_plan'] ?? null,
-            
-            "dob"             => $data['dob'] ?? null,
-            "gender"          => $data['gender'] ?? null,
-            "blood_group"     => $data['blood_group'] ?? null,
-            "height"          => $data['height'] ?? null,
-            "weight"          => $data['weight'] ?? null,
-            "fitness_level"   => $data['fitness_level'] ?? null,
-            "goal_focus"      => $data['goal_focus'] ?? null,
-            "country"         => $data['country'] ?? null,
-            "state"           => $data['state'] ?? null,
-            "district"        => $data['district'] ?? null,
-            "city"            => $data['city'] ?? null,
-            "address_line1"   => $data['address_line1'] ?? null,
-            "address_line2"   => $data['address_line2'] ?? null,
-            "emergency_phone" => $data['emergency_phone'] ?? null
+            'gym_id'           => $data['gym_id'],
+            'branch_id'        => $data['branch_id'],
+
+            'join_date'        => $data['join_date'] ?? date('Y-m-d'),
+            'status'           => $data['status'] ?? 1,
+            'membership_plan'  => $data['membership_plan'] ?? null,
+
+            'dob'              => $data['dob'] ?? null,
+            'gender'           => $data['gender'] ?? null,
+            'blood_group'      => $data['blood_group'] ?? null,
+            'height'           => $data['height'] ?? null,
+            'weight'           => $data['weight'] ?? null,
+            'fitness_level'    => $data['fitness_level'] ?? null,
+            'goal_focus'       => $data['goal_focus'] ?? null,
+
+            'country'          => $data['country'] ?? null,
+            'state'            => $data['state'] ?? null,
+            'district'         => $data['district'] ?? null,
+            'city'             => $data['city'] ?? null,
+            'address_line1'    => $data['address_line1'] ?? null,
+            'address_line2'    => $data['address_line2'] ?? null,
+            'emergency_contact'  => $data['emergency_contact'] ?? null
         ];
 
         return $this->model->insertMember($payload);

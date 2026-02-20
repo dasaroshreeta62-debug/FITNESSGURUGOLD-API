@@ -384,7 +384,6 @@ class Controller
     }
     public function addMember()
     {
-        // SUPPORT BOTH form-data AND raw JSON
         $data = $_POST;
 
         if (empty($data)) {
@@ -392,10 +391,12 @@ class Controller
         }
 
         if (
-            empty($data['full_name']) ||
+            empty($data['name']) ||
             empty($data['email']) ||
             empty($data['phone']) ||
-            empty($data['password'])
+            empty($data['password']) ||
+            empty($data['branch_id']) ||
+            empty($data['gym_id'])
         ) {
             http_response_code(400);
             echo json_encode([
