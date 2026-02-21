@@ -669,6 +669,48 @@ class Workflow
             ];
         }
     }
+    public function listGymBranches(string $accessToken, array $filters): array
+    {
+        try {
+            /* ================= AUTH VALIDATION ================= */
+
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            /* ================= FILTER SANITIZATION ================= */
+
+            $filterData = [];
+
+            // If gym_id passed in query
+            if (!empty($filters['gym_id'])) {
+                $filterData['gym_id'] = (int)$filters['gym_id'];
+            }
+            // Otherwise restrict by token gym_id
+            elseif (!empty($decoded->gym_id)) {
+                $filterData['gym_id'] = (int)$decoded->gym_id;
+            }
+
+            /* ================= FETCH DATA ================= */
+
+            $branches = $this->model->getGymBranches($filterData);
+
+            return [
+                "status"  => "success",
+                "message" => "Gym branches fetched successfully",
+                "count"   => count($branches),
+                "data"    => $branches
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(401);
+            return [
+                "status"  => "error",
+                "message" => "Invalid or expired token"
+            ];
+        }
+    }
     public function addMember(array $data): bool
     {
         $payload = [
