@@ -703,5 +703,12 @@ class Workflow
 
         return $this->model->insertMember($payload);
     }
+    public function getMemberDetails(int $user_id): array|false
+    {
+        // 🔒 Business rules can be added here later
+        // ex: role check, gym scope, branch scope, permissions
+
+        return $this->model->fetchMemberDetails($user_id);
+    }
 
 }

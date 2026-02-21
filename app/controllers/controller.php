@@ -421,4 +421,33 @@ class Controller
             ]);
         }
     }
+    public function viewMember(): void
+    {
+        $user_id = $_GET['user_id'] ?? null;
+
+        if (!$user_id) {
+            http_response_code(400);
+            echo json_encode([
+                'status'  => 'error',
+                'message' => 'user_id is required'
+            ]);
+            return;
+        }
+
+        $result = $this->workflow->getMemberDetails((int)$user_id);
+
+        if (!$result) {
+            http_response_code(404);
+            echo json_encode([
+                'status'  => 'error',
+                'message' => 'Member not found'
+            ]);
+            return;
+        }
+
+        echo json_encode([
+            'status' => 'success',
+            'data'   => $result
+        ]);
+    }
 }

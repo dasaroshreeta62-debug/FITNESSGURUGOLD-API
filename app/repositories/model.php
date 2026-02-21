@@ -411,6 +411,31 @@ class Model
         $stmt = $this->db->prepare($sql);
         return $stmt->execute($params);
     }
+    public function getCountry(): array
+    {
+        $sql = "SELECT 
+                    country_id,
+                    country_name,
+                    status,
+                    createdDate,
+                    createdTime
+                FROM countries
+                ORDER BY country_name ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute();
+
+        $states = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map(function ($c) {
+            return [
+                "country_id" => (int)$c['country_id'],
+                "country_name" => $c['country_name'],
+                "status"     => ((int)$c['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "created_at" => $c['createdDate'] . 'T' . $c['createdTime'] . 'Z'
+            ];
+        }, $states);
+    }
     public function getState(): array
     {
         $sql = "SELECT 
@@ -618,6 +643,60 @@ class Model
             return false;
         }
     }
+    public function fetchMemberDetails(int $user_id): array|false
+    {
+        $stmt = $this->db->prepare("
+            SELECT
+                u.user_id        AS user_id,
+                u.name      AS name,
+                u.email,
+                u.phone,
+                u.status,
+                u.role,
+                u.gym_id,
+                u.branch_id,
 
+                up.profile_id,
+                up.date_of_joining,
+                up.membership_plan,
+                up.date_of_birth,
+                up.gender,
+                up.blood_group,
+                up.height_cm,
+                up.weight_kg,
+                up.fitness_level,
+                up.goal_focus,
+                up.country_id,
+                up.state_id,
+                up.district_id,
+                up.city_id,
+                up.address_line1,
+                up.address_line2,
+                up.emergency_contact,
+
+                s.subscription_id,
+                s.start_date,
+                s.end_date,
+                s.status AS subscription_status,
+
+                mp.plan_name,
+                mp.duration_months
+
+            FROM users u
+            LEFT JOIN users_profile up 
+                   ON up.user_id = u.id
+            LEFT JOIN subscriptions s 
+                   ON s.user_id = u.id AND s.status = 1
+            LEFT JOIN membership_plans mp 
+                   ON mp.plan_id = s.plan_id
+
+            WHERE u.id = :user_id
+              AND u.role = 'MEMBER'
+            LIMIT 1
+        ");
+
+        $stmt->execute(['user_id' => $user_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
 
 }

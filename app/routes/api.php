@@ -72,6 +72,10 @@ function route(string $method, string $path): void
         case $method === 'POST' && $path === '/api/addMember':
             $controller->addMember();
             return;
+        
+        case $method === 'GET' && $path === '/api/members/view':
+            $controller->viewMember();
+            return;
 
         // ================= DEFAULT =================
         default:
