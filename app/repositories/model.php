@@ -648,13 +648,16 @@ class Model
         $stmt = $this->db->prepare("
             SELECT
                 u.user_id        AS user_id,
-                u.name      AS name,
+                u.name           AS name,
                 u.email,
                 u.phone,
                 u.status,
                 u.role,
                 u.gym_id,
                 u.branch_id,
+
+                g.gym_name,
+                gb.branch_name,
 
                 up.profile_id,
                 up.date_of_joining,
@@ -674,6 +677,11 @@ class Model
                 up.address_line2,
                 up.emergency_contact,
 
+                c.country_name,
+                st.state_name,
+                d.district_name,
+                ct.city_name,
+
                 s.subscription_id,
                 s.start_date,
                 s.end_date,
@@ -683,20 +691,216 @@ class Model
                 mp.duration_months
 
             FROM users u
-            LEFT JOIN users_profile up 
-                   ON up.user_id = u.id
-            LEFT JOIN subscriptions s 
-                   ON s.user_id = u.id AND s.status = 1
-            LEFT JOIN membership_plans mp 
-                   ON mp.plan_id = s.plan_id
 
-            WHERE u.id = :user_id
-              AND u.role = 'MEMBER'
+            /* ========= GYM & BRANCH ========= */
+            LEFT JOIN gyms g
+                ON g.gym_id = u.gym_id
+
+            LEFT JOIN gym_branches gb
+                ON gb.branch_id = u.branch_id
+
+            /* ========= PROFILE ========= */
+            LEFT JOIN users_profile up 
+                ON up.user_id = u.user_id
+
+            /* ========= LOCATION ========= */
+            LEFT JOIN countries c 
+                ON c.country_id = up.country_id
+
+            LEFT JOIN states st 
+                ON st.state_id = up.state_id
+
+            LEFT JOIN districts d 
+                ON d.district_id = up.district_id
+
+            LEFT JOIN cities ct
+                ON ct.city_id = up.city_id
+
+            /* ========= SUBSCRIPTION ========= */
+            LEFT JOIN subscriptions s 
+                ON s.user_id = u.user_id 
+                AND s.status = 1
+
+            LEFT JOIN membership_plans mp 
+                ON mp.plan_id = s.plan_id
+
+            WHERE u.user_id = :user_id
+            AND u.role = 'MEMBER'
             LIMIT 1
         ");
 
         $stmt->execute(['user_id' => $user_id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
+    public function fetchAllMemberDetails(): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT
+                /* ========= USER ========= */
+                u.user_id,
+                u.name,
+                u.email,
+                u.phone,
+                u.status,
+                u.role,
+                u.gym_id,
+                u.branch_id,
 
+                /* ========= GYM & BRANCH ========= */
+                g.gym_name,
+                gb.branch_name,
+
+                /* ========= PROFILE ========= */
+                up.profile_id,
+                up.date_of_joining,
+                up.membership_plan,
+                up.date_of_birth,
+                up.gender,
+                up.blood_group,
+                up.height_cm,
+                up.weight_kg,
+                up.fitness_level,
+                up.goal_focus,
+                up.address_line1,
+                up.address_line2,
+                up.emergency_contact,
+
+                /* ========= LOCATION ========= */
+                c.country_name,
+                st.state_name,
+                d.district_name,
+                ct.city_name,
+
+                /* ========= SUBSCRIPTION ========= */
+                s.subscription_id,
+                s.start_date,
+                s.end_date,
+                s.status AS subscription_status,
+
+                /* ========= PLAN ========= */
+                mp.plan_name,
+                mp.duration_months
+
+            FROM users u
+
+            LEFT JOIN gyms g
+                ON g.gym_id = u.gym_id
+
+            LEFT JOIN gym_branches gb
+                ON gb.branch_id = u.branch_id
+
+            LEFT JOIN users_profile up
+                ON up.user_id = u.user_id
+
+            LEFT JOIN countries c
+                ON c.country_id = up.country_id
+
+            LEFT JOIN states st
+                ON st.state_id = up.state_id
+
+            LEFT JOIN districts d
+                ON d.district_id = up.district_id
+
+            LEFT JOIN cities ct
+                ON ct.city_id = up.city_id
+
+            LEFT JOIN subscriptions s
+                ON s.user_id = u.user_id
+            AND s.status = 1
+
+            LEFT JOIN membership_plans mp
+                ON mp.plan_id = s.plan_id
+
+            WHERE u.role = 'MEMBER'
+            ORDER BY u.user_id DESC
+        ");
+
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    public function updateMember(array $data): void
+    {
+        $this->db->beginTransaction();
+
+        try {
+            /* ========= USERS ========= */
+            $userSql = "
+                UPDATE users SET
+                    name = :name,
+                    email = :email,
+                    phone = :phone,
+                    branch_id = :branch_id,
+                    status = :status
+            ";
+
+            if (!empty($data['hashed_password'])) {
+                $userSql .= ", password = :password";
+            }
+
+            $userSql .= " WHERE user_id = :user_id AND role = 'MEMBER'";
+
+            $stmt = $this->db->prepare($userSql);
+
+            $params = [
+                'name'      => $data['name'],
+                'email'     => $data['email'],
+                'phone'     => $data['phone'],
+                'branch_id'=> $data['branch_id'],
+                'status'    => $data['status'],
+                'user_id'   => $data['user_id']
+            ];
+
+            if (!empty($data['hashed_password'])) {
+                $params['password'] = $data['hashed_password'];
+            }
+
+            $stmt->execute($params);
+
+            /* ========= USERS PROFILE ========= */
+            $this->db->prepare("
+                UPDATE users_profile SET
+                    date_of_joining = :join_date,
+                    membership_plan = :membership_plan,
+                    date_of_birth = :dob,
+                    gender = :gender,
+                    blood_group = :blood_group,
+                    height_cm = :height,
+                    weight_kg = :weight,
+                    fitness_level = :fitness_level,
+                    goal_focus = :goal_focus,
+                    country_id = :country,
+                    state_id = :state,
+                    district_id = :district,
+                    city_id = :city,
+                    address_line1 = :address1,
+                    address_line2 = :address2,
+                    emergency_contact = :emergency
+                WHERE user_id = :user_id
+            ")->execute([
+                'join_date'        => $data['join_date'],
+                'membership_plan'  => $data['membership_plan'],
+                'dob'              => $data['dob'],
+                'gender'           => $data['gender'],
+                'blood_group'      => $data['blood_group'],
+                'height'           => $data['height'],
+                'weight'           => $data['weight'],
+                'fitness_level'    => $data['fitness_level'],
+                'goal_focus'       => $data['goal_focus'],
+                'country'          => $data['country'],
+                'state'            => $data['state'],
+                'district'         => $data['district'],
+                'city'             => $data['city'],
+                'address1'         => $data['address_line1'],
+                'address2'         => $data['address_line2'],
+                'emergency'        => $data['emergency_contact'],
+                'user_id'          => $data['user_id']
+            ]);
+
+            $this->db->commit();
+
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
 }

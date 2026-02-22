@@ -450,4 +450,42 @@ class Controller
             'data'   => $result
         ]);
     }
+    public function viewAllMembers(): void
+    {
+        $result = $this->workflow->getAllMemberDetails();
+
+        echo json_encode([
+            'status' => 'success',
+            'count'  => count($result),
+            'data'   => $result
+        ]);
+    }
+    public function updateMember(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+        $data = json_decode(file_get_contents("php://input"), true);
+
+        if (empty($data['user_id'])) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "User ID is required"
+            ]);
+            return;
+        }
+
+        $response = $this->workflow->updateMember($accessToken, $data);
+        echo json_encode($response);
+    }
 }

@@ -752,5 +752,67 @@ class Workflow
 
         return $this->model->fetchMemberDetails($user_id);
     }
+    public function getAllMemberDetails(): array
+    {
+        // 🔒 Later: role / gym / branch validation
+        return $this->model->fetchAllMemberDetails();
+    }
+    public function updateMember(string $accessToken, array $data): array
+    {
+        try {
+            /* ========= AUTH ========= */
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            /* ========= OPTIONAL ROLE CHECK ========= */
+            $role = strtoupper($decoded->role ?? '');
+
+            // Optional (enable if needed)
+            // if (!in_array($role, ['ADMIN', 'STAFF'])) {
+            //     http_response_code(403);
+            //     return [
+            //         "status" => "error",
+            //         "message" => "Unauthorized access"
+            //     ];
+            // }
+
+            /* ========= PASSWORD VALIDATION ========= */
+            if (!empty($data['new_password'])) {
+
+                if ($data['new_password'] !== ($data['confirm_password'] ?? '')) {
+                    http_response_code(400);
+                    return [
+                        "status" => "error",
+                        "message" => "Password confirmation does not match"
+                    ];
+                }
+
+                $data['hashed_password'] = password_hash(
+                    $data['new_password'],
+                    PASSWORD_BCRYPT
+                );
+            }
+
+            /* ========= UPDATE ========= */
+            $this->model->updateMember($data);
+
+            return [
+                "status" => "success",
+                "message" => "Member details updated successfully"
+            ];
+
+        } catch (\Throwable $e) {
+
+            error_log('UPDATE MEMBER ERROR: ' . $e->getMessage());
+
+            http_response_code(401);
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired token"
+            ];
+        }
+    }
 
 }

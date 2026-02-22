@@ -76,6 +76,14 @@ function route(string $method, string $path): void
         case $method === 'GET' && $path === '/api/members/view':
             $controller->viewMember();
             return;
+        
+        case $method === 'GET' && $path === '/api/members/viewAllMembers':
+            $controller->viewAllMembers();
+            return;
+
+        case $method === 'PUT' && $path === '/api/members/updateMember':
+            $controller->updateMember();
+            return;
 
         // ================= DEFAULT =================
         default:
