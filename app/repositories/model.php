@@ -436,75 +436,92 @@ class Model
             ];
         }, $states);
     }
-    public function getState(): array
+    public function getStateByCountry(int $country_id): array
     {
-        $sql = "SELECT 
-                    state_id,
-                    country_id,
-                    state_name,
-                    status,
-                    createdDate,
-                    createdTime
-                FROM states
-                ORDER BY state_name ASC";
+        $sql = "
+            SELECT 
+                state_id,
+                country_id,
+                state_name,
+                status,
+                createdDate,
+                createdTime
+            FROM states
+            WHERE country_id = :country_id
+            ORDER BY state_name ASC
+        ";
 
         $stmt = $this->db->prepare($sql);
-        $stmt->execute();
+        $stmt->execute([
+            'country_id' => $country_id
+        ]);
 
         $states = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        return array_map(function ($c) {
+        return array_map(function ($s) {
             return [
-                "state_id"   => (int)$c['state_id'],
-                "country_id" => (int)$c['country_id'],
-                "state_name" => $c['state_name'],
-                "status"     => ((int)$c['status'] === 1) ? "ACTIVE" : "INACTIVE",
-                "created_at" => $c['createdDate'] . 'T' . $c['createdTime'] . 'Z'
+                "state_id"   => (int)$s['state_id'],
+                "country_id" => (int)$s['country_id'],
+                "state_name" => $s['state_name'],
+                "status"     => ((int)$s['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "created_at" => $s['createdDate'] . 'T' . $s['createdTime'] . 'Z'
             ];
         }, $states);
     }
-    public function getDistrict(): array
+    public function getDistrictByState(int $state_id): array
     {
-        $sql = "SELECT 
-                    district_id,
-                    state_id,
-                    district_name,
-                    status,
-                    createdDate,
-                    createdTime
-                FROM districts
-                ORDER BY district_name ASC";
+        $sql = "
+            SELECT 
+                district_id,
+                state_id,
+                district_name,
+                status,
+                createdDate,
+                createdTime
+            FROM districts
+            WHERE state_id = :state_id
+            ORDER BY district_name ASC
+        ";
 
         $stmt = $this->db->prepare($sql);
-        $stmt->execute();
+        $stmt->execute([
+            'state_id' => $state_id
+        ]);
 
-        $states = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $districts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        return array_map(function ($c) {
+        return array_map(function ($d) {
             return [
-                "district_id"   => (int)$c['district_id'],
-                "state_id" => (int)$c['state_id'],
-                "district_name" => $c['district_name'],
-                "status"     => ((int)$c['status'] === 1) ? "ACTIVE" : "INACTIVE",
-                "created_at" => $c['createdDate'] . 'T' . $c['createdTime'] . 'Z'
+                "district_id"   => (int)$d['district_id'],
+                "state_id"      => (int)$d['state_id'],
+                "district_name" => $d['district_name'],
+                "status"        => ((int)$d['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "created_at"    => $d['createdDate'] . 'T' . $d['createdTime'] . 'Z'
             ];
-        }, $states);
+        }, $districts);
     }
     public function getGymBranches(array $filters): array
     {
-        $sql = "SELECT 
-                    branch_id,
-                    gym_id,
-                    branch_name,
-                    status,
-                    createdDate,
-                    createdTime
-                FROM gym_branches
-                WHERE 1=1";
+        $sql = "
+            SELECT 
+                branch_id,
+                gym_id,
+                branch_name,
+                status,
+                createdDate,
+                createdTime
+            FROM gym_branches
+            WHERE 1=1
+        ";
 
         $params = [];
 
-        $sql .= " ORDER BY branch_id ASC";
+        if (!empty($filters['gym_id'])) {
+            $sql .= " AND gym_id = :gym_id";
+            $params['gym_id'] = $filters['gym_id'];
+        }
+
+        $sql .= " ORDER BY branch_name ASC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -516,6 +533,44 @@ class Model
                 "branch_id"   => (int)$b['branch_id'],
                 "gym_id"      => (int)$b['gym_id'],
                 "branch_name" => $b['branch_name'],
+                "status"      => ((int)$b['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "created_at"  => $b['createdDate'] . 'T' . $b['createdTime'] . 'Z'
+            ];
+        }, $branches);
+    }
+    public function getCities(array $filters): array
+    {
+        $sql = "
+            SELECT 
+                city_id,
+                district_id,
+                city_name,
+                status,
+                createdDate,
+                createdTime
+            FROM cities
+            WHERE 1=1
+        ";
+
+        $params = [];
+
+        if (!empty($filters['district_id'])) {
+            $sql .= " AND district_id = :district_id";
+            $params['district_id'] = $filters['district_id'];
+        }
+
+        $sql .= " ORDER BY city_name ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        $branches = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map(function ($b) {
+            return [
+                "city_id"   => (int)$b['city_id'],
+                "district_id"      => (int)$b['district_id'],
+                "city_name" => $b['city_name'],
                 "status"      => ((int)$b['status'] === 1) ? "ACTIVE" : "INACTIVE",
                 "created_at"  => $b['createdDate'] . 'T' . $b['createdTime'] . 'Z'
             ];
@@ -902,5 +957,38 @@ class Model
             $this->db->rollBack();
             throw $e;
         }
+    }
+    public function getMembershipPlanByGymBranch(int $gym_id,int $branch_id): array 
+    {
+        $sql = "
+            SELECT 
+                gym_id,
+                branch_id,
+                plan_name,
+                status,
+                createdDate,
+                createdTime
+            FROM membership_plans
+            WHERE gym_id = :gym_id
+            AND branch_id = :branch_id
+        ";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            'gym_id'    => $gym_id,
+            'branch_id' => $branch_id
+        ]);
+
+        $plans = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map(function ($p) {
+            return [
+                "gym_id"     => (int)$p['gym_id'],
+                "branch_id"  => (int)$p['branch_id'],
+                "plan_name"  => $p['plan_name'],
+                "status"     => ((int)$p['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "created_at" => $p['createdDate'] . 'T' . $p['createdTime'] . 'Z'
+            ];
+        }, $plans);
     }
 }

@@ -68,6 +68,10 @@ function route(string $method, string $path): void
         case $method === 'GET' && $path === '/api/gymBranchList':
             $controller->listGymBranches();
             return;
+        
+        case $method === 'GET' && $path === '/api/cityList':
+            $controller->listCities();
+            return;
 
         case $method === 'POST' && $path === '/api/addMember':
             $controller->addMember();
@@ -83,6 +87,10 @@ function route(string $method, string $path): void
 
         case $method === 'PUT' && $path === '/api/members/updateMember':
             $controller->updateMember();
+            return;
+        
+        case $method === 'GET' && $path === '/api/membershipPlan':
+            $controller->listMembershipPlan();
             return;
 
         // ================= DEFAULT =================

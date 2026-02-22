@@ -335,10 +335,24 @@ class Controller
             return;
         }
 
+        $country_id = $_GET['country_id'] ?? null;
+
+        if (!$country_id) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "country_id is required"
+            ]);
+            return;
+        }
+
         $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
 
-        // No filters required for now
-        $response = $this->workflow->listState($accessToken);
+        $response = $this->workflow->listState(
+            $accessToken,
+            (int)$country_id
+        );
+
         echo json_encode($response);
     }
     public function listDistrict(): void
@@ -354,10 +368,24 @@ class Controller
             return;
         }
 
+        $state_id = $_GET['state_id'] ?? null;
+
+        if (!$state_id) {
+            http_response_code(400);
+            echo json_encode([
+                "status"  => "error",
+                "message" => "state_id is required"
+            ]);
+            return;
+        }
+
         $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
 
-        // No filters required for now
-        $response = $this->workflow->listDistrict($accessToken);
+        $response = $this->workflow->listDistrict(
+            $accessToken,
+            (int)$state_id
+        );
+
         echo json_encode($response);
     }
     public function listGymBranches(): void
@@ -373,13 +401,53 @@ class Controller
             return;
         }
 
+        if (empty($_GET['gym_id'])) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "gym_id is required"
+            ]);
+            return;
+        }
+
         $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
 
         $filters = [
-            'gym_id' => isset($_GET['gym_id']) ? (int)$_GET['gym_id'] : null
+            'gym_id' => (int)$_GET['gym_id']
         ];
 
         $response = $this->workflow->listGymBranches($accessToken, $filters);
+        echo json_encode($response);
+    }
+    public function listCities(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        if (empty($_GET['district_id'])) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "district_id is required"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $filters = [
+            'district_id' => (int)$_GET['district_id']
+        ];
+
+        $response = $this->workflow->listCities($accessToken, $filters);
         echo json_encode($response);
     }
     public function addMember()
@@ -486,6 +554,41 @@ class Controller
         }
 
         $response = $this->workflow->updateMember($accessToken, $data);
+        echo json_encode($response);
+    }
+    public function listMembershipPlan(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $gym_id = $_GET['gym_id'] ?? null;
+        $branch_id = $_GET['branch_id'] ?? null;
+
+        if (!$gym_id || !$branch_id) {
+            http_response_code(400);
+            echo json_encode([
+                'status'  => 'error',
+                'message' => 'gym_id and branch_id are required'
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $response = $this->workflow->listMembershipPlan(
+            $accessToken,
+            (int)$gym_id,
+            (int)$branch_id
+        );
+
         echo json_encode($response);
     }
 }

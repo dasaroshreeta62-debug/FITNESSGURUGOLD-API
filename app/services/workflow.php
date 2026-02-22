@@ -601,7 +601,7 @@ class Workflow
             ];
         }
     }
-    public function listState(string $accessToken): array
+    public function listState(string $accessToken, int $country_id): array
     {
         try {
             $decoded = JWT::decode(
@@ -609,18 +609,11 @@ class Workflow
                 new Key(self::JWT_SECRET, 'HS256')
             );
 
-            $role = strtoupper($decoded->role ?? '');
+            // Optional role validation
+            // $role = strtoupper($decoded->role ?? '');
+            // if (!in_array($role, ['ADMIN', 'SUPER_ADMIN'])) { ... }
 
-            // Optional role check
-            // if (!in_array($role, ['ADMIN', 'SUPER_ADMIN'])) {
-            //     http_response_code(403);
-            //     return [
-            //         "status" => "error",
-            //         "message" => "Unauthorized access"
-            //     ];
-            // }
-
-            $states = $this->model->getState();
+            $states = $this->model->getStateByCountry($country_id);
 
             return [
                 "status" => "success",
@@ -635,7 +628,7 @@ class Workflow
             ];
         }
     }
-    public function listDistrict(string $accessToken): array
+    public function listDistrict(string $accessToken, int $state_id): array
     {
         try {
             $decoded = JWT::decode(
@@ -643,22 +636,15 @@ class Workflow
                 new Key(self::JWT_SECRET, 'HS256')
             );
 
-            $role = strtoupper($decoded->role ?? '');
+            // Optional role validation
+            // $role = strtoupper($decoded->role ?? '');
+            // if (!in_array($role, ['ADMIN', 'SUPER_ADMIN'])) { ... }
 
-            // Optional role check
-            // if (!in_array($role, ['ADMIN', 'SUPER_ADMIN'])) {
-            //     http_response_code(403);
-            //     return [
-            //         "status" => "error",
-            //         "message" => "Unauthorized access"
-            //     ];
-            // }
-
-            $states = $this->model->getDistrict();
+            $districts = $this->model->getDistrictByState($state_id);
 
             return [
                 "status" => "success",
-                "data"   => $states
+                "data"   => $districts
             ];
 
         } catch (\Throwable $e) {
@@ -672,35 +658,45 @@ class Workflow
     public function listGymBranches(string $accessToken, array $filters): array
     {
         try {
-            /* ================= AUTH VALIDATION ================= */
-
-            $decoded = JWT::decode(
+            /* ========= AUTH ========= */
+            JWT::decode(
                 $accessToken,
                 new Key(self::JWT_SECRET, 'HS256')
             );
 
-            /* ================= FILTER SANITIZATION ================= */
-
-            $filterData = [];
-
-            // If gym_id passed in query
-            if (!empty($filters['gym_id'])) {
-                $filterData['gym_id'] = (int)$filters['gym_id'];
-            }
-            // Otherwise restrict by token gym_id
-            elseif (!empty($decoded->gym_id)) {
-                $filterData['gym_id'] = (int)$decoded->gym_id;
-            }
-
-            /* ================= FETCH DATA ================= */
-
-            $branches = $this->model->getGymBranches($filterData);
+            $branches = $this->model->getGymBranches($filters);
 
             return [
                 "status"  => "success",
                 "message" => "Gym branches fetched successfully",
                 "count"   => count($branches),
                 "data"    => $branches
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(401);
+            return [
+                "status"  => "error",
+                "message" => "Invalid or expired token"
+            ];
+        }
+    }
+    public function listCities(string $accessToken, array $filters): array
+    {
+        try {
+            /* ========= AUTH ========= */
+            JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            $cities = $this->model->getCities($filters);
+
+            return [
+                "status"  => "success",
+                "message" => "City list fetched successfully",
+                "count"   => count($cities),
+                "data"    => $cities
             ];
 
         } catch (\Throwable $e) {
@@ -814,5 +810,42 @@ class Workflow
             ];
         }
     }
+    public function listMembershipPlan(string $accessToken,int $gym_id,int $branch_id): array
+    {
+        try {
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
 
+            // Optional role validation
+            // $role = strtoupper($decoded->role ?? '');
+            // if (!in_array($role, ['ADMIN', 'OWNER'])) { ... }
+
+            $plans = $this->model->getMembershipPlanByGymBranch(
+                $gym_id,
+                $branch_id
+            );
+
+            if (empty($plans)) {
+                return [
+                    "status"  => "success",
+                    "message" => "No membership plans found",
+                    "data"    => []
+                ];
+            }
+
+            return [
+                "status" => "success",
+                "data"   => $plans
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(401);
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired token"
+            ];
+        }
+    }
 }
