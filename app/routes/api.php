@@ -73,7 +73,7 @@ function route(string $method, string $path): void
             $controller->listCities();
             return;
 
-        case $method === 'POST' && $path === '/api/addMember':
+        case $method === 'POST' && $path === '/api/members/addMember':
             $controller->addMember();
             return;
         
