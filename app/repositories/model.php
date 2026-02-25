@@ -991,4 +991,367 @@ class Model
             ];
         }, $plans);
     }
+    public function insertAttendanceWithSession(array $data): void
+    {
+        $this->db->beginTransaction();
+
+        try {
+            /* ========= CHECK EXISTING ATTENDANCE ========= */
+            $stmt = $this->db->prepare("
+                SELECT attendance_id, total_sessions
+                FROM attendance_logs
+                WHERE user_id = :user_id
+                AND attendance_date = :attendance_date
+                LIMIT 1
+            ");
+
+            $stmt->execute([
+                'user_id'         => $data['user_id'],
+                'attendance_date' => $data['attendance_date']
+            ]);
+
+            $attendance = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            /* ========= CASE 1: FIRST ENTRY OF THE DAY ========= */
+            if (!$attendance) {
+
+                // Insert attendance_logs
+                $stmt = $this->db->prepare("
+                    INSERT INTO attendance_logs (
+                        user_id,
+                        gym_id,
+                        branch_id,
+                        shift_id,
+                        role_type,
+                        attendance_date,
+                        total_sessions,
+                        status,
+                        created_at
+                    ) VALUES (
+                        :user_id,
+                        :gym_id,
+                        :branch_id,
+                        :shift_id,
+                        :role_type,
+                        :attendance_date,
+                        1,
+                        :status,
+                        NOW()
+                    )
+                ");
+
+                $stmt->execute([
+                    'user_id'         => $data['user_id'],
+                    'gym_id'          => $data['gym_id'],
+                    'branch_id'       => $data['branch_id'],
+                    'shift_id'        => $data['shift_id'],
+                    'role_type'       => $data['role_type'],
+                    'attendance_date' => $data['attendance_date'],
+                    'status'          => $data['status']
+                ]);
+
+                $attendanceId = (int)$this->db->lastInsertId();
+                $sessionNo = 1;
+
+            } 
+            /* ========= CASE 2: ALREADY PRESENT ========= */
+            else {
+
+                $attendanceId = (int)$attendance['attendance_id'];
+                $sessionNo    = (int)$attendance['total_sessions'] + 1;
+
+                // Update total_sessions
+                $stmt = $this->db->prepare("
+                    UPDATE attendance_logs
+                    SET total_sessions = total_sessions + 1,
+                        updated_at = NOW()
+                    WHERE attendance_id = :attendance_id
+                ");
+
+                $stmt->execute([
+                    'attendance_id' => $attendanceId
+                ]);
+            }
+
+            /* ========= INSERT SESSION ========= */
+            $stmt = $this->db->prepare("
+                INSERT INTO attendance_sessions (
+                    attendance_id,
+                    user_id,
+                    gym_id,
+                    branch_id,
+                    shift_id,
+                    device_id,
+                    session_no,
+                    check_in_time,
+                    source,
+                    remarks,
+                    created_at
+                ) VALUES (
+                    :attendance_id,
+                    :user_id,
+                    :gym_id,
+                    :branch_id,
+                    :shift_id,
+                    :device_id,
+                    :session_no,
+                    :check_in_time,
+                    :source,
+                    :remarks,
+                    NOW()
+                )
+            ");
+
+            $stmt->execute([
+                'attendance_id' => $attendanceId,
+                'user_id'       => $data['user_id'],
+                'gym_id'        => $data['gym_id'],
+                'branch_id'     => $data['branch_id'],
+                'shift_id'      => $data['shift_id'],
+                'device_id'     => $data['device_id'],
+                'session_no'    => $sessionNo,
+                'check_in_time' => $data['check_in_time'],
+                'source'        => $data['source'],
+                'remarks'       => $data['remarks']
+            ]);
+
+            $this->db->commit();
+
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+    public function checkOutAttendance(array $data): bool
+    {
+        $this->db->beginTransaction();
+
+        try {
+            /* ========= FIND OPEN SESSION ========= */
+            $stmt = $this->db->prepare("
+                SELECT 
+                    s.session_id,
+                    s.attendance_id,
+                    s.check_in_time
+                FROM attendance_sessions s
+                WHERE s.user_id = :user_id
+                AND s.check_out_time IS NULL
+                ORDER BY s.check_in_time DESC
+                LIMIT 1
+            ");
+
+            $stmt->execute([
+                'user_id' => $data['user_id']
+            ]);
+
+            $session = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$session) {
+                $this->db->rollBack();
+                return false;
+            }
+
+            /* ========= UPDATE SESSION ========= */
+            $stmt = $this->db->prepare("
+                UPDATE attendance_sessions
+                SET 
+                    check_out_time = NOW(),
+                    updated_at = NOW()
+                WHERE session_id = :session_id
+            ");
+
+            $stmt->execute([
+                'session_id' => $session['session_id']
+            ]);
+
+            /* ========= CALCULATE DURATION ========= */
+            $stmt = $this->db->prepare("
+                SELECT 
+                    TIMESTAMPDIFF(
+                        MINUTE,
+                        check_in_time,
+                        check_out_time
+                    ) AS duration
+                FROM attendance_sessions
+                WHERE session_id = :session_id
+            ");
+
+            $stmt->execute([
+                'session_id' => $session['session_id']
+            ]);
+
+            $duration = (int)$stmt->fetchColumn();
+
+            /* ========= UPDATE DAILY TOTAL ========= */
+            $stmt = $this->db->prepare("
+                UPDATE attendance_logs
+                SET total_duration_min = total_duration_min + :duration,
+                    updated_at = NOW()
+                WHERE attendance_id = :attendance_id
+            ");
+
+            $stmt->execute([
+                'duration'      => $duration,
+                'attendance_id' => $session['attendance_id']
+            ]);
+
+            $this->db->commit();
+            return true;
+
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+    public function getAttendanceList(array $filters): array
+    {
+        $offset = ((int)$filters['page'] - 1) * (int)$filters['limit'];
+
+        $where = [];
+        $params = [];
+
+        if (!empty($filters['from_date'])) {
+            $where[] = "al.attendance_date >= :from_date";
+            $params['from_date'] = $filters['from_date'];
+        }
+
+        if (!empty($filters['to_date'])) {
+            $where[] = "al.attendance_date <= :to_date";
+            $params['to_date'] = $filters['to_date'];
+        }
+
+        if (!empty($filters['branch_id'])) {
+            $where[] = "al.branch_id = :branch_id";
+            $params['branch_id'] = $filters['branch_id'];
+        }
+
+        if (!empty($filters['district_id'])) {
+            $where[] = "d.id = :district_id";
+            $params['district_id'] = $filters['district_id'];
+        }
+
+        if (!empty($filters['state_id'])) {
+            $where[] = "s.id = :state_id";
+            $params['state_id'] = $filters['state_id'];
+        }
+
+        $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $sql = "
+            SELECT
+                al.attendance_id,
+                al.attendance_date,
+                al.total_sessions,
+                al.total_duration_min,
+                al.status,
+
+                u.user_id,
+                u.name AS user_name,
+                u.phone,
+                u.role,
+
+                up.gender,
+                up.date_of_birth,
+
+                b.branch_name,
+                d.district_name,
+                s.state_name,
+                gs.shift_name
+
+            FROM attendance_logs al
+
+            JOIN users u ON u.user_id = al.user_id
+            LEFT JOIN users_profile up ON up.user_id = u.user_id
+            LEFT JOIN gym_branches b ON b.branch_id = al.branch_id
+            LEFT JOIN districts d ON d.district_id = b.district_id
+            LEFT JOIN states s ON s.state_id = d.state_id
+            LEFT JOIN gym_shifts gs ON gs.shift_id = al.shift_id
+
+            $whereSql
+            ORDER BY al.attendance_date DESC
+            LIMIT :limit OFFSET :offset
+        ";
+
+        $stmt = $this->db->prepare($sql);
+
+        foreach ($params as $key => $value) {
+            $stmt->bindValue(":$key", $value);
+        }
+
+        $stmt->bindValue(':limit', (int)$filters['limit'], PDO::PARAM_INT);
+        $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
+
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    public function getUserAttendanceSummary(int $userId, string $date): ?array
+    {
+        $sql = "
+            SELECT
+                al.attendance_id,
+                al.attendance_date,
+                al.total_sessions,
+                al.total_duration_min,
+                al.status,
+
+                u.name AS user_name,
+                u.email,
+                u.phone,
+                u.role,
+
+                b.branch_name
+
+            FROM attendance_logs al
+            JOIN users u ON u.user_id = al.user_id
+            LEFT JOIN gym_branches b ON b.branch_id = al.branch_id
+
+            WHERE al.user_id = :user_id
+            AND al.attendance_date = :attendance_date
+            LIMIT 1
+        ";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            'user_id' => $userId,
+            'attendance_date' => $date
+        ]);
+
+        $data = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $data ?: null;
+    }
+    public function getAttendanceSessions(int $attendanceId): array
+    {
+        $sql = "
+            SELECT
+                session_no,
+                device_id,
+                check_in_time,
+                check_out_time,
+                duration_min,
+                source
+            FROM attendance_sessions
+            WHERE attendance_id = :attendance_id
+            ORDER BY session_no ASC
+        ";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            'attendance_id' => $attendanceId
+        ]);
+
+        return array_map(function ($s) {
+            return [
+                "session_no" => (int)$s['session_no'],
+                "device"     => $s['source'],
+                "check_in"   => date('h:i a', strtotime($s['check_in_time'])),
+                "check_out"  => $s['check_out_time']
+                    ? date('h:i a', strtotime($s['check_out_time']))
+                    : null,
+                "duration"   => $s['duration_min']
+                    ? floor($s['duration_min'] / 60) . "h " . ($s['duration_min'] % 60) . "m"
+                    : null
+            ];
+        }, $stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
 }

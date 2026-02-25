@@ -591,4 +591,128 @@ class Controller
 
         echo json_encode($response);
     }
+    public function addAttendance(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+        $data = json_decode(file_get_contents("php://input"), true);
+
+        /* ===== BASIC VALIDATION ===== */
+        $required = ['user_id', 'gym_id', 'branch_id', 'attendance_date'];
+
+        foreach ($required as $field) {
+            if (empty($data[$field])) {
+                http_response_code(400);
+                echo json_encode([
+                    "status" => "error",
+                    "message" => "$field is required"
+                ]);
+                return;
+            }
+        }
+
+        $response = $this->workflow->addAttendance($accessToken, $data);
+        echo json_encode($response);
+    }
+    public function checkOutAttendance(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+        $data = json_decode(file_get_contents("php://input"), true);
+
+        if (empty($data['user_id'])) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "user_id is required"
+            ]);
+            return;
+        }
+
+        $response = $this->workflow->checkOutAttendance($accessToken, $data);
+        echo json_encode($response);
+    }
+    public function listAttendance(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $filters = [
+            'from_date' => $_GET['from_date'] ?? null,
+            'to_date'   => $_GET['to_date'] ?? null,
+            'state_id'  => $_GET['state_id'] ?? null,
+            'district_id' => $_GET['district_id'] ?? null,
+            'branch_id' => $_GET['branch_id'] ?? null,
+            'page'      => $_GET['page'] ?? 1,
+            'limit'     => $_GET['limit'] ?? 20
+        ];
+
+        $response = $this->workflow->listAttendance($accessToken, $filters);
+        echo json_encode($response);
+    }
+    public function viewUserAttendanceWithSessions(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $userId = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+        $date   = $_GET['date'] ?? null;
+
+        if (!$userId || !$date) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "user_id and date are required"
+            ]);
+            return;
+        }
+
+        $response = $this->workflow->viewUserAttendanceWithSessions(
+            $accessToken,
+            $userId,
+            $date
+        );
+
+        echo json_encode($response);
+    }
 }

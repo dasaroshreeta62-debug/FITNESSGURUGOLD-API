@@ -93,6 +93,21 @@ function route(string $method, string $path): void
             $controller->listMembershipPlan();
             return;
 
+        case $method === 'POST' && $path === '/api/attendance/checkIn':
+            $controller->addAttendance();
+            return;
+        case $method === 'PUT' && $path === '/api/attendance/checkOut':
+            $controller->checkOutAttendance();
+            return;
+
+        case $method === 'PUT' && $path === '/api/attendance/viewAttendanceList':
+            $controller->listAttendance();
+            return;
+
+        case $method === 'GET' && $path === '/api/attendance/userSessions':
+            $controller->viewUserAttendanceWithSessions();
+            return;
+
         // ================= DEFAULT =================
         default:
             http_response_code(404);

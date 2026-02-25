@@ -848,4 +848,153 @@ class Workflow
             ];
         }
     }
+    public function addAttendance(string $accessToken, array $data): array
+    {
+        try {
+            JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
+
+            $payload = [
+                'user_id'         => (int)$data['user_id'],
+                'gym_id'          => (int)$data['gym_id'],
+                'branch_id'       => (int)$data['branch_id'],
+                'shift_id'        => $data['shift_id'] ?? null,
+                'role_type'       => $data['role_type'] ?? 'MEMBER',
+                'attendance_date' => $data['attendance_date'],
+                'total_sessions'  => $data['total_sessions'] ?? 1,
+                'status'          => $data['status'] ?? 'ON_TIME',
+
+                /* SESSION DATA */
+                'check_in_time'   => $data['check_in_time'],
+                'source'          => $data['source'] ?? 'DEVICE',
+                'device_id'       => $data['device_id'],
+                'remarks'         => $data['remarks'] ?? null
+            ];
+
+            $this->model->insertAttendanceWithSession($payload);
+
+            return [
+                "status"  => "success",
+                "message" => "Attendance & session recorded successfully"
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return [
+                "status" => "error",
+                "message" => "Failed to record attendance",
+                "error" => $e->getMessage()
+            ];
+        }
+    }
+    public function checkOutAttendance(string $accessToken, array $data): array
+    {
+        try {
+            /* ========= AUTH ========= */
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            /* ========= CHECKOUT ========= */
+            $result = $this->model->checkOutAttendance($data);
+
+            if (!$result) {
+                http_response_code(404);
+                return [
+                    "status" => "error",
+                    "message" => "No active session found for checkout"
+                ];
+            }
+
+            return [
+                "status"  => "success",
+                "message" => "Checked out successfully"
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return [
+                "status"  => "error",
+                "message" => "Checkout failed",
+                "error"   => $e->getMessage()
+            ];
+        }
+    }
+    public function listAttendance(string $accessToken, array $filters): array
+    {
+        try {
+            /* ========= AUTH ========= */
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            $data = $this->model->getAttendanceList($filters);
+
+            return [
+                "status" => "success",
+                "page"   => (int)$filters['page'],
+                "limit"  => (int)$filters['limit'],
+                "data"   => $data
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return [
+                "status"  => "error",
+                "message" => "Failed to fetch attendance list",
+                "error"   => $e->getMessage()
+            ];
+        }
+    }
+    public function viewUserAttendanceWithSessions(
+        string $accessToken,
+        int $userId,
+        string $date
+    ): array {
+        try {
+            JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
+
+            $attendance = $this->model->getUserAttendanceSummary($userId, $date);
+
+            if (!$attendance) {
+                return [
+                    "status" => "error",
+                    "message" => "Attendance not found"
+                ];
+            }
+
+            $sessions = $this->model->getAttendanceSessions(
+                $attendance['attendance_id']
+            );
+
+            return [
+                "status" => "success",
+                "data" => [
+                    "user" => [
+                        "name"   => $attendance['user_name'],
+                        "email"  => $attendance['email'],
+                        "phone"  => $attendance['phone'],
+                        "role"   => $attendance['role'],
+                        "branch" => $attendance['branch_name'],
+                        "date"   => $attendance['attendance_date']
+                    ],
+                    "attendance_summary" => [
+                        "total_sessions" => (int)$attendance['total_sessions'],
+                        "total_duration" => $attendance['total_duration_min'],
+                        "status"          => $attendance['status']
+                    ],
+                    "sessions" => $sessions
+                ]
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(401);
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired token",
+                "error"   => $e->getMessage()
+            ];
+        }
+    }
 }
