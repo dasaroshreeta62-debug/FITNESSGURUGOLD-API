@@ -996,26 +996,29 @@ class Model
         $this->db->beginTransaction();
 
         try {
-            /* ========= CHECK EXISTING ATTENDANCE ========= */
+            date_default_timezone_set('Asia/Kolkata');
+            $now = date('Y-m-d H:i:s');
+            $attendanceDate = date('Y-m-d'); // always IST date
+
+            /* ========= LOCK EXISTING ATTENDANCE ========= */
             $stmt = $this->db->prepare("
                 SELECT attendance_id, total_sessions
                 FROM attendance_logs
                 WHERE user_id = :user_id
                 AND attendance_date = :attendance_date
-                LIMIT 1
+                FOR UPDATE
             ");
 
             $stmt->execute([
                 'user_id'         => $data['user_id'],
-                'attendance_date' => $data['attendance_date']
+                'attendance_date' => $attendanceDate
             ]);
 
             $attendance = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            /* ========= CASE 1: FIRST ENTRY OF THE DAY ========= */
+            /* ========= FIRST CHECK-IN OF THE DAY ========= */
             if (!$attendance) {
 
-                // Insert attendance_logs
                 $stmt = $this->db->prepare("
                     INSERT INTO attendance_logs (
                         user_id,
@@ -1026,7 +1029,8 @@ class Model
                         attendance_date,
                         total_sessions,
                         status,
-                        created_at
+                        created_at,
+                        updated_at
                     ) VALUES (
                         :user_id,
                         :gym_id,
@@ -1036,7 +1040,8 @@ class Model
                         :attendance_date,
                         1,
                         :status,
-                        NOW()
+                        :created_at,
+                        :updated_at
                     )
                 ");
 
@@ -1045,31 +1050,33 @@ class Model
                     'gym_id'          => $data['gym_id'],
                     'branch_id'       => $data['branch_id'],
                     'shift_id'        => $data['shift_id'],
-                    'role_type'       => $data['role_type'],
-                    'attendance_date' => $data['attendance_date'],
-                    'status'          => $data['status']
+                    'role_type'       => $data['role_type'] ?? 'MEMBER',
+                    'attendance_date' => $attendanceDate,
+                    'status'          => $data['status'] ?? 'ON_TIME',
+                    'created_at'      => $now,
+                    'updated_at'      => $now
                 ]);
 
                 $attendanceId = (int)$this->db->lastInsertId();
                 $sessionNo = 1;
 
             } 
-            /* ========= CASE 2: ALREADY PRESENT ========= */
+            /* ========= MULTIPLE SESSIONS ========= */
             else {
 
                 $attendanceId = (int)$attendance['attendance_id'];
                 $sessionNo    = (int)$attendance['total_sessions'] + 1;
 
-                // Update total_sessions
                 $stmt = $this->db->prepare("
                     UPDATE attendance_logs
                     SET total_sessions = total_sessions + 1,
-                        updated_at = NOW()
+                        updated_at = :updated_at
                     WHERE attendance_id = :attendance_id
                 ");
 
                 $stmt->execute([
-                    'attendance_id' => $attendanceId
+                    'attendance_id' => $attendanceId,
+                    'updated_at'    => $now
                 ]);
             }
 
@@ -1086,7 +1093,8 @@ class Model
                     check_in_time,
                     source,
                     remarks,
-                    created_at
+                    created_at,
+                    updated_at
                 ) VALUES (
                     :attendance_id,
                     :user_id,
@@ -1098,7 +1106,8 @@ class Model
                     :check_in_time,
                     :source,
                     :remarks,
-                    NOW()
+                    :created_at,
+                    :updated_at
                 )
             ");
 
@@ -1108,11 +1117,13 @@ class Model
                 'gym_id'        => $data['gym_id'],
                 'branch_id'     => $data['branch_id'],
                 'shift_id'      => $data['shift_id'],
-                'device_id'     => $data['device_id'],
+                'device_id'     => $data['device_id'] ?? null,
                 'session_no'    => $sessionNo,
-                'check_in_time' => $data['check_in_time'],
-                'source'        => $data['source'],
-                'remarks'       => $data['remarks']
+                'check_in_time' => $now,
+                'source'        => $data['source'] ?? 'DEVICE',
+                'remarks'       => $data['remarks'] ?? null,
+                'created_at'    => $now,
+                'updated_at'    => $now
             ]);
 
             $this->db->commit();
@@ -1127,21 +1138,30 @@ class Model
         $this->db->beginTransaction();
 
         try {
-            /* ========= FIND OPEN SESSION ========= */
+            date_default_timezone_set('Asia/Kolkata');
+            $now  = date('Y-m-d H:i:s');
+            $today = date('Y-m-d');
+
+            /* ========= FIND TODAY'S OPEN SESSION ========= */
             $stmt = $this->db->prepare("
                 SELECT 
                     s.session_id,
                     s.attendance_id,
                     s.check_in_time
                 FROM attendance_sessions s
+                JOIN attendance_logs l 
+                    ON l.attendance_id = s.attendance_id
                 WHERE s.user_id = :user_id
+                AND l.attendance_date = :attendance_date
                 AND s.check_out_time IS NULL
                 ORDER BY s.check_in_time DESC
                 LIMIT 1
+                FOR UPDATE
             ");
 
             $stmt->execute([
-                'user_id' => $data['user_id']
+                'user_id'         => $data['user_id'],
+                'attendance_date'=> $today
             ]);
 
             $session = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -1151,47 +1171,42 @@ class Model
                 return false;
             }
 
+            /* ========= CALCULATE DURATION ========= */
+            $checkIn  = new DateTime($session['check_in_time']);
+            $checkOut = new DateTime($now);
+
+            $duration = floor(
+                ($checkOut->getTimestamp() - $checkIn->getTimestamp()) / 60
+            );
+            $duration = max(0, $duration);
+
             /* ========= UPDATE SESSION ========= */
             $stmt = $this->db->prepare("
                 UPDATE attendance_sessions
                 SET 
-                    check_out_time = NOW(),
-                    updated_at = NOW()
+                    check_out_time = :check_out_time,
+                    updated_at     = :updated_at
                 WHERE session_id = :session_id
             ");
 
             $stmt->execute([
-                'session_id' => $session['session_id']
+                'check_out_time' => $now,
+                'updated_at'     => $now,
+                'session_id'     => $session['session_id']
             ]);
-
-            /* ========= CALCULATE DURATION ========= */
-            $stmt = $this->db->prepare("
-                SELECT 
-                    TIMESTAMPDIFF(
-                        MINUTE,
-                        check_in_time,
-                        check_out_time
-                    ) AS duration
-                FROM attendance_sessions
-                WHERE session_id = :session_id
-            ");
-
-            $stmt->execute([
-                'session_id' => $session['session_id']
-            ]);
-
-            $duration = (int)$stmt->fetchColumn();
 
             /* ========= UPDATE DAILY TOTAL ========= */
             $stmt = $this->db->prepare("
                 UPDATE attendance_logs
-                SET total_duration_min = total_duration_min + :duration,
-                    updated_at = NOW()
+                SET 
+                    total_duration_min = total_duration_min + :duration,
+                    updated_at         = :updated_at
                 WHERE attendance_id = :attendance_id
             ");
 
             $stmt->execute([
                 'duration'      => $duration,
+                'updated_at'    => $now,
                 'attendance_id' => $session['attendance_id']
             ]);
 

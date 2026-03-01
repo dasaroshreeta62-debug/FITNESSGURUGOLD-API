@@ -608,7 +608,7 @@ class Controller
         $data = json_decode(file_get_contents("php://input"), true);
 
         /* ===== BASIC VALIDATION ===== */
-        $required = ['user_id', 'gym_id', 'branch_id', 'attendance_date'];
+        $required = ['user_id', 'gym_id', 'branch_id'];
 
         foreach ($required as $field) {
             if (empty($data[$field])) {

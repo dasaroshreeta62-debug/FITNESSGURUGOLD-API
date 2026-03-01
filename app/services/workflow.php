@@ -859,12 +859,10 @@ class Workflow
                 'branch_id'       => (int)$data['branch_id'],
                 'shift_id'        => $data['shift_id'] ?? null,
                 'role_type'       => $data['role_type'] ?? 'MEMBER',
-                'attendance_date' => $data['attendance_date'],
                 'total_sessions'  => $data['total_sessions'] ?? 1,
                 'status'          => $data['status'] ?? 'ON_TIME',
 
                 /* SESSION DATA */
-                'check_in_time'   => $data['check_in_time'],
                 'source'          => $data['source'] ?? 'DEVICE',
                 'device_id'       => $data['device_id'],
                 'remarks'         => $data['remarks'] ?? null
