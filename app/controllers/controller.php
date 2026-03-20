@@ -390,16 +390,7 @@ class Controller
     }
     public function listGymBranches(): void
     {
-        $headers = getallheaders();
-
-        if (empty($headers['Authorization'])) {
-            http_response_code(401);
-            echo json_encode([
-                "status" => "error",
-                "message" => "Authorization token missing"
-            ]);
-            return;
-        }
+        // ❌ REMOVE AUTH CHECK COMPLETELY
 
         if (empty($_GET['gym_id'])) {
             http_response_code(400);
@@ -410,13 +401,11 @@ class Controller
             return;
         }
 
-        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
-
         $filters = [
             'gym_id' => (int)$_GET['gym_id']
         ];
 
-        $response = $this->workflow->listGymBranches($accessToken, $filters);
+        $response = $this->workflow->listGymBranches($filters);
         echo json_encode($response);
     }
     public function listCities(): void

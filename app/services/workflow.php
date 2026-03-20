@@ -655,33 +655,18 @@ class Workflow
             ];
         }
     }
-    public function listGymBranches(string $accessToken, array $filters): array
+    public function listGymBranches(array $filters): array
     {
-        try {
-            /* ========= AUTH ========= */
-            JWT::decode(
-                $accessToken,
-                new Key(self::JWT_SECRET, 'HS256')
-            );
+        $branches = $this->model->getGymBranches($filters);
 
-            $branches = $this->model->getGymBranches($filters);
-
-            return [
-                "status"  => "success",
-                "message" => "Gym branches fetched successfully",
-                "count"   => count($branches),
-                "data"    => $branches
-            ];
-
-        } catch (\Throwable $e) {
-            http_response_code(401);
-            return [
-                "status"  => "error",
-                "message" => "Invalid or expired token"
-            ];
-        }
+        return [
+            "status"  => "success",
+            "message" => "Gym branches fetched successfully",
+            "count"   => count($branches),
+            "data"    => $branches
+        ];
     }
-    public function listCities(string $accessToken, array $filters): array
+        public function listCities(string $accessToken, array $filters): array
     {
         try {
             /* ========= AUTH ========= */
