@@ -11,7 +11,7 @@ class Workflow
     private Model $model;
 
     private const JWT_SECRET  = '12b5a9899ecf1ce62e6af2dfbf8caecadf7bdcaa6e8bc92aeaf94871d9a100d1';
-    private const ACCESS_EXP  = 3600;
+    private const ACCESS_EXP  = 604800;
     private const REFRESH_EXP = 604800;
 
     public function __construct()
@@ -692,39 +692,121 @@ class Workflow
             ];
         }
     }
-    public function addMember(array $data): bool
+    // public function addMember(array $data): bool
+    // {
+    //     $payload = [
+    //         'name'             => $data['name'],
+    //         'email'            => $data['email'],
+    //         'phone'            => $data['phone'],
+    //         'password'         => password_hash($data['password'], PASSWORD_BCRYPT),
+
+    //         'gym_id'           => $data['gym_id'],
+    //         'branch_id'        => $data['branch_id'],
+
+    //         'join_date'        => $data['join_date'] ?? date('Y-m-d'),
+    //         'status'           => $data['status'] ?? 1,
+    //         'membership_plan'  => $data['membership_plan'] ?? null,
+
+    //         'dob'              => $data['dob'] ?? null,
+    //         'gender'           => $data['gender'] ?? null,
+    //         'blood_group'      => $data['blood_group'] ?? null,
+    //         'height'           => $data['height'] ?? null,
+    //         'weight'           => $data['weight'] ?? null,
+    //         'fitness_level'    => $data['fitness_level'] ?? null,
+    //         'goal_focus'       => $data['goal_focus'] ?? null,
+
+    //         'country'          => $data['country'] ?? null,
+    //         'state'            => $data['state'] ?? null,
+    //         'district'         => $data['district'] ?? null,
+    //         'city'             => $data['city'] ?? null,
+    //         'address_line1'    => $data['address_line1'] ?? null,
+    //         'address_line2'    => $data['address_line2'] ?? null,
+    //         'emergency_contact'  => $data['emergency_contact'] ?? null
+    //     ];
+
+    //     return $this->model->insertMember($payload);
+    // }
+    public function addMember(array $data): array
     {
-        $payload = [
-            'name'             => $data['name'],
-            'email'            => $data['email'],
-            'phone'            => $data['phone'],
-            'password'         => password_hash($data['password'], PASSWORD_BCRYPT),
+        try {
+            $payload = [
+                'name'             => $data['name'],
+                'email'            => strtolower(trim($data['email'])),
+                'phone'            => $data['phone'],
+                'password'         => $data['password'],
+                'gym_id'           => $data['gym_id'],
+                'branch_id'        => $data['branch_id'],
+                'role'             => 'MEMBER',
 
-            'gym_id'           => $data['gym_id'],
-            'branch_id'        => $data['branch_id'],
+                'join_date'        => $data['join_date'] ?? date('Y-m-d'),
+                'status'           => $data['status'] ?? 1,
+                'membership_plan'  => $data['membership_plan'] ?? null,
 
-            'join_date'        => $data['join_date'] ?? date('Y-m-d'),
-            'status'           => $data['status'] ?? 1,
-            'membership_plan'  => $data['membership_plan'] ?? null,
+                'dob'              => $data['dob'] ?? null,
+                'gender'           => $data['gender'] ?? null,
+                'blood_group'      => $data['blood_group'] ?? null,
+                'height'           => $data['height'] ?? null,
+                'weight'           => $data['weight'] ?? null,
+                'fitness_level'    => $data['fitness_level'] ?? null,
+                'goal_focus'       => $data['goal_focus'] ?? null,
 
-            'dob'              => $data['dob'] ?? null,
-            'gender'           => $data['gender'] ?? null,
-            'blood_group'      => $data['blood_group'] ?? null,
-            'height'           => $data['height'] ?? null,
-            'weight'           => $data['weight'] ?? null,
-            'fitness_level'    => $data['fitness_level'] ?? null,
-            'goal_focus'       => $data['goal_focus'] ?? null,
+                'country'          => $data['country'] ?? null,
+                'state'            => $data['state'] ?? null,
+                'district'         => $data['district'] ?? null,
+                'city'             => $data['city'] ?? null,
+                'address_line1'    => $data['address_line1'] ?? null,
+                'address_line2'    => $data['address_line2'] ?? null,
+                'emergency_contact'=> $data['emergency_contact'] ?? null
+            ];
 
-            'country'          => $data['country'] ?? null,
-            'state'            => $data['state'] ?? null,
-            'district'         => $data['district'] ?? null,
-            'city'             => $data['city'] ?? null,
-            'address_line1'    => $data['address_line1'] ?? null,
-            'address_line2'    => $data['address_line2'] ?? null,
-            'emergency_contact'  => $data['emergency_contact'] ?? null
-        ];
+            $result = $this->model->insertMember($payload);
 
-        return $this->model->insertMember($payload);
+            if ($result === false) {
+                throw new Exception("Insert failed");
+            }
+
+            $userId = $result['user_id'];
+
+            // 🔥 Fetch full member details
+            $fullData = $this->model->fetchMemberDetails($userId);
+
+            $now = time();
+
+            // 🔥 Generate JWT tokens (same as register)
+            $accessToken = JWT::encode([
+                "iss"  => "fitness-guru",
+                "sub"  => $userId,
+                "role" => "MEMBER",
+                "iat"  => $now,
+                "exp"  => $now + self::ACCESS_EXP
+            ], self::JWT_SECRET, 'HS256');
+
+            $refreshToken = JWT::encode([
+                "sub" => $userId,
+                "iat" => $now,
+                "exp" => $now + self::REFRESH_EXP
+            ], self::JWT_SECRET, 'HS256');
+
+            // Save refresh token
+            $this->model->updateLogin($userId, $refreshToken);
+
+            return [
+                "status" => "success",
+                "message" => "Member added successfully",
+                "user" => $fullData,
+                "tokens" => [
+                    "access_token"  => $accessToken,
+                    "refresh_token" => $refreshToken,
+                    "expires_in"    => self::ACCESS_EXP
+                ]
+            ];
+
+        } catch (Exception $e) {
+            return [
+                "status" => "error",
+                "message" => "Failed to add member"
+            ];
+        }
     }
     public function getMemberDetails(int $user_id): array|false
     {
@@ -977,6 +1059,46 @@ class Workflow
                 "status" => "error",
                 "message" => "Invalid or expired token",
                 "error"   => $e->getMessage()
+            ];
+        }
+    }
+    public function submitContactForm(array $data): array
+    {
+        try {
+            $this->model->insertContactForm($data);
+
+            return [
+                "status" => "success",
+                "message" => "Form submitted successfully"
+            ];
+
+        } catch (Exception $e) {
+            return [
+                "status" => "error",
+                "message" => "Something went wrong"
+            ];
+        }
+    }
+    public function getContactList(int $limit, int $offset): array
+    {
+        try {
+            $data  = $this->model->fetchContactList($limit, $offset);
+            $total = $this->model->countContactList();
+
+            return [
+                "status" => "success",
+                "data"   => $data,
+                "pagination" => [
+                    "total" => $total,
+                    "limit" => $limit,
+                    "offset" => $offset
+                ]
+            ];
+
+        } catch (Exception $e) {
+            return [
+                "status" => "error",
+                "message" => "Failed to fetch data"
             ];
         }
     }

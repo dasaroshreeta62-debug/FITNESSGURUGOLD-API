@@ -439,6 +439,45 @@ class Controller
         $response = $this->workflow->listCities($accessToken, $filters);
         echo json_encode($response);
     }
+    // public function addMember()
+    // {
+    //     $data = $_POST;
+
+    //     if (empty($data)) {
+    //         $data = json_decode(file_get_contents("php://input"), true);
+    //     }
+
+    //     if (
+    //         empty($data['name']) ||
+    //         empty($data['email']) ||
+    //         empty($data['phone']) ||
+    //         empty($data['password']) ||
+    //         empty($data['branch_id']) ||
+    //         empty($data['gym_id'])
+    //     ) {
+    //         http_response_code(400);
+    //         echo json_encode([
+    //             "status" => "error",
+    //             "message" => "Required fields missing"
+    //         ]);
+    //         return;
+    //     }
+
+    //     $success = $this->workflow->addMember($data);
+
+    //     if ($success) {
+    //         echo json_encode([
+    //             "status" => "success",
+    //             "message" => "Member added successfully"
+    //         ]);
+    //     } else {
+    //         http_response_code(500);
+    //         echo json_encode([
+    //             "status" => "error",
+    //             "message" => "Failed to add member"
+    //         ]);
+    //     }
+    // }
     public function addMember()
     {
         $data = $_POST;
@@ -463,19 +502,13 @@ class Controller
             return;
         }
 
-        $success = $this->workflow->addMember($data);
+        $response = $this->workflow->addMember($data);
 
-        if ($success) {
-            echo json_encode([
-                "status" => "success",
-                "message" => "Member added successfully"
-            ]);
+        if ($response['status'] === 'success') {
+            echo json_encode($response);
         } else {
             http_response_code(500);
-            echo json_encode([
-                "status" => "error",
-                "message" => "Failed to add member"
-            ]);
+            echo json_encode($response);
         }
     }
     public function viewMember(): void
@@ -701,6 +734,53 @@ class Controller
             $userId,
             $date
         );
+
+        echo json_encode($response);
+    }
+    public function submitContactForm(): void
+    {
+        $input = json_decode(file_get_contents("php://input"), true);
+
+        if (empty($input)) {
+            $input = $_POST;
+        }
+
+        $name     = trim($input['name'] ?? '');
+        $email    = trim($input['email'] ?? '');
+        $phone    = trim($input['phone'] ?? '');
+        $service  = trim($input['service'] ?? '');
+        $message  = trim($input['message'] ?? '');
+
+        // Validation
+        if (!$name || !$email || !$phone || !$service || !$message) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "All fields are required"
+            ]);
+            return;
+        }
+
+        $response = $this->workflow->submitContactForm([
+            "name" => $name,
+            "email" => $email,
+            "phone" => $phone,
+            "service" => $service,
+            "message" => $message
+        ]);
+
+        echo json_encode($response);
+    }
+    public function getContactList(): void
+    {
+        $page  = (int)($_GET['page'] ?? 1);
+        $limit = (int)($_GET['limit'] ?? 10);
+
+        $page  = max(1, $page);
+        $limit = max(1, $limit);
+        $offset = ($page - 1) * $limit;
+
+        $response = $this->workflow->getContactList($limit, $offset);
 
         echo json_encode($response);
     }

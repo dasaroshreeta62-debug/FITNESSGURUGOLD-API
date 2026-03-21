@@ -576,7 +576,129 @@ class Model
             ];
         }, $branches);
     }
-    public function insertMember(array $data): bool
+    // public function insertMember(array $data): bool
+    // {
+    //     try {
+    //         $this->db->beginTransaction();
+
+    //         /* ========== USERS ========== */
+    //         $stmtUser = $this->db->prepare("
+    //             INSERT INTO users (
+    //                 name, email, phone, password,
+    //                 branch_id, status, role, gym_id
+    //             ) VALUES (
+    //                 :name, :email, :phone, :password,
+    //                 :branch_id, :status, :role, :gym_id
+    //             )
+    //         ");
+
+    //         $stmtUser->execute([
+    //             'name'      => $data['name'],
+    //             'email'     => $data['email'],
+    //             'phone'     => $data['phone'],
+    //             'password'  => password_hash($data['password'], PASSWORD_BCRYPT),
+    //             'branch_id' => $data['branch_id'],
+    //             'status'    => $data['status'],
+    //             'role'      => 'MEMBER',
+    //             'gym_id'    => $data['gym_id'],
+    //         ]);
+
+    //         $user_id = $this->db->lastInsertId();
+
+    //         /* ========== USERS PROFILE ========== */
+    //         $stmtProfile = $this->db->prepare("
+    //             INSERT INTO users_profile (
+    //                 user_id, name, date_of_joining, membership_plan,
+    //                 date_of_birth, gender, blood_group,
+    //                 height_cm, weight_kg, fitness_level, goal_focus,
+    //                 country_id, state_id, district_id, city_id,
+    //                 address_line1, address_line2, emergency_contact
+    //             ) VALUES (
+    //                 :user_id, :name, :date_of_joining, :membership_plan,
+    //                 :date_of_birth, :gender, :blood_group,
+    //                 :height_cm, :weight_kg, :fitness_level, :goal_focus,
+    //                 :country_id, :state_id, :district_id, :city_id,
+    //                 :address_line1, :address_line2, :emergency_contact
+    //             )
+    //         ");
+
+    //         $stmtProfile->execute([
+    //             'user_id'           => $user_id,
+    //             'name'              => $data['name'],
+    //             'date_of_joining'   => $data['join_date'],
+    //             'membership_plan'   => $data['membership_plan'],
+    //             'date_of_birth'     => $data['dob'],
+    //             'gender'            => $data['gender'],
+    //             'blood_group'       => $data['blood_group'],
+    //             'height_cm'         => $data['height'],
+    //             'weight_kg'         => $data['weight'],
+    //             'fitness_level'     => $data['fitness_level'],
+    //             'goal_focus'        => $data['goal_focus'],
+    //             'country_id'        => $data['country'],
+    //             'state_id'          => $data['state'],
+    //             'district_id'       => $data['district'],
+    //             'city_id'           => $data['city'],
+    //             'address_line1'     => $data['address_line1'],
+    //             'address_line2'     => $data['address_line2'],
+    //             'emergency_contact' => $data['emergency_contact']
+    //         ]);
+
+    //         /* ========== GET PLAN DURATION ========== */
+    //         $stmtPlan = $this->db->prepare("
+    //             SELECT duration_months
+    //             FROM membership_plans
+    //             WHERE plan_id = :plan_id
+    //             AND gym_id = :gym_id
+    //             AND branch_id = :branch_id
+    //             AND status = 1
+    //         ");
+
+    //         $stmtPlan->execute([
+    //             'plan_id'   => $data['membership_plan'],
+    //             'gym_id'    => $data['gym_id'],
+    //             'branch_id' => $data['branch_id']
+    //         ]);
+
+    //         $plan = $stmtPlan->fetch(PDO::FETCH_ASSOC);
+
+    //         if (!$plan) {
+    //             throw new Exception('Invalid membership plan');
+    //         }
+
+    //         $startDate = new DateTime($data['join_date']);
+    //         $endDate   = (clone $startDate)->modify("+{$plan['duration_months']} months");
+
+    //         /* ========== SUBSCRIPTIONS ========== */
+    //         $stmtSub = $this->db->prepare("
+    //             INSERT INTO subscriptions (
+    //                 gym_id, branch_id, user_id, plan_id, trainer_id,
+    //                 start_date, end_date, status
+    //             ) VALUES (
+    //                 :gym_id, :branch_id, :user_id, :plan_id, :trainer_id,
+    //                 :start_date, :end_date, 1
+    //             )
+    //         ");
+
+    //         $stmtSub->execute([
+    //             'gym_id'     => $data['gym_id'],
+    //             'branch_id'  => $data['branch_id'],
+    //             'user_id'    => $user_id,
+    //             'plan_id'    => $data['membership_plan'],
+    //             'trainer_id' => $data['trainer_id'] ?? null,
+    //             'start_date' => $startDate->format('Y-m-d'),
+    //             'end_date'   => $endDate->format('Y-m-d')
+    //         ]);
+
+    //         $this->db->commit();
+    //         return true;
+
+    //     } catch (Exception $e) {
+    //         $this->db->rollBack();
+    //         error_log('Insert Member Error: ' . $e->getMessage());
+    //         return false;
+    //     }
+    // }
+    public function insertMember(array $data): array|false
     {
         try {
             $this->db->beginTransaction();
@@ -643,7 +765,7 @@ class Model
                 'emergency_contact' => $data['emergency_contact']
             ]);
 
-            /* ========== GET PLAN DURATION ========== */
+            /* ========== PLAN ========== */
             $stmtPlan = $this->db->prepare("
                 SELECT duration_months
                 FROM membership_plans
@@ -668,7 +790,7 @@ class Model
             $startDate = new DateTime($data['join_date']);
             $endDate   = (clone $startDate)->modify("+{$plan['duration_months']} months");
 
-            /* ========== SUBSCRIPTIONS ========== */
+            /* ========== SUBSCRIPTION ========== */
             $stmtSub = $this->db->prepare("
                 INSERT INTO subscriptions (
                     gym_id, branch_id, user_id, plan_id, trainer_id,
@@ -690,7 +812,10 @@ class Model
             ]);
 
             $this->db->commit();
-            return true;
+
+            return [
+                "user_id" => $user_id
+            ] + $data;
 
         } catch (Exception $e) {
             $this->db->rollBack();
@@ -1368,5 +1493,52 @@ class Model
                     : null
             ];
         }, $stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+    public function insertContactForm(array $data): bool
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO contact_forms (
+                name, email, phone, service, message, created_at
+            ) VALUES (
+                :name, :email, :phone, :service, :message, NOW()
+            )
+        ");
+
+        return $stmt->execute([
+            "name"    => $data['name'],
+            "email"   => $data['email'],
+            "phone"   => $data['phone'],
+            "service" => $data['service'],
+            "message" => $data['message']
+        ]);
+    }
+    public function fetchContactList(int $limit, int $offset): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT 
+                id,
+                name,
+                email,
+                phone,
+                service,
+                message,
+                created_at
+            FROM contact_forms
+            ORDER BY id DESC
+            LIMIT :limit OFFSET :offset
+        ");
+
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function countContactList(): int
+    {
+        $stmt = $this->db->query("SELECT COUNT(*) FROM contact_forms");
+        return (int)$stmt->fetchColumn();
     }
 }

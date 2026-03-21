@@ -108,6 +108,14 @@ function route(string $method, string $path): void
             $controller->viewUserAttendanceWithSessions();
             return;
 
+        case $method === 'POST' && $path === '/api/addContactUs':
+            $controller->submitContactForm();
+            return;
+
+        case $method === 'GET' && $path === '/api/viewContactUs':
+            $controller->getContactList();
+            return;
+
         // ================= DEFAULT =================
         default:
             http_response_code(404);
