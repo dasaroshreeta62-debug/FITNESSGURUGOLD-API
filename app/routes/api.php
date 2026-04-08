@@ -116,6 +116,38 @@ function route(string $method, string $path): void
             $controller->getContactList();
             return;
 
+        case $method === 'POST' && $path === '/api/trainer/addTrainer':
+            $controller->addTrainer();
+            return;
+        
+        case $method === 'GET' && $path === '/api/trainer/getTrainers':
+            $controller->getTrainers();
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/trainer/getTrainer/(\d+)$#', $path, $matches):
+            $controller->getTrainerById((int)$matches[1]);
+            return;
+        
+        case $method === 'PUT' && preg_match('#^/api/trainer/updateTrainer/(\d+)$#', $path, $matches):
+            $controller->updateTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'POST' && $path === '/api/staff/addStaff':
+            $controller->addStaff();
+            return;
+        
+        case $method === 'GET' && $path === '/api/staff/getStaff':
+            $controller->getStaff();
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/staff/getStaff/(\d+)$#', $path, $matches):
+            $controller->getStaffById((int)$matches[1]);
+            return;
+
+        case $method === 'PUT' && preg_match('#^/api/staff/updateStaff/(\d+)$#', $path, $matches):
+            $controller->updateStaff((int)$matches[1]);
+            return;
+
         // ================= DEFAULT =================
         default:
             http_response_code(404);

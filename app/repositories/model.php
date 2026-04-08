@@ -1541,4 +1541,389 @@ class Model
         $stmt = $this->db->query("SELECT COUNT(*) FROM contact_forms");
         return (int)$stmt->fetchColumn();
     }
+    public function insertTrainer(array $data): int
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO trainers (
+                user_id,
+                gym_id,
+                branch_id,
+                shift_id,
+                name,
+                email,
+                phone,
+                specialization,
+                experience,
+                availability,
+                certifications,
+                bio,
+                profile_photo,
+                join_date,
+                status,
+                createdDate,
+                createdTime
+            ) VALUES (
+                :user_id,
+                :gym_id,
+                :branch_id,
+                :shift_id,
+                :name,
+                :email,
+                :phone,
+                :specialization,
+                :experience,
+                :availability,
+                :certifications,
+                :bio,
+                :profile_photo,
+                :join_date,
+                :status,
+                CURDATE(),
+                CURTIME()
+            )
+        ");
+
+        $stmt->execute([
+            'user_id'        => $data['user_id'],
+            'gym_id'         => $data['gym_id'],
+            'branch_id'      => $data['branch_id'],
+            'shift_id'       => $data['shift_id'],
+            'name'           => $data['name'],
+            'email'          => $data['email'],
+            'phone'          => $data['phone'],
+            'specialization' => $data['specialization'] ?? null,
+            'experience'     => $data['experience'] ?? null,
+            'availability'   => $data['availability'] ?? 'Available',
+            'certifications' => $data['certifications'] ?? null,
+            'bio'            => $data['bio'] ?? '',
+            'profile_photo'  => $data['profile_photo'] ?? null,
+            'join_date'      => $data['joining_date'],
+            'status'         => ($data['status'] ?? 'Active') === 'Active' ? 1 : 0
+        ]);
+
+        return (int)$this->db->lastInsertId();
+    }
+    public function fetchTrainers(array $filters, int $limit, int $offset): array
+    {
+        $sql = "SELECT * FROM trainers WHERE 1=1";
+        $params = [];
+
+        if (!empty($filters['gym_id'])) {
+            $sql .= " AND gym_id = :gym_id";
+            $params[':gym_id'] = $filters['gym_id'];
+        }
+
+        if (!empty($filters['branch_id'])) {
+            $sql .= " AND branch_id = :branch_id";
+            $params[':branch_id'] = $filters['branch_id'];
+        }
+
+        if (!empty($filters['status'])) {
+            $sql .= " AND status = :status";
+            $params[':status'] = ($filters['status'] === 'Active') ? 1 : 0;
+        }
+
+        if (!empty($filters['search'])) {
+            $sql .= " AND (name LIKE :search OR phone LIKE :search)";
+            $params[':search'] = '%' . $filters['search'] . '%';
+        }
+
+        $sql .= " ORDER BY trainer_id DESC LIMIT :limit OFFSET :offset";
+
+        $stmt = $this->db->prepare($sql);
+
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    public function countTrainers(array $filters): int
+    {
+        $sql = "SELECT COUNT(*) FROM trainers WHERE 1=1";
+        $params = [];
+
+        if (!empty($filters['gym_id'])) {
+            $sql .= " AND gym_id = :gym_id";
+            $params[':gym_id'] = $filters['gym_id'];
+        }
+
+        if (!empty($filters['branch_id'])) {
+            $sql .= " AND branch_id = :branch_id";
+            $params[':branch_id'] = $filters['branch_id'];
+        }
+
+        if (!empty($filters['status'])) {
+            $sql .= " AND status = :status";
+            $params[':status'] = ($filters['status'] === 'Active') ? 1 : 0;
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        return (int)$stmt->fetchColumn();
+    }
+    public function fetchTrainerById(int $trainerId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT * FROM trainers WHERE trainer_id = :id LIMIT 1
+        ");
+
+        $stmt->execute([':id' => $trainerId]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+    public function updateTrainer(int $trainerId, array $data): bool
+    {
+        $fields = [];
+        $params = [];
+
+        // Allowed fields
+        $allowed = [
+            'gym_id',
+            'branch_id',
+            'shift_id',
+            'name',
+            'email',
+            'phone',
+            'specialization',
+            'experience',
+            'availability',
+            'certifications',
+            'bio',
+            'profile_photo',
+            'join_date',
+            'status'
+        ];
+
+        foreach ($allowed as $field) {
+            if (isset($data[$field])) {
+                $fields[] = "$field = :$field";
+
+                if ($field === 'status') {
+                    $params[":$field"] = ($data[$field] === 'Active') ? 1 : 0;
+                } else {
+                    $params[":$field"] = $data[$field];
+                }
+            }
+        }
+
+        if (empty($fields)) {
+            return false;
+        }
+
+        $params[':trainer_id'] = $trainerId;
+
+        $sql = "
+            UPDATE trainers
+            SET " . implode(', ', $fields) . ",
+                updatedDate = CURDATE(),
+                updatedTime = CURTIME()
+            WHERE trainer_id = :trainer_id
+        ";
+
+        $stmt = $this->db->prepare($sql);
+
+        return $stmt->execute($params);
+    }
+    public function insertStaff(array $data): int
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO staffs (
+                user_id,
+                gym_id,
+                branch_id,
+                shift_id,
+                designation,
+                department,
+                salary_monthly,
+                salary_type,
+                joining_date,
+                access_level,
+                status,
+                created_at
+            ) VALUES (
+                :user_id,
+                :gym_id,
+                :branch_id,
+                :shift_id,
+                :designation,
+                :department,
+                :salary_monthly,
+                :salary_type,
+                :joining_date,
+                :access_level,
+                :status,
+                NOW()
+            )
+        ");
+
+        $stmt->execute([
+            'user_id'        => $data['user_id'],
+            'gym_id'         => $data['gym_id'],
+            'branch_id'      => $data['branch_id'],
+            'shift_id'       => $data['shift_id'],
+            'designation'    => $data['designation'],
+            'department'     => $data['department'],
+            'salary_monthly' => $data['salary_monthly'],
+            'salary_type'    => $data['salary_type'], // FULL_TIME, PART_TIME
+            'joining_date'   => $data['joining_date'],
+            'access_level'   => $data['access_level'], // LOW, MEDIUM, HIGH
+            'status'         => $data['status'] // ACTIVE, INACTIVE
+        ]);
+
+        return (int)$this->db->lastInsertId();
+    }
+    public function fetchStaff(array $filters, int $limit, int $offset): array
+    {
+        $sql = "
+            SELECT 
+                s.*,
+                u.name,
+                u.email,
+                u.phone
+            FROM staffs s
+            LEFT JOIN users u ON u.user_id = s.user_id
+            WHERE 1=1
+        ";
+
+        $params = [];
+
+        if (!empty($filters['gym_id'])) {
+            $sql .= " AND s.gym_id = :gym_id";
+            $params[':gym_id'] = $filters['gym_id'];
+        }
+
+        if (!empty($filters['branch_id'])) {
+            $sql .= " AND s.branch_id = :branch_id";
+            $params[':branch_id'] = $filters['branch_id'];
+        }
+
+        if (!empty($filters['status'])) {
+            $sql .= " AND s.status = :status";
+            $params[':status'] = strtoupper($filters['status']);
+        }
+
+        if (!empty($filters['department'])) {
+            $sql .= " AND s.department = :department";
+            $params[':department'] = $filters['department'];
+        }
+
+        if (!empty($filters['search'])) {
+            $sql .= " AND (u.name LIKE :search OR u.phone LIKE :search)";
+            $params[':search'] = '%' . $filters['search'] . '%';
+        }
+
+        $sql .= " ORDER BY s.staff_id DESC LIMIT :limit OFFSET :offset";
+
+        $stmt = $this->db->prepare($sql);
+
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    public function countStaff(array $filters): int
+    {
+        $sql = "SELECT COUNT(*) FROM staffs WHERE 1=1";
+        $params = [];
+
+        if (!empty($filters['gym_id'])) {
+            $sql .= " AND gym_id = :gym_id";
+            $params[':gym_id'] = $filters['gym_id'];
+        }
+
+        if (!empty($filters['branch_id'])) {
+            $sql .= " AND branch_id = :branch_id";
+            $params[':branch_id'] = $filters['branch_id'];
+        }
+
+        if (!empty($filters['status'])) {
+            $sql .= " AND status = :status";
+            $params[':status'] = strtoupper($filters['status']);
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        return (int)$stmt->fetchColumn();
+    }
+    public function fetchStaffById(int $staffId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT 
+                s.*,
+                u.name,
+                u.email,
+                u.phone
+            FROM staffs s
+            LEFT JOIN users u ON u.user_id = s.user_id
+            WHERE s.staff_id = :id
+            LIMIT 1
+        ");
+
+        $stmt->execute([':id' => $staffId]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+    public function updateStaff(int $staffId, array $data): bool
+    {
+        $fields = [];
+        $params = [];
+
+        $allowed = [
+            'gym_id',
+            'branch_id',
+            'shift_id',
+            'designation',
+            'department',
+            'salary_monthly',
+            'salary_type',
+            'joining_date',
+            'access_level',
+            'status'
+        ];
+
+        foreach ($allowed as $field) {
+            if (isset($data[$field])) {
+
+                // Handle ENUM values (force uppercase)
+                if (in_array($field, ['salary_type', 'access_level', 'status'])) {
+                    $params[":$field"] = strtoupper($data[$field]);
+                } else {
+                    $params[":$field"] = $data[$field];
+                }
+
+                $fields[] = "$field = :$field";
+            }
+        }
+
+        if (empty($fields)) {
+            return false;
+        }
+
+        $params[':staff_id'] = $staffId;
+
+        $sql = "
+            UPDATE staffs
+            SET " . implode(', ', $fields) . ",
+                updated_at = NOW()
+            WHERE staff_id = :staff_id
+        ";
+
+        $stmt = $this->db->prepare($sql);
+
+        return $stmt->execute($params);
+    }
 }

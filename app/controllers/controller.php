@@ -784,4 +784,227 @@ class Controller
 
         echo json_encode($response);
     }
+    public function addTrainer(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $input = json_decode(file_get_contents("php://input"), true);
+        if (empty($input)) {
+            $input = $_POST;
+        }
+
+        if (empty($input)) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Invalid request body"
+            ]);
+            return;
+        }
+
+        $response = $this->workflow->addTrainer($accessToken, $input);
+        echo json_encode($response);
+    }
+    public function getTrainers(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $filters = [
+            'gym_id'    => $_GET['gym_id'] ?? null,
+            'branch_id' => $_GET['branch_id'] ?? null,
+            'status'    => $_GET['status'] ?? null,
+            'search'    => $_GET['search'] ?? null,
+            'page'      => $_GET['page'] ?? 1,
+            'limit'     => $_GET['limit'] ?? 10
+        ];
+
+        $response = $this->workflow->getTrainers($accessToken, $filters);
+        echo json_encode($response);
+    }
+    public function getTrainerById(int $trainerId): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $response = $this->workflow->getTrainerById($accessToken, $trainerId);
+        echo json_encode($response);
+    }
+    public function updateTrainer(int $trainerId): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        // Get input (PUT)
+        $input = json_decode(file_get_contents("php://input"), true);
+
+        if (empty($input)) {
+            parse_str(file_get_contents("php://input"), $input);
+        }
+
+        if (empty($input)) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Invalid request body"
+            ]);
+            return;
+        }
+
+        $response = $this->workflow->updateTrainer($accessToken, $trainerId, $input);
+        echo json_encode($response);
+    }
+    public function addStaff(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $input = json_decode(file_get_contents("php://input"), true);
+        if (empty($input)) {
+            $input = $_POST;
+        }
+
+        if (empty($input)) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Invalid request body"
+            ]);
+            return;
+        }
+
+        $response = $this->workflow->addStaff($accessToken, $input);
+        echo json_encode($response);
+    }
+    public function getStaff(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $filters = [
+            'gym_id'      => $_GET['gym_id'] ?? null,
+            'branch_id'   => $_GET['branch_id'] ?? null,
+            'status'      => $_GET['status'] ?? null,
+            'department'  => $_GET['department'] ?? null,
+            'search'      => $_GET['search'] ?? null,
+            'page'        => $_GET['page'] ?? 1,
+            'limit'       => $_GET['limit'] ?? 10
+        ];
+
+        $response = $this->workflow->getStaff($accessToken, $filters);
+        echo json_encode($response);
+    }
+    public function getStaffById(int $staffId): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $response = $this->workflow->getStaffById($accessToken, $staffId);
+        echo json_encode($response);
+    }
+    public function updateStaff(int $staffId): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        // Handle PUT input
+        $input = json_decode(file_get_contents("php://input"), true);
+
+        if (empty($input)) {
+            parse_str(file_get_contents("php://input"), $input);
+        }
+
+        if (empty($input)) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Invalid request body"
+            ]);
+            return;
+        }
+
+        $response = $this->workflow->updateStaff($accessToken, $staffId, $input);
+        echo json_encode($response);
+    }
 }

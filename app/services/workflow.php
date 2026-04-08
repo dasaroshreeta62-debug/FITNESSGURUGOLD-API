@@ -1102,4 +1102,339 @@ class Workflow
             ];
         }
     }
+    public function addTrainer(string $accessToken, array $data): array
+    {
+        try {
+            JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
+
+            /* ========= VALIDATION ========= */
+            $required = [
+                'name','email','phone','password',
+                'gym_id','branch_id','shift_id','joining_date'
+            ];
+
+            foreach ($required as $field) {
+                if (empty($data[$field])) {
+                    return [
+                        "status" => "error",
+                        "message" => "$field is required"
+                    ];
+                }
+            }
+
+            /* ========= CREATE USER ========= */
+            $userId = $this->model->createUser([
+                'gym_id'    => $data['gym_id'],
+                'branch_id' => $data['branch_id'],
+                'name'      => $data['name'],
+                'email'     => $data['email'],
+                'phone'     => $data['phone'],
+                'password'  => password_hash($data['password'], PASSWORD_BCRYPT),
+                'role'      => 'TRAINER'
+            ]);
+
+            /* ========= INSERT TRAINER ========= */
+            $data['user_id'] = $userId;
+
+            $trainerId = $this->model->insertTrainer($data);
+
+            return [
+                "status" => "success",
+                "message" => "Trainer added successfully",
+                "trainer_id" => $trainerId
+            ];
+
+        } catch (\Throwable $e) {
+            return [
+                "status" => "error",
+                "message" => "Failed to add trainer",
+                "error" => $e->getMessage()
+            ];
+        }
+    }
+    public function getTrainers(string $accessToken, array $filters): array
+    {
+        try {
+            JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
+
+            $limit  = max(1, (int)$filters['limit']);
+            $page   = max(1, (int)$filters['page']);
+            $offset = ($page - 1) * $limit;
+
+            $data  = $this->model->fetchTrainers($filters, $limit, $offset);
+            $total = $this->model->countTrainers($filters);
+
+            return [
+                "status" => "success",
+                "data"   => $data,
+                "pagination" => [
+                    "total" => $total,
+                    "page"  => $page,
+                    "limit" => $limit
+                ]
+            ];
+
+        } catch (\Throwable $e) {
+            return [
+                "status" => "error",
+                "message" => "Failed to fetch trainers",
+                "error" => $e->getMessage()
+            ];
+        }
+    }
+    public function getTrainerById(string $accessToken, int $trainerId): array
+    {
+        try {
+            JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
+
+            $trainer = $this->model->fetchTrainerById($trainerId);
+
+            if (!$trainer) {
+                return [
+                    "status" => "error",
+                    "message" => "Trainer not found"
+                ];
+            }
+
+            return [
+                "status" => "success",
+                "data"   => $trainer
+            ];
+
+        } catch (\Throwable $e) {
+            return [
+                "status" => "error",
+                "message" => "Failed to fetch trainer",
+                "error" => $e->getMessage()
+            ];
+        }
+    }
+    public function updateTrainer(string $accessToken, int $trainerId, array $data): array
+    {
+        try {
+            JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
+
+            /* ========= CHECK EXIST ========= */
+            $existing = $this->model->fetchTrainerById($trainerId);
+
+            if (!$existing) {
+                return [
+                    "status" => "error",
+                    "message" => "Trainer not found"
+                ];
+            }
+
+            /* ========= UPDATE USER (OPTIONAL) ========= */
+            if (!empty($data['name']) || !empty($data['email']) || !empty($data['phone'])) {
+
+                $userData = [];
+
+                if (!empty($data['name'])) {
+                    $userData['name'] = $data['name'];
+                }
+
+                if (!empty($data['email'])) {
+                    $userData['email'] = $data['email'];
+                }
+
+                if (!empty($data['phone'])) {
+                    $userData['phone'] = $data['phone'];
+                }
+
+                if (!empty($data['password'])) {
+                    $userData['password'] = password_hash($data['password'], PASSWORD_BCRYPT);
+                }
+
+                if (!empty($userData)) {
+                    $this->model->updateUserProfile($existing['user_id'], $userData);
+                }
+            }
+
+            /* ========= UPDATE TRAINER ========= */
+            $this->model->updateTrainer($trainerId, $data);
+
+            return [
+                "status" => "success",
+                "message" => "Trainer updated successfully"
+            ];
+
+        } catch (\Throwable $e) {
+            return [
+                "status" => "error",
+                "message" => "Failed to update trainer",
+                "error" => $e->getMessage()
+            ];
+        }
+    }
+    public function addStaff(string $accessToken, array $data): array
+    {
+        try {
+            JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
+
+            /* ========= VALIDATION ========= */
+            $required = [
+                'name','email','phone','password',
+                'gym_id','designation'
+            ];
+
+            foreach ($required as $field) {
+                if (empty($data[$field])) {
+                    return [
+                        "status" => "error",
+                        "message" => "$field is required"
+                    ];
+                }
+            }
+
+            /* ========= CREATE USER ========= */
+            $userId = $this->model->createUser([
+                'gym_id'    => $data['gym_id'],
+                'branch_id' => $data['branch_id'] ?? null,
+                'name'      => $data['name'],
+                'email'     => $data['email'],
+                'phone'     => $data['phone'],
+                'password'  => password_hash($data['password'], PASSWORD_BCRYPT),
+                'role'      => 'STAFF'
+            ]);
+
+            /* ========= INSERT STAFF ========= */
+            $staffId = $this->model->insertStaff([
+                'user_id'       => $userId,
+                'gym_id'        => $data['gym_id'],
+                'branch_id'     => $data['branch_id'] ?? null,
+                'shift_id'      => $data['shift_id'] ?? null,
+                'designation'   => $data['designation'],
+                'department'    => $data['department'] ?? null,
+                'salary_monthly'=> $data['salary'] ?? null,
+                'salary_type'   => strtoupper($data['salary_type'] ?? 'FULL_TIME'),
+                'joining_date'  => $data['joining_date'] ?? date('Y-m-d'),
+                'access_level'  => strtoupper($data['access_level'] ?? 'LOW'),
+                'status'        => strtoupper($data['status'] ?? 'ACTIVE')
+            ]);
+
+            return [
+                "status" => "success",
+                "message" => "Staff added successfully",
+                "staff_id" => $staffId
+            ];
+
+        } catch (\Throwable $e) {
+            return [
+                "status" => "error",
+                "message" => "Failed to add staff",
+                "error" => $e->getMessage()
+            ];
+        }
+    }
+    public function getStaff(string $accessToken, array $filters): array
+    {
+        try {
+            JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
+
+            $limit  = max(1, (int)$filters['limit']);
+            $page   = max(1, (int)$filters['page']);
+            $offset = ($page - 1) * $limit;
+
+            $data  = $this->model->fetchStaff($filters, $limit, $offset);
+            $total = $this->model->countStaff($filters);
+
+            return [
+                "status" => "success",
+                "data"   => $data,
+                "pagination" => [
+                    "total" => $total,
+                    "page"  => $page,
+                    "limit" => $limit
+                ]
+            ];
+
+        } catch (\Throwable $e) {
+            return [
+                "status" => "error",
+                "message" => "Failed to fetch staff",
+                "error" => $e->getMessage()
+            ];
+        }
+    }
+    public function getStaffById(string $accessToken, int $staffId): array
+    {
+        try {
+            JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
+
+            $staff = $this->model->fetchStaffById($staffId);
+
+            if (!$staff) {
+                return [
+                    "status" => "error",
+                    "message" => "Staff not found"
+                ];
+            }
+
+            return [
+                "status" => "success",
+                "data"   => $staff
+            ];
+
+        } catch (\Throwable $e) {
+            return [
+                "status" => "error",
+                "message" => "Failed to fetch staff",
+                "error" => $e->getMessage()
+            ];
+        }
+    }
+    public function updateStaff(string $accessToken, int $staffId, array $data): array
+    {
+        try {
+            JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
+
+            /* ========= CHECK EXIST ========= */
+            $existing = $this->model->fetchStaffById($staffId);
+
+            if (!$existing) {
+                return [
+                    "status" => "error",
+                    "message" => "Staff not found"
+                ];
+            }
+
+            /* ========= UPDATE USER ========= */
+            $userData = [];
+
+            if (!empty($data['name'])) {
+                $userData['name'] = $data['name'];
+            }
+
+            if (!empty($data['email'])) {
+                $userData['email'] = $data['email'];
+            }
+
+            if (!empty($data['phone'])) {
+                $userData['phone'] = $data['phone'];
+            }
+
+            if (!empty($data['password'])) {
+                $userData['password'] = password_hash($data['password'], PASSWORD_BCRYPT);
+            }
+
+            if (!empty($userData)) {
+                $this->model->updateUserProfile($existing['user_id'], $userData);
+            }
+
+            /* ========= UPDATE STAFF ========= */
+            $this->model->updateStaff($staffId, $data);
+
+            return [
+                "status" => "success",
+                "message" => "Staff updated successfully"
+            ];
+
+        } catch (\Throwable $e) {
+            return [
+                "status" => "error",
+                "message" => "Failed to update staff",
+                "error" => $e->getMessage()
+            ];
+        }
+    }
 }
