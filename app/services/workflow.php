@@ -1182,12 +1182,40 @@ class Workflow
             ];
         }
     }
-    public function getTrainerById(string $accessToken, int $trainerId): array
+    public function getTrainerProfile(string $accessToken): array
+    {
+        try {
+            $decoded = JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
+            $userId  = (int)$decoded->sub;
+
+            $trainer = $this->model->fetchTrainerByUserId($userId);
+
+            if (!$trainer) {
+                return [
+                    "status" => "error",
+                    "message" => "Trainer not found"
+                ];
+            }
+
+            return [
+                "status" => "success",
+                "data"   => $trainer
+            ];
+
+        } catch (\Throwable $e) {
+            return [
+                "status" => "error",
+                "message" => "Failed to fetch trainer profile",
+                "error" => $e->getMessage()
+            ];
+        }
+    }
+    public function getTrainerById(string $accessToken, int $userId): array
     {
         try {
             JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
 
-            $trainer = $this->model->fetchTrainerById($trainerId);
+            $trainer = $this->model->fetchTrainerByUserId($userId);
 
             if (!$trainer) {
                 return [
@@ -1209,13 +1237,13 @@ class Workflow
             ];
         }
     }
-    public function updateTrainer(string $accessToken, int $trainerId, array $data): array
+    public function updateTrainer(string $accessToken, int $userId, array $data): array
     {
         try {
             JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
 
             /* ========= CHECK EXIST ========= */
-            $existing = $this->model->fetchTrainerById($trainerId);
+            $existing = $this->model->fetchTrainerByUserId($userId);
 
             if (!$existing) {
                 return [
@@ -1223,6 +1251,8 @@ class Workflow
                     "message" => "Trainer not found"
                 ];
             }
+
+            $trainerId = $existing['trainer_id'];
 
             /* ========= UPDATE USER (OPTIONAL) ========= */
             if (!empty($data['name']) || !empty($data['email']) || !empty($data['phone'])) {
@@ -1262,6 +1292,92 @@ class Workflow
             return [
                 "status" => "error",
                 "message" => "Failed to update trainer",
+                "error" => $e->getMessage()
+            ];
+        }
+    }
+    public function getAssignedTrainees(string $accessToken): array
+    {
+        try {
+            $decoded = JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
+            $userId  = (int)$decoded->sub;
+            $role    = strtoupper($decoded->role ?? '');
+
+            if ($role !== 'TRAINER' && $role !== 'ADMIN') {
+                return [
+                    "status" => "error",
+                    "message" => "Access denied. Trainer or Admin role required."
+                ];
+            }
+
+            $trainer = $this->model->fetchTrainerByUserId($userId);
+            if (!$trainer) {
+                return [
+                    "status" => "error",
+                    "message" => "Trainer profile not found"
+                ];
+            }
+
+            $trainees = $this->model->fetchAssignedTrainees($trainer['trainer_id']);
+
+            return [
+                "status" => "success",
+                "data"   => $trainees
+            ];
+
+        } catch (\Throwable $e) {
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired access token",
+                "error" => $e->getMessage()
+            ];
+        }
+    }
+    public function getMemberDetailsSecure(string $accessToken, int $userId): array
+    {
+        try {
+            $decoded = JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
+            $callerUserId = (int)$decoded->sub;
+            $role = strtoupper($decoded->role ?? '');
+
+            if ($role !== 'ADMIN' && $role !== 'STAFF' && $role !== 'TRAINER' && $userId !== $callerUserId) {
+                return [
+                    "status" => "error",
+                    "message" => "Access denied"
+                ];
+            }
+
+            $member = $this->model->fetchMemberDetails($userId);
+
+            if (!$member) {
+                return [
+                    "status" => "error",
+                    "message" => "Member not found"
+                ];
+            }
+
+            return $member;
+
+        } catch (\Throwable $e) {
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired access token",
+                "error" => $e->getMessage()
+            ];
+        }
+    }
+    public function getShifts(int $gymId, int $branchId): array
+    {
+        try {
+            $shifts = $this->model->fetchShifts($gymId, $branchId);
+            return [
+                "status" => "success",
+                "data"   => $shifts
+            ];
+        } catch (\Throwable $e) {
+            return [
+                "status" => "error",
+                "message" => "Failed to fetch shifts",
                 "error" => $e->getMessage()
             ];
         }

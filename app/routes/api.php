@@ -73,6 +73,10 @@ function route(string $method, string $path): void
             $controller->listCities();
             return;
 
+        case $method === 'GET' && $path === '/api/shifts':
+            $controller->getShifts();
+            return;
+
         case $method === 'POST' && $path === '/api/members/addMember':
             $controller->addMember();
             return;
@@ -114,6 +118,14 @@ function route(string $method, string $path): void
 
         case $method === 'GET' && $path === '/api/viewContactUs':
             $controller->getContactList();
+            return;
+
+        case $method === 'GET' && $path === '/api/trainer/profile':
+            $controller->getTrainerProfile();
+            return;
+
+        case $method === 'GET' && $path === '/api/trainer/trainees':
+            $controller->getAssignedTrainees();
             return;
 
         case $method === 'POST' && $path === '/api/trainer/addTrainer':

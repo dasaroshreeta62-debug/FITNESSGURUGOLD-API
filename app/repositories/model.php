@@ -1926,4 +1926,92 @@ class Model
 
         return $stmt->execute($params);
     }
+
+    public function fetchTrainerByUserId(int $userId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT t.*, u.name, u.email, u.phone, u.role
+            FROM trainers t
+            JOIN users u ON u.user_id = t.user_id
+            WHERE t.user_id = :user_id LIMIT 1
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function fetchAssignedTrainees(int $trainerId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT 
+                u.user_id,
+                u.name,
+                u.email,
+                u.phone,
+                u.status,
+                up.date_of_joining,
+                up.gender,
+                up.fitness_level,
+                up.goal_focus,
+                sub.start_date,
+                sub.end_date,
+                sub.status AS subscription_status
+            FROM subscriptions sub
+            JOIN users u ON u.user_id = sub.user_id
+            LEFT JOIN users_profile up ON up.user_id = u.user_id
+            WHERE sub.trainer_id = :trainer_id AND sub.status = 1
+        ");
+        $stmt->execute([':trainer_id' => $trainerId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function fetchShifts(int $gymId, int $branchId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT 
+                shift_id AS id,
+                gym_id,
+                branch_id,
+                shift_name,
+                start_time,
+                end_time,
+                status AS is_active,
+                shift_type AS description
+            FROM gym_shifts
+            WHERE gym_id = :gym_id AND branch_id = :branch_id
+        ");
+        $stmt->execute([
+            ':gym_id' => $gymId,
+            ':branch_id' => $branchId
+        ]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $results = [];
+        foreach ($rows as $row) {
+            $startTime = date("h:i A", strtotime($row['start_time']));
+            $endTime = date("h:i A", strtotime($row['end_time']));
+
+            $stmtCount = $this->db->prepare("
+                SELECT COUNT(*) FROM users 
+                WHERE branch_id = :branch_id AND status = 1
+            ");
+            $stmtCount->execute([':branch_id' => $branchId]);
+            $enrolled = (int)$stmtCount->fetchColumn();
+
+            $results[] = [
+                'id'          => (int)$row['id'],
+                'gym_id'      => (int)$row['gym_id'],
+                'branch_id'   => (int)$row['branch_id'],
+                'shift_name'  => $row['shift_name'],
+                'start_time'  => $startTime,
+                'end_time'    => $endTime,
+                'capacity'    => 50,
+                'enrolled'    => $enrolled,
+                'is_active'   => (bool)$row['is_active'],
+                'description' => $row['description']
+            ];
+        }
+
+        return $results;
+    }
 }
+

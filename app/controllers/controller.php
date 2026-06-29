@@ -513,6 +513,18 @@ class Controller
     }
     public function viewMember(): void
     {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
         $user_id = $_GET['user_id'] ?? null;
 
         if (!$user_id) {
@@ -524,7 +536,17 @@ class Controller
             return;
         }
 
-        $result = $this->workflow->getMemberDetails((int)$user_id);
+        $result = $this->workflow->getMemberDetailsSecure($accessToken, (int)$user_id);
+
+        if (isset($result['status']) && $result['status'] === 'error') {
+            if ($result['message'] === 'Access denied' || $result['message'] === 'Unauthorized') {
+                http_response_code(403);
+            } else {
+                http_response_code(401);
+            }
+            echo json_encode($result);
+            return;
+        }
 
         if (!$result) {
             http_response_code(404);
@@ -893,6 +915,59 @@ class Controller
         }
 
         $response = $this->workflow->updateTrainer($accessToken, $trainerId, $input);
+        echo json_encode($response);
+    }
+    public function getTrainerProfile(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $response = $this->workflow->getTrainerProfile($accessToken);
+        echo json_encode($response);
+    }
+    public function getAssignedTrainees(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $response = $this->workflow->getAssignedTrainees($accessToken);
+        echo json_encode($response);
+    }
+    public function getShifts(): void
+    {
+        $gymId = $_GET['gym_id'] ?? null;
+        $branchId = $_GET['branch_id'] ?? null;
+
+        if (!$gymId || !$branchId) {
+            http_response_code(400);
+            echo json_encode([
+                'status'  => 'error',
+                'message' => 'gym_id and branch_id are required'
+            ]);
+            return;
+        }
+
+        $response = $this->workflow->getShifts((int)$gymId, (int)$branchId);
         echo json_encode($response);
     }
     public function addStaff(): void
