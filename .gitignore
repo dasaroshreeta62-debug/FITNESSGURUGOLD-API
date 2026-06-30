@@ -1,0 +1,26 @@
+# Composer dependencies
+/vendor/
+/api/
+
+# Sensitive environment secrets
+.env
+.env.local
+.env.*
+
+# Logs
+*.log
+logs/
+
+# IDE and OS metadata
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+.DS_Store
+Thumbs.db
+/node_modules/
+/dist/
+/.agents/
+/.gemini/
