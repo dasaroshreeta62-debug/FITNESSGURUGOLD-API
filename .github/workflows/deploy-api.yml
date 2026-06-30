@@ -22,14 +22,20 @@ jobs:
         if: ${{ hashFiles('composer.json') != '' }}
         run: composer install --no-dev --optimize-autoloader
 
-      - name: Install lftp
-        run: sudo apt-get update && sudo apt-get install -y lftp
-
-      - name: 🚀 Deploy Backend via FTP (lftp)
+      - name: Disable IPv6
         run: |
-          lftp -c "
-            set dns:order \"inet inet6\";
-            set ftp:ssl-allow no;
-            open -u '${{ secrets.FTP_USERNAME }}','${{ secrets.FTP_PASSWORD }}' '${{ secrets.FTP_HOST }}';
-            mirror -R --verbose --exclude-glob .git* --exclude-glob .github/ ./ /public_html/backend/
-          "
+          sudo sysctl -w net.ipv6.conf.all.disable_ipv6=1
+          sudo sysctl -w net.ipv6.conf.default.disable_ipv6=1
+
+      - name: 🚀 Deploy Backend via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./
+          server-dir: /public_html/backend/
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.github/**
