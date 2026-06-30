@@ -27,6 +27,9 @@ jobs:
           sudo sysctl -w net.ipv6.conf.all.disable_ipv6=1
           sudo sysctl -w net.ipv6.conf.default.disable_ipv6=1
 
+      - name: Temporarily remove .gitignore for deployment
+        run: rm .gitignore
+
       - name: 🚀 Deploy Backend via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
@@ -39,3 +42,5 @@ jobs:
           exclude: |
             **/.git*
             **/.github/**
+            **/.agents/**
+            **/.gemini/**
