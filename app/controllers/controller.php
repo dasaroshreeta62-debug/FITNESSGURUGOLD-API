@@ -1080,6 +1080,6 @@ class Controller
         }
 
         $response = $this->workflow->updateStaff($accessToken, $staffId, $input);
-        echo json_encode($response);
     }
 }
+

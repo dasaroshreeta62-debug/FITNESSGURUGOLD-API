@@ -1,14 +1,16 @@
 <?php
 
 require_once __DIR__ . '/../controllers/controller.php';
+require_once __DIR__ . '/../controllers/DietPlanController.php';
 
 function route(string $method, string $path): void
 {
     // Normalize path (remove trailing slash)
     $path = rtrim($path, '/');
 
-    // Create controller instance
+    // Create controller instances
     $controller = new Controller();
+    $dietPlanController = new DietPlanController();
 
     switch (true) {
 
@@ -158,6 +160,182 @@ function route(string $method, string $path): void
 
         case $method === 'PUT' && preg_match('#^/api/staff/updateStaff/(\d+)$#', $path, $matches):
             $controller->updateStaff((int)$matches[1]);
+            return;
+
+        //=============Diet Plan APIs==========
+        //Admin Diet Plan APIs
+        case $method === 'POST' && $path === '/api/admin/diet-plans':
+            $dietPlanController->createDietPlan();
+            return;
+
+        case $method === 'GET' && $path === '/api/admin/diet-plans':
+            $dietPlanController->listDietPlans();
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/admin/diet-plans/(\d+)$#', $path, $matches):
+            $dietPlanController->getDietPlanDetails((int)$matches[1]);
+            return;
+
+        case $method === 'PUT' && preg_match('#^/api/admin/diet-plans/(\d+)$#', $path, $matches):
+            $dietPlanController->updateDietPlan((int)$matches[1]);
+            return;
+
+        case $method === 'DELETE' && preg_match('#^/api/admin/diet-plans/(\d+)$#', $path, $matches):
+            $dietPlanController->deleteDietPlan((int)$matches[1]);
+            return;
+
+        case $method === 'PATCH' && preg_match('#^/api/admin/diet-plans/(\d+)/activate$#', $path, $matches):
+            $dietPlanController->activateDietPlan((int)$matches[1]);
+            return;
+
+        case $method === 'PATCH' && preg_match('#^/api/admin/diet-plans/(\d+)/status$#', $path, $matches):
+            $dietPlanController->changeDietPlanStatus((int)$matches[1]);
+            return;
+
+        case $method === 'POST' && preg_match('#^/api/admin/diet-plans/(\d+)/clone$#', $path, $matches):
+            $dietPlanController->cloneDietPlan((int)$matches[1]);
+            return;
+
+        // Admin Meal APIs
+        case $method === 'POST' && preg_match('#^/api/admin/diet-plans/(\d+)/meals$#', $path, $matches):
+            $dietPlanController->createMeal((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/admin/diet-plans/(\d+)/meals$#', $path, $matches):
+            $dietPlanController->listDietPlanMeals((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/admin/meals/(\d+)$#', $path, $matches):
+            $dietPlanController->getMealDetails((int)$matches[1]);
+            return;
+
+        case $method === 'PUT' && preg_match('#^/api/admin/meals/(\d+)$#', $path, $matches):
+            $dietPlanController->updateMeal((int)$matches[1]);
+            return;
+
+        case $method === 'DELETE' && preg_match('#^/api/admin/meals/(\d+)$#', $path, $matches):
+            $dietPlanController->deleteMeal((int)$matches[1]);
+            return;
+
+        case $method === 'PATCH' && preg_match('#^/api/admin/diet-plans/(\d+)/meals/order$#', $path, $matches):
+            $dietPlanController->reorderMeals((int)$matches[1]);
+            return;
+
+        // Admin Member Specific Diet Plans APIs
+        case $method === 'GET' && preg_match('#^/api/admin/members/(\d+)/diet-plans$#', $path, $matches):
+            $dietPlanController->getMemberDietPlans((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/admin/members/(\d+)/diet-plans/active$#', $path, $matches):
+            $dietPlanController->getMemberActiveDietPlan((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/admin/members/(\d+)/diet-plans/history$#', $path, $matches):
+            $dietPlanController->getMemberDietPlansHistory((int)$matches[1]);
+            return;
+
+        //Trainer Diet Plan APIs
+        case $method === 'GET' && $path === '/api/trainer/members':
+            $dietPlanController->listTrainerAssignedMembers();
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/trainer/members/(\d+)$#', $path, $matches):
+            $dietPlanController->getTrainerAssignedMemberDetails((int)$matches[1]);
+            return;
+
+        case $method === 'POST' && preg_match('#^/api/trainer/members/(\d+)/diet-plans$#', $path, $matches):
+            $dietPlanController->createDietPlanByTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && $path === '/api/trainer/diet-plans':
+            $dietPlanController->listTrainerDietPlans();
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/trainer/diet-plans/(\d+)$#', $path, $matches):
+            $dietPlanController->getDietPlanDetailsByTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'PUT' && preg_match('#^/api/trainer/diet-plans/(\d+)$#', $path, $matches):
+            $dietPlanController->updateDietPlanByTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'DELETE' && preg_match('#^/api/trainer/diet-plans/(\d+)$#', $path, $matches):
+            $dietPlanController->deleteDietPlanByTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'POST' && preg_match('#^/api/trainer/diet-plans/(\d+)/clone$#', $path, $matches):
+            $dietPlanController->cloneDietPlanByTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'PATCH' && preg_match('#^/api/trainer/diet-plans/(\d+)/activate$#', $path, $matches):
+            $dietPlanController->activateDietPlanByTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'PATCH' && preg_match('#^/api/trainer/diet-plans/(\d+)/status$#', $path, $matches):
+            $dietPlanController->changeDietPlanStatusByTrainer((int)$matches[1]);
+            return;
+
+        // Trainer Meal APIs
+        case $method === 'POST' && preg_match('#^/api/trainer/diet-plans/(\d+)/meals$#', $path, $matches):
+            $dietPlanController->createMealByTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/trainer/diet-plans/(\d+)/meals$#', $path, $matches):
+            $dietPlanController->listDietPlanMealsByTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/trainer/meals/(\d+)$#', $path, $matches):
+            $dietPlanController->getMealDetailsByTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'PUT' && preg_match('#^/api/trainer/meals/(\d+)$#', $path, $matches):
+            $dietPlanController->updateMealByTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'DELETE' && preg_match('#^/api/trainer/meals/(\d+)$#', $path, $matches):
+            $dietPlanController->deleteMealByTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'PATCH' && preg_match('#^/api/trainer/diet-plans/(\d+)/meals/order$#', $path, $matches):
+            $dietPlanController->reorderMealsByTrainer((int)$matches[1]);
+            return;
+
+        // Trainer Member Specific Diet Plans APIs
+        case $method === 'GET' && preg_match('#^/api/trainer/members/(\d+)/diet-plans$#', $path, $matches):
+            $dietPlanController->getMemberDietPlansByTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/trainer/members/(\d+)/diet-plans/active$#', $path, $matches):
+            $dietPlanController->getMemberActiveDietPlanByTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/trainer/members/(\d+)/diet-plans/history$#', $path, $matches):
+            $dietPlanController->getMemberDietPlansHistoryByTrainer((int)$matches[1]);
+            return;
+        
+        //Member Diet Plan APIs
+        case $method === 'GET' && $path === '/api/member/diet-plans/active':
+            $dietPlanController->getMyActiveDietPlan();
+            return;
+
+        case $method === 'GET' && $path === '/api/member/diet-plans/history':
+            $dietPlanController->getMyDietPlansHistory();
+            return;
+
+        case $method === 'GET' && $path === '/api/member/diet-plans':
+            $dietPlanController->getMyDietPlans();
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/member/diet-plans/(\d+)$#', $path, $matches):
+            $dietPlanController->getDietPlanDetailsByMember((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/member/diet-plans/(\d+)/meals$#', $path, $matches):
+            $dietPlanController->getDietPlanMealsByMember((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/member/meals/(\d+)$#', $path, $matches):
+            $dietPlanController->getMealDetailsByMember((int)$matches[1]);
             return;
 
         // ================= DEFAULT =================
