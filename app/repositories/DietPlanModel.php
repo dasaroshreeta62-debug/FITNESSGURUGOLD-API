@@ -463,4 +463,54 @@ class DietPlanModel extends Model
         }
         return $rows;
     }
+
+    public function createDietPlanWithMeals(array $planData, array $meals): int
+    {
+        try {
+            $this->db->beginTransaction();
+
+            // 1. Create the Diet Plan
+            $planId = $this->createDietPlan($planData);
+
+            // 2. Add Each Meal
+            foreach ($meals as $index => $meal) {
+                if (empty($meal['meal_title'])) {
+                    throw new Exception("Meal title is required for all meals.", 400);
+                }
+                if (!isset($meal['meal_items'])) {
+                    throw new Exception("Meal items is required for all meals.", 400);
+                }
+
+                $mealItems = null;
+                if (is_array($meal['meal_items'])) {
+                    $mealItems = json_encode($meal['meal_items']);
+                } else {
+                    json_decode($meal['meal_items']);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        throw new Exception("Meal items must be a valid JSON array or object.", 400);
+                    }
+                    $mealItems = $meal['meal_items'];
+                }
+
+                $mealData = [
+                    'meal_title' => trim($meal['meal_title']),
+                    'meal_time' => !empty($meal['meal_time']) ? trim($meal['meal_time']) : null,
+                    'meal_items' => $mealItems,
+                    'notes' => $meal['notes'] ?? null,
+                    'meal_order' => isset($meal['meal_order']) ? (int)$meal['meal_order'] : ($index + 1)
+                ];
+
+                $this->createMeal($planId, $mealData);
+            }
+
+            $this->db->commit();
+            return $planId;
+        } catch (\Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
+    }
 }
+

@@ -14,7 +14,7 @@ class DietPlanWorkflow
     private const ACCESS_EXP  = 604800;
 
     private const ALLOWED_GOALS = [
-        'FAT_LOSS', 'WEIGHT_LOSS', 'WEIGHT_GAIN', 'MUSCLE_GAIN', 'STRENGTH', 'GENERAL_FITNESS'
+        'WEIGHT_LOSS', 'MUSCLE_GAIN', 'STRENGTH', 'ENDURANCE', 'GENERAL_FITNESS'
     ];
     private const ALLOWED_STATUSES = [
         'DRAFT', 'ACTIVE', 'COMPLETED', 'CANCELLED'
@@ -136,6 +136,155 @@ class DietPlanWorkflow
 
         } catch (\Throwable $e) {
             http_response_code($e->getCode() === 403 ? 403 : 401);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    public function createDietPlanWithMeals(string $accessToken, array $data): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+            $adminUserId = (int)$decoded->sub;
+
+            $required = ['member_id', 'trainer_id', 'goal', 'duration_days', 'start_date', 'meals'];
+            foreach ($required as $field) {
+                if (!isset($data[$field]) || (is_string($data[$field]) && trim($data[$field]) === '') || (is_array($data[$field]) && empty($data[$field]))) {
+                    http_response_code(400);
+                    return ["status" => "error", "message" => "Field '$field' is required"];
+                }
+            }
+
+            if (!is_array($data['meals'])) {
+                http_response_code(400);
+                return ["status" => "error", "message" => "Meals must be a non-empty array"];
+            }
+
+            if (!$this->model->memberExists((int)$data['member_id'])) {
+                http_response_code(400);
+                return ["status" => "error", "message" => "Member with ID " . $data['member_id'] . " does not exist"];
+            }
+
+            if (!$this->model->trainerExists((int)$data['trainer_id'])) {
+                http_response_code(400);
+                return ["status" => "error", "message" => "Trainer with ID " . $data['trainer_id'] . " does not exist"];
+            }
+
+            $goal = strtoupper(trim($data['goal']));
+            if (!in_array($goal, self::ALLOWED_GOALS)) {
+                http_response_code(400);
+                return ["status" => "error", "message" => "Invalid goal. Allowed goals: " . implode(', ', self::ALLOWED_GOALS)];
+            }
+
+            $duration = (int)$data['duration_days'];
+            if ($duration <= 0) {
+                http_response_code(400);
+                return ["status" => "error", "message" => "Duration days must be a positive number"];
+            }
+
+            $status = isset($data['status']) ? strtoupper(trim($data['status'])) : 'DRAFT';
+            if (!in_array($status, self::ALLOWED_STATUSES)) {
+                http_response_code(400);
+                return ["status" => "error", "message" => "Invalid status. Allowed statuses: " . implode(', ', self::ALLOWED_STATUSES)];
+            }
+
+            $recommendations = null;
+            if (isset($data['recommendations'])) {
+                if (is_array($data['recommendations'])) {
+                    $recommendations = json_encode($data['recommendations']);
+                } else {
+                    json_decode($data['recommendations']);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        http_response_code(400);
+                        return ["status" => "error", "message" => "Recommendations must be a valid JSON array or object"];
+                    }
+                    $recommendations = $data['recommendations'];
+                }
+            }
+
+            $startDate = trim($data['start_date']);
+            $endDate = date('Y-m-d', strtotime($startDate . " + $duration days"));
+
+            $planData = [
+                'member_id' => (int)$data['member_id'],
+                'trainer_id' => (int)$data['trainer_id'],
+                'goal' => $goal,
+                'duration_days' => $duration,
+                'water_intake_l' => isset($data['water_intake_l']) ? (float)$data['water_intake_l'] : null,
+                'sleep_hours' => isset($data['sleep_hours']) ? (float)$data['sleep_hours'] : null,
+                'recommendations' => $recommendations,
+                'trainer_comments' => $data['trainer_comments'] ?? null,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'status' => $status,
+                'created_by' => $adminUserId
+            ];
+
+            if ($status === 'ACTIVE') {
+                $this->model->deactivateMemberActivePlans((int)$data['member_id']);
+            }
+
+            $dietPlanId = $this->model->createDietPlanWithMeals($planData, $data['meals']);
+
+            return [
+                "status" => "success",
+                "message" => "Diet plan and associated meals created successfully",
+                "diet_plan_id" => $dietPlanId
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code($e->getCode() === 400 ? 400 : ($e->getCode() === 403 ? 403 : 401));
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    public function createMeal(string $accessToken, int $dietPlanId, array $data): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+
+            if (empty($data['meal_title'])) {
+                http_response_code(400);
+                return ["status" => "error", "message" => "Meal title is required"];
+            }
+
+            if (!isset($data['meal_items'])) {
+                http_response_code(400);
+                return ["status" => "error", "message" => "Meal items is required"];
+            }
+
+            $mealItems = null;
+            if (is_array($data['meal_items'])) {
+                $mealItems = json_encode($data['meal_items']);
+            } else {
+                json_decode($data['meal_items']);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    http_response_code(400);
+                    return ["status" => "error", "message" => "Meal items must be a valid JSON array or object"];
+                }
+                $mealItems = $data['meal_items'];
+            }
+
+            $mealData = [
+                'meal_title' => trim($data['meal_title']),
+                'meal_time' => !empty($data['meal_time']) ? trim($data['meal_time']) : null,
+                'meal_items' => $mealItems,
+                'notes' => $data['notes'] ?? null
+            ];
+
+            if (isset($data['meal_order'])) {
+                $mealData['meal_order'] = (int)$data['meal_order'];
+            }
+
+            $mealId = $this->model->createMeal($dietPlanId, $mealData);
+
+            return [
+                "status" => "success",
+                "message" => "Meal created successfully",
+                "meal_id" => $mealId
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code($e->getCode() === 403 ? 403 : ($e->getCode() === 404 ? 404 : 401));
             return ["status" => "error", "message" => $e->getMessage()];
         }
     }
@@ -495,6 +644,100 @@ class DietPlanWorkflow
 
         } catch (\Throwable $e) {
             http_response_code($e->getCode() === 403 ? 403 : 401);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    public function createDietPlanWithMealsByTrainer(string $accessToken, int $memberId, array $data): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['TRAINER']);
+            $trainerUserId = (int)$decoded->sub;
+            $trainerId = $this->getTrainerIdFromUser($trainerUserId);
+
+            // Access check: must be assigned
+            if (!$this->model->isMemberAssignedToTrainer($memberId, $trainerId)) {
+                http_response_code(403);
+                return ["status" => "error", "message" => "Access denied. Member is not assigned to you."];
+            }
+
+            $required = ['goal', 'duration_days', 'start_date', 'meals'];
+            foreach ($required as $field) {
+                if (!isset($data[$field]) || (is_string($data[$field]) && trim($data[$field]) === '') || (is_array($data[$field]) && empty($data[$field]))) {
+                    http_response_code(400);
+                    return ["status" => "error", "message" => "Field '$field' is required"];
+                }
+            }
+
+            if (!is_array($data['meals'])) {
+                http_response_code(400);
+                return ["status" => "error", "message" => "Meals must be a non-empty array"];
+            }
+
+            $goal = strtoupper(trim($data['goal']));
+            if (!in_array($goal, self::ALLOWED_GOALS)) {
+                http_response_code(400);
+                return ["status" => "error", "message" => "Invalid goal. Allowed goals: " . implode(', ', self::ALLOWED_GOALS)];
+            }
+
+            $duration = (int)$data['duration_days'];
+            if ($duration <= 0) {
+                http_response_code(400);
+                return ["status" => "error", "message" => "Duration days must be a positive number"];
+            }
+
+            $status = isset($data['status']) ? strtoupper(trim($data['status'])) : 'DRAFT';
+            if (!in_array($status, self::ALLOWED_STATUSES)) {
+                http_response_code(400);
+                return ["status" => "error", "message" => "Invalid status. Allowed statuses: " . implode(', ', self::ALLOWED_STATUSES)];
+            }
+
+            $recommendations = null;
+            if (isset($data['recommendations'])) {
+                if (is_array($data['recommendations'])) {
+                    $recommendations = json_encode($data['recommendations']);
+                } else {
+                    json_decode($data['recommendations']);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        http_response_code(400);
+                        return ["status" => "error", "message" => "Recommendations must be a valid JSON array or object"];
+                    }
+                    $recommendations = $data['recommendations'];
+                }
+            }
+
+            $startDate = trim($data['start_date']);
+            $endDate = date('Y-m-d', strtotime($startDate . " + $duration days"));
+
+            $planData = [
+                'member_id' => $memberId,
+                'trainer_id' => $trainerId,
+                'goal' => $goal,
+                'duration_days' => $duration,
+                'water_intake_l' => isset($data['water_intake_l']) ? (float)$data['water_intake_l'] : null,
+                'sleep_hours' => isset($data['sleep_hours']) ? (float)$data['sleep_hours'] : null,
+                'recommendations' => $recommendations,
+                'trainer_comments' => $data['trainer_comments'] ?? null,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'status' => $status,
+                'created_by' => $trainerUserId
+            ];
+
+            if ($status === 'ACTIVE') {
+                $this->model->deactivateMemberActivePlans($memberId);
+            }
+
+            $dietPlanId = $this->model->createDietPlanWithMeals($planData, $data['meals']);
+
+            return [
+                "status" => "success",
+                "message" => "Diet plan and associated meals created successfully",
+                "diet_plan_id" => $dietPlanId
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code($e->getCode() === 400 ? 400 : ($e->getCode() === 403 ? 403 : 401));
             return ["status" => "error", "message" => $e->getMessage()];
         }
     }

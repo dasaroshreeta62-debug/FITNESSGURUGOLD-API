@@ -168,6 +168,10 @@ function route(string $method, string $path): void
             $dietPlanController->createDietPlan();
             return;
 
+        case $method === 'POST' && $path === '/api/admin/diet-plans/collective':
+            $dietPlanController->createDietPlanWithMeals();
+            return;
+
         case $method === 'GET' && $path === '/api/admin/diet-plans':
             $dietPlanController->listDietPlans();
             return;
@@ -245,6 +249,10 @@ function route(string $method, string $path): void
 
         case $method === 'POST' && preg_match('#^/api/trainer/members/(\d+)/diet-plans$#', $path, $matches):
             $dietPlanController->createDietPlanByTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'POST' && preg_match('#^/api/trainer/members/(\d+)/diet-plans/collective$#', $path, $matches):
+            $dietPlanController->createDietPlanWithMealsByTrainer((int)$matches[1]);
             return;
 
         case $method === 'GET' && $path === '/api/trainer/diet-plans':

@@ -50,6 +50,15 @@ class DietPlanController
         echo json_encode($response);
     }
 
+    public function createDietPlanWithMeals(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->createDietPlanWithMeals($token, $input);
+        echo json_encode($response);
+    }
+
     public function listDietPlans(): void
     {
         $token = $this->getBearerToken();
@@ -227,6 +236,15 @@ class DietPlanController
         if ($token === false) return;
         $input = $this->getRequestInput();
         $response = $this->workflow->createDietPlanByTrainer($token, $memberId, $input);
+        echo json_encode($response);
+    }
+
+    public function createDietPlanWithMealsByTrainer(int $memberId): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->createDietPlanWithMealsByTrainer($token, $memberId, $input);
         echo json_encode($response);
     }
 
