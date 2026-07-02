@@ -172,6 +172,10 @@ function route(string $method, string $path): void
             $dietPlanController->createDietPlanWithMeals();
             return;
 
+        case $method === 'GET' && $path === '/api/admin/gym-branches':
+            $controller->getAdminGymBranches();
+            return;
+
         case $method === 'GET' && $path === '/api/admin/diet-plans':
             $dietPlanController->listDietPlans();
             return;

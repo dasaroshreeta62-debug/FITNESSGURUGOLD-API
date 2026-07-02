@@ -538,6 +538,55 @@ class Model
             ];
         }, $branches);
     }
+
+    public function getAdminGymBranches(int $gymId): array
+    {
+        $sql = "
+            SELECT 
+                gb.*,
+                c.city_name,
+                d.district_name,
+                s.state_name
+            FROM gym_branches gb
+            LEFT JOIN cities c ON c.city_id = gb.city_id
+            LEFT JOIN districts d ON d.district_id = gb.district_id
+            LEFT JOIN states s ON s.state_id = gb.state_id
+            WHERE gb.gym_id = :gym_id
+            ORDER BY gb.branch_name ASC
+        ";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['gym_id' => $gymId]);
+        $branches = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map(function ($b) {
+            return [
+                "branch_id"       => (int)$b['branch_id'],
+                "gym_id"          => (int)$b['gym_id'],
+                "branch_name"     => $b['branch_name'],
+                "address_line1"   => $b['address_line1'],
+                "address_line2"   => $b['address_line2'],
+                "city_id"         => $b['city_id'] !== null ? (int)$b['city_id'] : null,
+                "city_name"       => $b['city_name'],
+                "district_id"     => $b['district_id'] !== null ? (int)$b['district_id'] : null,
+                "district_name"   => $b['district_name'],
+                "state_id"        => $b['state_id'] !== null ? (int)$b['state_id'] : null,
+                "state_name"      => $b['state_name'],
+                "pincode"         => $b['pincode'],
+                "phone_number"    => $b['phone_number'],
+                "alternate_phone" => $b['alternate_phone'],
+                "email"           => $b['email'],
+                "opening_time"    => $b['opening_time'],
+                "closing_time"    => $b['closing_time'],
+                "latitude"        => $b['latitude'] !== null ? (float)$b['latitude'] : null,
+                "longitude"       => $b['longitude'] !== null ? (float)$b['longitude'] : null,
+                "status"          => ((int)$b['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "created_at"      => $b['createdDate'] . 'T' . $b['createdTime'] . 'Z',
+                "updated_at"      => ($b['updatedDate'] && $b['updatedTime']) ? ($b['updatedDate'] . 'T' . $b['updatedTime'] . 'Z') : null
+            ];
+        }, $branches);
+    }
+
     public function getCities(array $filters): array
     {
         $sql = "

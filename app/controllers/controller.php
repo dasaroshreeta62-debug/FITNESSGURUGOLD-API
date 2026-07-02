@@ -408,6 +408,27 @@ class Controller
         $response = $this->workflow->listGymBranches($filters);
         echo json_encode($response);
     }
+
+    public function getAdminGymBranches(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+        $queryGymId = isset($_GET['gym_id']) ? (int)$_GET['gym_id'] : null;
+
+        $response = $this->workflow->getAdminGymBranches($accessToken, $queryGymId);
+        echo json_encode($response);
+    }
+
     public function listCities(): void
     {
         $headers = getallheaders();

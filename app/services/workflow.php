@@ -666,7 +666,68 @@ class Workflow
             "data"    => $branches
         ];
     }
-        public function listCities(string $accessToken, array $filters): array
+
+    public function getAdminGymBranches(string $accessToken, ?int $queryGymId = null): array
+    {
+        try {
+            // Decode JWT
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            $userId = (int)$decoded->sub;
+            $role   = strtoupper($decoded->role ?? '');
+
+            // Admin-only access
+            if (!in_array($role, ['ADMIN', 'SUPER_ADMIN'])) {
+                http_response_code(403);
+                return [
+                    "status"  => "error",
+                    "message" => "Access denied — admin privileges required"
+                ];
+            }
+
+            // Get admin details
+            $user = $this->model->getUserProfileById($userId);
+            if (!$user) {
+                http_response_code(404);
+                return [
+                    "status"  => "error",
+                    "message" => "Admin user profile not found"
+                ];
+            }
+
+            // Use the query gym_id if SUPER_ADMIN provides it, otherwise default to admin's own gym_id
+            $gymId = ($role === 'SUPER_ADMIN' && $queryGymId !== null) ? $queryGymId : (int)$user['gym_id'];
+
+            if (!$gymId) {
+                http_response_code(400);
+                return [
+                    "status"  => "error",
+                    "message" => "No gym associated with this admin"
+                ];
+            }
+
+            $branches = $this->model->getAdminGymBranches($gymId);
+
+            return [
+                "status"  => "success",
+                "message" => "Gym branches fetched successfully",
+                "count"   => count($branches),
+                "data"    => $branches
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(401);
+            return [
+                "status"  => "error",
+                "message" => "Invalid or expired token"
+            ];
+        }
+    }
+
+    public function listCities(string $accessToken, array $filters): array
     {
         try {
             /* ========= AUTH ========= */
