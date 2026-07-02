@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../controllers/controller.php';
 require_once __DIR__ . '/../controllers/DietPlanController.php';
+require_once __DIR__ . '/../controllers/EmployeeController.php';
 
 function route(string $method, string $path): void
 {
@@ -11,6 +12,7 @@ function route(string $method, string $path): void
     // Create controller instances
     $controller = new Controller();
     $dietPlanController = new DietPlanController();
+    $employeeController = new EmployeeController();
 
     switch (true) {
 
@@ -146,20 +148,45 @@ function route(string $method, string $path): void
             $controller->updateTrainer((int)$matches[1]);
             return;
 
-        case $method === 'POST' && $path === '/api/staff/addStaff':
-            $controller->addStaff();
-            return;
-        
-        case $method === 'GET' && $path === '/api/staff/getStaff':
-            $controller->getStaff();
+        //=============Employee Onboarding & Directory APIs==========
+        case $method === 'POST' && $path === '/api/employees/onboard':
+            $employeeController->onboardEmployee();
             return;
 
-        case $method === 'GET' && preg_match('#^/api/staff/getStaff/(\d+)$#', $path, $matches):
-            $controller->getStaffById((int)$matches[1]);
+        case $method === 'POST' && $path === '/api/trainers/onboard':
+            $employeeController->onboardTrainer();
             return;
 
-        case $method === 'PUT' && preg_match('#^/api/staff/updateStaff/(\d+)$#', $path, $matches):
-            $controller->updateStaff((int)$matches[1]);
+        case $method === 'GET' && preg_match('#^/api/employees/(\d+)$#', $path, $matches):
+            $employeeController->getEmployee((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/trainers/(\d+)$#', $path, $matches):
+            $employeeController->getTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'PUT' && preg_match('#^/api/employees/(\d+)$#', $path, $matches):
+            $employeeController->updateEmployee((int)$matches[1]);
+            return;
+
+        case $method === 'PUT' && preg_match('#^/api/trainers/(\d+)$#', $path, $matches):
+            $employeeController->updateTrainer((int)$matches[1]);
+            return;
+
+        case $method === 'PUT' && preg_match('#^/api/employees/(\d+)/documents$#', $path, $matches):
+            $employeeController->updateEmployeeDocuments((int)$matches[1]);
+            return;
+
+        case $method === 'PATCH' && preg_match('#^/api/employees/(\d+)/status$#', $path, $matches):
+            $employeeController->updateEmployeeStatus((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && $path === '/api/employees':
+            $employeeController->listEmployees();
+            return;
+
+        case $method === 'GET' && $path === '/api/trainers':
+            $employeeController->listTrainers();
             return;
 
         //=============Diet Plan APIs==========
