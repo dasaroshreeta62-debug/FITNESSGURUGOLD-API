@@ -14,7 +14,7 @@ class DietPlanModel extends Model
 
     public function trainerExists(int $trainerId): bool
     {
-        $stmt = $this->db->prepare("SELECT COUNT(*) FROM trainers WHERE trainer_id = :id");
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM trainer_profiles WHERE trainer_profile_id = :id");
         $stmt->execute(['id' => $trainerId]);
         return (int)$stmt->fetchColumn() > 0;
     }
@@ -29,10 +29,20 @@ class DietPlanModel extends Model
     public function getTrainerByUserId(int $userId): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT t.*, u.name, u.email, u.phone, u.role
-            FROM trainers t
-            JOIN users u ON u.user_id = t.user_id
-            WHERE t.user_id = :user_id LIMIT 1
+            SELECT 
+                tp.trainer_profile_id AS trainer_id,
+                e.user_id,
+                e.employee_id,
+                e.gym_id,
+                e.branch_id,
+                e.full_name AS name,
+                e.email,
+                e.phone,
+                u.role
+            FROM trainer_profiles tp
+            JOIN employees e ON e.employee_id = tp.employee_id
+            JOIN users u ON u.user_id = e.user_id
+            WHERE e.user_id = :user_id LIMIT 1
         ");
         $stmt->execute([':user_id' => $userId]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -110,11 +120,12 @@ class DietPlanModel extends Model
             SELECT dp.*, 
                    u_member.name AS member_name, u_member.email AS member_email,
                    u_creator.name AS creator_name,
-                   t.name AS trainer_name
+                   t.full_name AS trainer_name
             FROM member_diet_plans dp
             JOIN users u_member ON u_member.user_id = dp.member_id
             JOIN users u_creator ON u_creator.user_id = dp.created_by
-            JOIN trainers t ON t.trainer_id = dp.trainer_id
+            JOIN trainer_profiles tp ON tp.trainer_profile_id = dp.trainer_id
+            JOIN employees t ON t.employee_id = tp.employee_id
             WHERE dp.diet_plan_id = :id
             LIMIT 1
         ");
@@ -139,11 +150,12 @@ class DietPlanModel extends Model
         $sql = "SELECT dp.*, 
                        u_member.name AS member_name, u_member.email AS member_email,
                        u_creator.name AS creator_name,
-                       t.name AS trainer_name
+                       t.full_name AS trainer_name
                 FROM member_diet_plans dp
                 JOIN users u_member ON u_member.user_id = dp.member_id
                 JOIN users u_creator ON u_creator.user_id = dp.created_by
-                JOIN trainers t ON t.trainer_id = dp.trainer_id";
+                JOIN trainer_profiles tp ON tp.trainer_profile_id = dp.trainer_id
+                JOIN employees t ON t.employee_id = tp.employee_id";
         
         $where = [];
         $params = [];
@@ -439,11 +451,12 @@ class DietPlanModel extends Model
         $sql = "SELECT dp.*, 
                        u_member.name AS member_name, u_member.email AS member_email,
                        u_creator.name AS creator_name,
-                       t.name AS trainer_name
+                       t.full_name AS trainer_name
                 FROM member_diet_plans dp
                 JOIN users u_member ON u_member.user_id = dp.member_id
                 JOIN users u_creator ON u_creator.user_id = dp.created_by
-                JOIN trainers t ON t.trainer_id = dp.trainer_id
+                JOIN trainer_profiles tp ON tp.trainer_profile_id = dp.trainer_id
+                JOIN employees t ON t.employee_id = tp.employee_id
                 WHERE dp.member_id = :member_id AND dp.status != 'ACTIVE'
                 ORDER BY dp.created_at DESC";
         
@@ -511,6 +524,25 @@ class DietPlanModel extends Model
             }
             throw $e;
         }
+    }
+
+    /**
+     * Check if a member has active diet plan access credits.
+     */
+    public function checkDietPlanAccess(int $userId): bool
+    {
+        $sql = "
+            SELECT COUNT(*) 
+            FROM client_wallet_credits 
+            WHERE user_id = :user_id 
+              AND entitlement_type = 'ACCESS_DIET_PLANS' 
+              AND status = 1 
+              AND remaining_quantity > 0 
+              AND expiration_date >= CURDATE()
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['user_id' => $userId]);
+        return (int)$stmt->fetchColumn() > 0;
     }
 }
 

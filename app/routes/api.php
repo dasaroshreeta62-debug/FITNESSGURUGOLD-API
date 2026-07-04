@@ -3,6 +3,8 @@
 require_once __DIR__ . '/../controllers/controller.php';
 require_once __DIR__ . '/../controllers/DietPlanController.php';
 require_once __DIR__ . '/../controllers/EmployeeController.php';
+require_once __DIR__ . '/../controllers/PersonalTrainingController.php';
+require_once __DIR__ . '/../controllers/FitnessAssessmentController.php';
 
 function route(string $method, string $path): void
 {
@@ -13,6 +15,8 @@ function route(string $method, string $path): void
     $controller = new Controller();
     $dietPlanController = new DietPlanController();
     $employeeController = new EmployeeController();
+    $personalTrainingController = new PersonalTrainingController();
+    $fitnessAssessmentController = new FitnessAssessmentController();
 
     switch (true) {
 
@@ -201,6 +205,59 @@ function route(string $method, string $path): void
 
         case $method === 'GET' && $path === '/api/admin/gym-branches':
             $controller->getAdminGymBranches();
+            return;
+
+        // ================= PERSONAL TRAINING ROUTES =================
+        case $method === 'POST' && $path === '/api/v1/admin/pt/manual-purchase':
+            $personalTrainingController->manualPurchase();
+            return;
+
+        case $method === 'POST' && $path === '/api/v1/admin/pt/assign-trainer':
+            $personalTrainingController->assignTrainer();
+            return;
+
+        case $method === 'POST' && $path === '/api/v1/admin/pt/generate-schedule':
+            $personalTrainingController->generateSchedule();
+            return;
+
+        case $method === 'POST' && $path === '/api/v1/trainer/availability/template':
+            $personalTrainingController->setWeeklyTemplate();
+            return;
+
+        case $method === 'GET' && $path === '/api/v1/trainer/roster':
+            $personalTrainingController->getTrainerRoster();
+            return;
+
+        case $method === 'GET' && $path === '/api/v1/member/pt/available-slots':
+            $personalTrainingController->getMemberAvailableSlots();
+            return;
+
+        case $method === 'POST' && $path === '/api/v1/member/pt/book':
+            $personalTrainingController->bookSlot();
+            return;
+
+        case $method === 'POST' && $path === '/api/v1/trainer/session/complete':
+            $personalTrainingController->initiateSessionComplete();
+            return;
+
+        case $method === 'POST' && $path === '/api/v1/pt/session/verify':
+            $personalTrainingController->verifySessionComplete();
+            return;
+
+        case $method === 'POST' && $path === '/api/assessments':
+            $fitnessAssessmentController->createAssessment();
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/assessments/(\d+)$#', $path, $matches):
+            $fitnessAssessmentController->getAssessment((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/members/(\d+)/assessments$#', $path, $matches):
+            $fitnessAssessmentController->getMemberAssessments((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/members/(\d+)/assessments/latest$#', $path, $matches):
+            $fitnessAssessmentController->getLatestMemberAssessment((int)$matches[1]);
             return;
 
         case $method === 'GET' && $path === '/api/admin/diet-plans':

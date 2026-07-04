@@ -67,6 +67,15 @@ class DietPlanWorkflow
                 return ["status" => "error", "message" => "Member with ID " . $data['member_id'] . " does not exist"];
             }
 
+            if (!$this->model->checkDietPlanAccess((int)$data['member_id'])) {
+                @http_response_code(400);
+                return [
+                    "success" => false,
+                    "status" => "error",
+                    "message" => "Cannot assign diet plan. This member does not have Diet Plan access in their active wallet package."
+                ];
+            }
+
             if (!$this->model->trainerExists((int)$data['trainer_id'])) {
                 http_response_code(400);
                 return ["status" => "error", "message" => "Trainer with ID " . $data['trainer_id'] . " does not exist"];
@@ -162,6 +171,15 @@ class DietPlanWorkflow
             if (!$this->model->memberExists((int)$data['member_id'])) {
                 http_response_code(400);
                 return ["status" => "error", "message" => "Member with ID " . $data['member_id'] . " does not exist"];
+            }
+
+            if (!$this->model->checkDietPlanAccess((int)$data['member_id'])) {
+                @http_response_code(400);
+                return [
+                    "success" => false,
+                    "status" => "error",
+                    "message" => "Cannot assign diet plan. This member does not have Diet Plan access in their active wallet package."
+                ];
             }
 
             if (!$this->model->trainerExists((int)$data['trainer_id'])) {
@@ -572,6 +590,15 @@ class DietPlanWorkflow
                 return ["status" => "error", "message" => "Access denied. Member is not assigned to you."];
             }
 
+            if (!$this->model->checkDietPlanAccess($memberId)) {
+                @http_response_code(400);
+                return [
+                    "success" => false,
+                    "status" => "error",
+                    "message" => "Cannot assign diet plan. This member does not have Diet Plan access in their active wallet package."
+                ];
+            }
+
             $required = ['goal', 'duration_days', 'start_date'];
             foreach ($required as $field) {
                 if (!isset($data[$field]) || trim((string)$data[$field]) === '') {
@@ -659,6 +686,15 @@ class DietPlanWorkflow
             if (!$this->model->isMemberAssignedToTrainer($memberId, $trainerId)) {
                 http_response_code(403);
                 return ["status" => "error", "message" => "Access denied. Member is not assigned to you."];
+            }
+
+            if (!$this->model->checkDietPlanAccess($memberId)) {
+                @http_response_code(400);
+                return [
+                    "success" => false,
+                    "status" => "error",
+                    "message" => "Cannot assign diet plan. This member does not have Diet Plan access in their active wallet package."
+                ];
             }
 
             $required = ['goal', 'duration_days', 'start_date', 'meals'];
@@ -1310,6 +1346,15 @@ class DietPlanWorkflow
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
             $memberUserId = (int)$decoded->sub;
 
+            if (!$this->model->checkDietPlanAccess($memberUserId)) {
+                @http_response_code(403);
+                return [
+                    "success" => false,
+                    "status" => "error",
+                    "message" => "Access Denied. Your current plan does not include personalized diet plans."
+                ];
+            }
+
             $plan = $this->model->getMemberActiveDietPlan($memberUserId);
             if ($plan) {
                 $plan['meals'] = $this->model->getDietPlanMeals($plan['diet_plan_id']);
@@ -1328,6 +1373,15 @@ class DietPlanWorkflow
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
             $memberUserId = (int)$decoded->sub;
 
+            if (!$this->model->checkDietPlanAccess($memberUserId)) {
+                @http_response_code(403);
+                return [
+                    "success" => false,
+                    "status" => "error",
+                    "message" => "Access Denied. Your current plan does not include personalized diet plans."
+                ];
+            }
+
             $history = $this->model->getMemberDietPlansHistory($memberUserId);
             return ["status" => "success", "data" => $history];
         } catch (\Throwable $e) {
@@ -1342,6 +1396,15 @@ class DietPlanWorkflow
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
             $memberUserId = (int)$decoded->sub;
 
+            if (!$this->model->checkDietPlanAccess($memberUserId)) {
+                @http_response_code(403);
+                return [
+                    "success" => false,
+                    "status" => "error",
+                    "message" => "Access Denied. Your current plan does not include personalized diet plans."
+                ];
+            }
+
             $plans = $this->model->getMemberDietPlans($memberUserId);
             return ["status" => "success", "data" => $plans];
         } catch (\Throwable $e) {
@@ -1355,6 +1418,15 @@ class DietPlanWorkflow
         try {
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
             $memberUserId = (int)$decoded->sub;
+
+            if (!$this->model->checkDietPlanAccess($memberUserId)) {
+                @http_response_code(403);
+                return [
+                    "success" => false,
+                    "status" => "error",
+                    "message" => "Access Denied. Your current plan does not include personalized diet plans."
+                ];
+            }
 
             $plan = $this->model->getDietPlan($dietPlanId);
             if (!$plan) {
@@ -1381,6 +1453,15 @@ class DietPlanWorkflow
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
             $memberUserId = (int)$decoded->sub;
 
+            if (!$this->model->checkDietPlanAccess($memberUserId)) {
+                @http_response_code(403);
+                return [
+                    "success" => false,
+                    "status" => "error",
+                    "message" => "Access Denied. Your current plan does not include personalized diet plans."
+                ];
+            }
+
             $plan = $this->model->getDietPlan($dietPlanId);
             if (!$plan) {
                 http_response_code(404);
@@ -1405,6 +1486,15 @@ class DietPlanWorkflow
         try {
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
             $memberUserId = (int)$decoded->sub;
+
+            if (!$this->model->checkDietPlanAccess($memberUserId)) {
+                @http_response_code(403);
+                return [
+                    "success" => false,
+                    "status" => "error",
+                    "message" => "Access Denied. Your current plan does not include personalized diet plans."
+                ];
+            }
 
             $meal = $this->model->getMeal($mealId);
             if (!$meal) {
