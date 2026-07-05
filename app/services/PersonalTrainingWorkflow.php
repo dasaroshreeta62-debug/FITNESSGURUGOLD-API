@@ -237,20 +237,40 @@ class PersonalTrainingWorkflow
                 throw new Exception("Trainer profile not found in database", 404);
             }
 
-            if (!isset($data['availability']) || !is_array($data['availability'])) {
-                throw new Exception("availability list is required", 400);
+            $rawList = $data['availability'] ?? $data['days'] ?? null;
+            if (!is_array($rawList)) {
+                throw new Exception("availability or days list is required", 400);
+            }
+
+            $availability = [];
+            foreach ($rawList as $item) {
+                $day = isset($item['day_of_week']) ? (int)$item['day_of_week'] : null;
+                if (!$day || $day < 1 || $day > 7) {
+                    throw new Exception("day_of_week must be between 1 (Monday) and 7 (Sunday)", 400);
+                }
+
+                if (isset($item['slots']) && is_array($item['slots'])) {
+                    foreach ($item['slots'] as $sId) {
+                        $availability[] = [
+                            'day_of_week' => $day,
+                            'slot_id'     => (int)$sId
+                        ];
+                    }
+                } elseif (isset($item['slot_id'])) {
+                    $availability[] = [
+                        'day_of_week' => $day,
+                        'slot_id'     => (int)$item['slot_id']
+                    ];
+                }
+            }
+
+            if (empty($availability)) {
+                throw new Exception("No valid slot entries provided in template data", 400);
             }
 
             // Validate all slot IDs exist
-            foreach ($data['availability'] as $item) {
-                if (!isset($item['day_of_week']) || !isset($item['slot_id'])) {
-                    throw new Exception("Each availability block must include day_of_week and slot_id", 400);
-                }
-                $day = (int)$item['day_of_week'];
-                $slotId = (int)$item['slot_id'];
-                if ($day < 1 || $day > 7) {
-                    throw new Exception("day_of_week must be between 1 (Monday) and 7 (Sunday)", 400);
-                }
+            foreach ($availability as $item) {
+                $slotId = $item['slot_id'];
                 if (!$this->model->slotExists($slotId)) {
                     throw new Exception("slot_id $slotId does not exist in PT slots database", 400);
                 }
@@ -262,11 +282,11 @@ class PersonalTrainingWorkflow
             $this->model->clearTrainerWeeklyAvailability($trainerProfileId);
 
             // Bulk insert new template grid entries using trainer_profile_id
-            foreach ($data['availability'] as $item) {
+            foreach ($availability as $item) {
                 $this->model->insertTrainerWeeklyAvailability(
                     $trainerProfileId,
-                    (int)$item['day_of_week'],
-                    (int)$item['slot_id']
+                    $item['day_of_week'],
+                    $item['slot_id']
                 );
             }
 
