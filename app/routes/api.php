@@ -5,6 +5,7 @@ require_once __DIR__ . '/../controllers/DietPlanController.php';
 require_once __DIR__ . '/../controllers/EmployeeController.php';
 require_once __DIR__ . '/../controllers/PersonalTrainingController.php';
 require_once __DIR__ . '/../controllers/FitnessAssessmentController.php';
+require_once __DIR__ . '/../controllers/MembershipController.php';
 
 function route(string $method, string $path): void
 {
@@ -17,6 +18,7 @@ function route(string $method, string $path): void
     $employeeController = new EmployeeController();
     $personalTrainingController = new PersonalTrainingController();
     $fitnessAssessmentController = new FitnessAssessmentController();
+    $membershipController = new MembershipController();
 
     switch (true) {
 
@@ -258,6 +260,63 @@ function route(string $method, string $path): void
 
         case $method === 'GET' && preg_match('#^/api/members/(\d+)/assessments/latest$#', $path, $matches):
             $fitnessAssessmentController->getLatestMemberAssessment((int)$matches[1]);
+            return;
+
+        // ================= MEMBERSHIP PLANS & SUBSCRIPTIONS =================
+        case $method === 'GET' && $path === '/api/membership-plans':
+            $membershipController->listMembershipPlans();
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/membership-plans/(\d+)$#', $path, $matches):
+            $membershipController->getMembershipPlanDetails((int)$matches[1]);
+            return;
+
+        case $method === 'POST' && $path === '/api/admin/membership-plans':
+            $membershipController->createMembershipPlan();
+            return;
+
+        case $method === 'PUT' && preg_match('#^/api/admin/membership-plans/(\d+)$#', $path, $matches):
+            $membershipController->updateMembershipPlan((int)$matches[1]);
+            return;
+
+        case $method === 'DELETE' && preg_match('#^/api/admin/membership-plans/(\d+)$#', $path, $matches):
+            $membershipController->deleteMembershipPlan((int)$matches[1]);
+            return;
+
+        case $method === 'POST' && preg_match('#^/api/admin/membership-plans/(\d+)/entitlements$#', $path, $matches):
+            $membershipController->managePlanEntitlements((int)$matches[1]);
+            return;
+
+        case $method === 'DELETE' && preg_match('#^/api/admin/membership-plans/(\d+)/entitlements/([A-Z0-9_]+)$#', $path, $matches):
+            $membershipController->deleteSingleEntitlement((int)$matches[1], $matches[2]);
+            return;
+
+        case $method === 'GET' && $path === '/api/admin/subscriptions':
+            $membershipController->listSubscriptions();
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/admin/subscriptions/(\d+)$#', $path, $matches):
+            $membershipController->getSubscriptionDetails((int)$matches[1]);
+            return;
+
+        case $method === 'POST' && $path === '/api/admin/subscriptions':
+            $membershipController->createSubscription();
+            return;
+
+        case $method === 'PUT' && preg_match('#^/api/admin/subscriptions/(\d+)$#', $path, $matches):
+            $membershipController->updateSubscription((int)$matches[1]);
+            return;
+
+        case $method === 'PATCH' && preg_match('#^/api/admin/subscriptions/(\d+)/cancel$#', $path, $matches):
+            $membershipController->cancelSubscription((int)$matches[1]);
+            return;
+
+        case $method === 'DELETE' && preg_match('#^/api/admin/subscriptions/(\d+)$#', $path, $matches):
+            $membershipController->cancelSubscription((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && $path === '/api/member/subscriptions/active':
+            $membershipController->getMyActiveSubscription();
             return;
 
         case $method === 'GET' && $path === '/api/admin/diet-plans':
