@@ -6,6 +6,7 @@ require_once __DIR__ . '/../controllers/EmployeeController.php';
 require_once __DIR__ . '/../controllers/PersonalTrainingController.php';
 require_once __DIR__ . '/../controllers/FitnessAssessmentController.php';
 require_once __DIR__ . '/../controllers/MembershipController.php';
+require_once __DIR__ . '/../controllers/ShiftController.php';
 
 function route(string $method, string $path): void
 {
@@ -19,6 +20,7 @@ function route(string $method, string $path): void
     $personalTrainingController = new PersonalTrainingController();
     $fitnessAssessmentController = new FitnessAssessmentController();
     $membershipController = new MembershipController();
+    $shiftController = new ShiftController();
 
     switch (true) {
 
@@ -317,6 +319,47 @@ function route(string $method, string $path): void
 
         case $method === 'GET' && $path === '/api/member/subscriptions/active':
             $membershipController->getMyActiveSubscription();
+            return;
+
+        // ================= GYM SHIFTS & PT SLOTS =================
+        case $method === 'GET' && $path === '/api/admin/shifts':
+            $shiftController->listShifts();
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/admin/shifts/(\d+)$#', $path, $matches):
+            $shiftController->getShiftDetails((int)$matches[1]);
+            return;
+
+        case $method === 'POST' && $path === '/api/admin/shifts':
+            $shiftController->createShift();
+            return;
+
+        case $method === 'PUT' && preg_match('#^/api/admin/shifts/(\d+)$#', $path, $matches):
+            $shiftController->updateShift((int)$matches[1]);
+            return;
+
+        case $method === 'DELETE' && preg_match('#^/api/admin/shifts/(\d+)$#', $path, $matches):
+            $shiftController->deleteShift((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && $path === '/api/admin/pt-slots':
+            $shiftController->listSlots();
+            return;
+
+        case $method === 'GET' && preg_match('#^/api/admin/pt-slots/(\d+)$#', $path, $matches):
+            $shiftController->getSlotDetails((int)$matches[1]);
+            return;
+
+        case $method === 'POST' && $path === '/api/admin/pt-slots':
+            $shiftController->createSlot();
+            return;
+
+        case $method === 'PUT' && preg_match('#^/api/admin/pt-slots/(\d+)$#', $path, $matches):
+            $shiftController->updateSlot((int)$matches[1]);
+            return;
+
+        case $method === 'DELETE' && preg_match('#^/api/admin/pt-slots/(\d+)$#', $path, $matches):
+            $shiftController->deleteSlot((int)$matches[1]);
             return;
 
         case $method === 'GET' && $path === '/api/admin/diet-plans':
