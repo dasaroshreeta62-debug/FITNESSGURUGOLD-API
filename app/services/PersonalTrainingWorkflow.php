@@ -681,4 +681,359 @@ class PersonalTrainingWorkflow
             return ["status" => "error", "message" => $e->getMessage()];
         }
     }
+
+    /* ========================================================================= */
+    /* ========================= LIFECYCLE ACTION WORKFLOWS ==================== */
+    /* ========================================================================= */
+
+    /**
+     * Action M3: Report Individual Trainer Absence (Member)
+     */
+    public function reportTrainerAbsence(string $accessToken, array $data): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['MEMBER']);
+            $memberUserId = (int)$decoded->sub;
+
+            $memberProfileId = $this->model->getProfileIdByUserId($memberUserId);
+            if (!$memberProfileId) {
+                throw new Exception("Member profile not found in database", 404);
+            }
+
+            if (empty($data['schedule_id'])) {
+                throw new Exception("schedule_id is required", 400);
+            }
+
+            $scheduleId = (int)$data['schedule_id'];
+            $session = $this->model->getPtScheduleItem($scheduleId);
+            if (!$session) {
+                throw new Exception("Session not found", 404);
+            }
+
+            if ($session['session_status'] !== 'PENDING') {
+                throw new Exception("Only PENDING sessions can be marked as trainer absent", 400);
+            }
+
+            $success = $this->model->reportTrainerAbsence($scheduleId, $memberProfileId);
+            if (!$success) {
+                throw new Exception("Failed to report trainer absence. Session may not belong to this member or is not in PENDING status.", 400);
+            }
+
+            return [
+                "status"      => "success",
+                "message"     => "Trainer absence reported successfully",
+                "schedule_id" => $scheduleId
+            ];
+
+        } catch (\Throwable $e) {
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Action M4: Contest No-Show Claim / Dispute Trigger (Member)
+     */
+    public function disputeNoShow(string $accessToken, array $data): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['MEMBER']);
+            $memberUserId = (int)$decoded->sub;
+
+            $memberProfileId = $this->model->getProfileIdByUserId($memberUserId);
+            if (!$memberProfileId) {
+                throw new Exception("Member profile not found in database", 404);
+            }
+
+            if (empty($data['schedule_id']) || empty($data['reason'])) {
+                throw new Exception("schedule_id and reason are required", 400);
+            }
+
+            $scheduleId = (int)$data['schedule_id'];
+            $counterReason = trim($data['reason']);
+
+            $session = $this->model->getPtScheduleItem($scheduleId);
+            if (!$session) {
+                throw new Exception("Session not found", 404);
+            }
+
+            if ($session['session_status'] !== 'MEMBER_NO_SHOW') {
+                throw new Exception("Only MEMBER_NO_SHOW sessions can be disputed", 400);
+            }
+
+            $success = $this->model->disputeNoShow($scheduleId, $memberProfileId, $counterReason);
+            if (!$success) {
+                throw new Exception("Failed to lodge dispute. Session may not belong to this member or status is not MEMBER_NO_SHOW.", 400);
+            }
+
+            return [
+                "status"      => "success",
+                "message"     => "No-show claim disputed successfully. Case submitted for admin review.",
+                "schedule_id" => $scheduleId
+            ];
+
+        } catch (\Throwable $e) {
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Action T2: Mutual Absence Release / Soft Cancel (Trainer)
+     */
+    public function releaseSession(string $accessToken, array $data): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['TRAINER']);
+            $trainerUserId = (int)$decoded->sub;
+
+            $trainerProfileId = $this->model->getTrainerProfileIdByUserId($trainerUserId);
+            if (!$trainerProfileId) {
+                throw new Exception("Trainer profile not found in database", 404);
+            }
+
+            if (empty($data['schedule_id'])) {
+                throw new Exception("schedule_id is required", 400);
+            }
+
+            $scheduleId = (int)$data['schedule_id'];
+
+            $session = $this->model->getPtScheduleItem($scheduleId);
+            if (!$session) {
+                throw new Exception("Session not found", 404);
+            }
+
+            if ($session['session_status'] !== 'PENDING') {
+                throw new Exception("Only PENDING sessions can be released", 400);
+            }
+
+            $success = $this->model->releaseSession($scheduleId, $trainerProfileId);
+            if (!$success) {
+                throw new Exception("Failed to release session. Session may not belong to this trainer.", 400);
+            }
+
+            return [
+                "status"      => "success",
+                "message"     => "Session released successfully. Block is now AVAILABLE.",
+                "schedule_id" => $scheduleId
+            ];
+
+        } catch (\Throwable $e) {
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Action T3: Flag Client Individual Absence / No-Show Claim (Trainer)
+     */
+    public function flagNoShow(string $accessToken, array $data): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['TRAINER']);
+            $trainerUserId = (int)$decoded->sub;
+
+            $trainerProfileId = $this->model->getTrainerProfileIdByUserId($trainerUserId);
+            if (!$trainerProfileId) {
+                throw new Exception("Trainer profile not found in database", 404);
+            }
+
+            if (empty($data['schedule_id'])) {
+                throw new Exception("schedule_id is required", 400);
+            }
+
+            $scheduleId = (int)$data['schedule_id'];
+            $trainerReason = !empty($data['reason']) ? trim($data['reason']) : 'Client did not show up for session';
+
+            $session = $this->model->getPtScheduleItem($scheduleId);
+            if (!$session) {
+                throw new Exception("Session not found", 404);
+            }
+
+            if ($session['session_status'] !== 'PENDING') {
+                throw new Exception("Only PENDING sessions can be marked as MEMBER_NO_SHOW", 400);
+            }
+
+            $creditId = (int)$session['credit_id'];
+
+            $this->model->beginTransaction();
+
+            $success = $this->model->flagNoShow($scheduleId, $trainerProfileId, $trainerReason);
+            if (!$success) {
+                throw new Exception("Failed to flag client no-show", 400);
+            }
+
+            if ($creditId) {
+                $this->model->deductWalletCredit($creditId);
+            }
+
+            $this->model->commit();
+
+            return [
+                "status"      => "success",
+                "message"     => "Client no-show flagged successfully and session credit consumed.",
+                "schedule_id" => $scheduleId
+            ];
+
+        } catch (\Throwable $e) {
+            if ($this->model->inTransaction()) {
+                $this->model->rollBack();
+            }
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Action A1: Resolve Dispute in Favor of Trainer (Admin)
+     */
+    public function resolveDisputeTrainer(string $accessToken, array $data): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+
+            if (empty($data['schedule_id'])) {
+                throw new Exception("schedule_id is required", 400);
+            }
+
+            $scheduleId = (int)$data['schedule_id'];
+            $session = $this->model->getPtScheduleItem($scheduleId);
+            if (!$session) {
+                throw new Exception("Session not found", 404);
+            }
+
+            if ($session['session_status'] !== 'DISPUTED') {
+                throw new Exception("Only DISPUTED sessions can be resolved", 400);
+            }
+
+            $success = $this->model->resolveDisputeTrainer($scheduleId);
+            if (!$success) {
+                throw new Exception("Failed to resolve dispute", 400);
+            }
+
+            return [
+                "status"      => "success",
+                "message"     => "Dispute resolved in favor of trainer. Status set to RESOLVED_BY_ADMIN.",
+                "schedule_id" => $scheduleId
+            ];
+
+        } catch (\Throwable $e) {
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Action A2: Resolve Dispute in Favor of Member / Refund Credit (Admin)
+     */
+    public function resolveDisputeMember(string $accessToken, array $data): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+
+            if (empty($data['schedule_id'])) {
+                throw new Exception("schedule_id is required", 400);
+            }
+
+            $scheduleId = (int)$data['schedule_id'];
+            $session = $this->model->getPtScheduleItem($scheduleId);
+            if (!$session) {
+                throw new Exception("Session not found", 404);
+            }
+
+            if ($session['session_status'] !== 'DISPUTED') {
+                throw new Exception("Only DISPUTED sessions can be resolved", 400);
+            }
+
+            $creditId = (int)$session['credit_id'];
+
+            $this->model->beginTransaction();
+
+            $success = $this->model->resolveDisputeMember($scheduleId);
+            if (!$success) {
+                throw new Exception("Failed to resolve dispute", 400);
+            }
+
+            if ($creditId) {
+                $this->model->refundWalletCredit($creditId);
+            }
+
+            $this->model->commit();
+
+            return [
+                "status"      => "success",
+                "message"     => "Dispute resolved in favor of member. Credit refunded and status set to RESOLVED_BY_ADMIN.",
+                "schedule_id" => $scheduleId
+            ];
+
+        } catch (\Throwable $e) {
+            if ($this->model->inTransaction()) {
+                $this->model->rollBack();
+            }
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Nightly System Evaluation (11:59 PM cron trigger)
+     */
+    public function nightlyEvaluation(string $accessToken, array $data): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+
+            // Evaluation date defaults to today
+            $evalDate = !empty($data['evaluation_date']) ? trim($data['evaluation_date']) : date('Y-m-d');
+
+            // Find all PENDING slots where session_date < evalDate
+            $sessions = $this->model->getUnresolvedPastSessions($evalDate);
+
+            $mutualAbsenceCount = 0;
+            $expiredUnclaimedCount = 0;
+
+            $this->model->beginTransaction();
+
+            foreach ($sessions as $session) {
+                $scheduleId = (int)$session['schedule_id'];
+                $creditId = (int)$session['credit_id'];
+
+                $isPackageActive = false;
+                if ($creditId > 0) {
+                    $credit = $this->model->getWalletCredit($creditId);
+                    if ($credit && (int)$credit['status'] === 1 && $credit['expiration_date'] >= $evalDate) {
+                        $isPackageActive = true;
+                    }
+                }
+
+                if ($isPackageActive) {
+                    $status = 'MUTUAL_ABSENCE';
+                    $mutualAbsenceCount++;
+                } else {
+                    $status = 'EXPIRED_UNCLAIMED';
+                    $expiredUnclaimedCount++;
+                }
+
+                $this->model->updateSessionStatusAndClearPin($scheduleId, $status);
+            }
+
+            $this->model->commit();
+
+            return [
+                "status"                 => "success",
+                "message"                => "Nightly evaluation processed successfully",
+                "evaluation_date"        => $evalDate,
+                "sessions_processed"     => count($sessions),
+                "mutual_absence_count"   => $mutualAbsenceCount,
+                "expired_unclaimed_count" => $expiredUnclaimedCount
+            ];
+
+        } catch (\Throwable $e) {
+            if ($this->model->inTransaction()) {
+                $this->model->rollBack();
+            }
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
 }

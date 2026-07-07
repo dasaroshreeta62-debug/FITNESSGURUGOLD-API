@@ -150,4 +150,88 @@ class PersonalTrainingController
         $response = $this->workflow->generateSchedule($token, $input);
         echo json_encode($response);
     }
+
+    /**
+     * Action M3: Report Individual Trainer Absence (Member)
+     */
+    public function reportTrainerAbsence(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->reportTrainerAbsence($token, $input);
+        echo json_encode($response);
+    }
+
+    /**
+     * Action M4: Contest No-Show Claim (Member)
+     */
+    public function disputeNoShow(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->disputeNoShow($token, $input);
+        echo json_encode($response);
+    }
+
+    /**
+     * Action T2: Mutual Absence Release (Trainer)
+     */
+    public function releaseSession(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->releaseSession($token, $input);
+        echo json_encode($response);
+    }
+
+    /**
+     * Action T3: Flag Client Individual Absence (Trainer)
+     */
+    public function flagNoShow(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->flagNoShow($token, $input);
+        echo json_encode($response);
+    }
+
+    /**
+     * Action A1: Resolve Dispute in Favor of Trainer (Admin)
+     */
+    public function resolveDisputeTrainer(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->resolveDisputeTrainer($token, $input);
+        echo json_encode($response);
+    }
+
+    /**
+     * Action A2: Resolve Dispute in Favor of Member (Admin)
+     */
+    public function resolveDisputeMember(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->resolveDisputeMember($token, $input);
+        echo json_encode($response);
+    }
+
+    /**
+     * Nightly System Evaluation Endpoint (Admin)
+     */
+    public function nightlyEvaluation(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->nightlyEvaluation($token, $input);
+        echo json_encode($response);
+    }
 }

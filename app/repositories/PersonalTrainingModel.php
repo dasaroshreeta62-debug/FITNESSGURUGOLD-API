@@ -444,22 +444,24 @@ class PersonalTrainingModel extends Model
     /**
      * Set verification PIN and workout summary (using trainer_profile_id).
      */
-    public function setVerificationPin(int $scheduleId, int $trainerProfileId, int $pin, string $summary): bool
+    public function setVerificationPin(int $scheduleId, int $trainerProfileId, int $pin, string $summary = ''): bool
     {
-        $stmt = $this->db->prepare("
-            UPDATE trainer_pt_schedule 
-            SET verification_pin = :pin, 
-                workout_summary = :summary 
-            WHERE schedule_id = :schedule_id 
-              AND trainer_id = :trainer_id 
-              AND session_status = 'PENDING'
-        ");
-        return $stmt->execute([
+        $sql = "UPDATE trainer_pt_schedule SET verification_pin = :pin";
+        $params = [
             'pin'         => $pin,
-            'summary'     => $summary,
             'schedule_id' => $scheduleId,
             'trainer_id'  => $trainerProfileId
-        ]) && $stmt->rowCount() === 1;
+        ];
+
+        if (!empty($summary)) {
+            $sql .= ", session_note = CONCAT(IFNULL(session_note, ''), ' // ', :summary)";
+            $params['summary'] = trim($summary);
+        }
+
+        $sql .= " WHERE schedule_id = :schedule_id AND trainer_id = :trainer_id AND session_status = 'PENDING'";
+
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($params) && $stmt->rowCount() === 1;
     }
 
     /**
@@ -571,6 +573,186 @@ class PersonalTrainingModel extends Model
             'trainer_id'   => $data['trainer_id'], // trainer_profile_id
             'session_date' => $data['session_date'],
             'slot_id'      => $data['slot_id']
+        ]);
+    }
+
+    /* ========================================================================= */
+    /* ========================= PT LIFECYCLE MUTATIONS ======================== */
+    /* ========================================================================= */
+
+    /**
+     * Action M3: Member reports individual trainer absence.
+     */
+    public function reportTrainerAbsence(int $scheduleId, int $memberProfileId): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE trainer_pt_schedule 
+            SET session_status = 'TRAINER_ABSENT' 
+            WHERE schedule_id = :schedule_id 
+              AND member_id = :member_id 
+              AND session_status = 'PENDING'
+        ");
+        $stmt->execute([
+            'schedule_id' => $scheduleId,
+            'member_id'   => $memberProfileId
+        ]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Action M4: Member contests no-show claim (dispute trigger).
+     */
+    public function disputeNoShow(int $scheduleId, int $memberProfileId, string $counterReason): bool
+    {
+        $formattedReason = " // [M-D-L]: " . trim($counterReason);
+        $stmt = $this->db->prepare("
+            UPDATE trainer_pt_schedule 
+            SET session_status = 'DISPUTED',
+                session_note = CONCAT(IFNULL(session_note, ''), :reason)
+            WHERE schedule_id = :schedule_id 
+              AND member_id = :member_id 
+              AND session_status = 'MEMBER_NO_SHOW'
+        ");
+        $stmt->execute([
+            'schedule_id' => $scheduleId,
+            'member_id'   => $memberProfileId,
+            'reason'      => $formattedReason
+        ]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Action T2: Trainer mutual absence release (soft cancel).
+     */
+    public function releaseSession(int $scheduleId, int $trainerProfileId): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE trainer_pt_schedule 
+            SET session_status = 'AVAILABLE', 
+                member_id = NULL, 
+                credit_id = NULL, 
+                verification_pin = NULL 
+            WHERE schedule_id = :schedule_id 
+              AND trainer_id = :trainer_id 
+              AND session_status = 'PENDING'
+        ");
+        $stmt->execute([
+            'schedule_id' => $scheduleId,
+            'trainer_id'  => $trainerProfileId
+        ]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Action T3: Trainer flags client no-show.
+     */
+    public function flagNoShow(int $scheduleId, int $trainerProfileId, string $trainerReason): bool
+    {
+        $formattedReason = " // [T-D-L]: " . trim($trainerReason);
+        $stmt = $this->db->prepare("
+            UPDATE trainer_pt_schedule 
+            SET session_status = 'MEMBER_NO_SHOW',
+                session_note = CONCAT(IFNULL(session_note, ''), :reason)
+            WHERE schedule_id = :schedule_id 
+              AND trainer_id = :trainer_id 
+              AND session_status = 'PENDING'
+        ");
+        $stmt->execute([
+            'schedule_id' => $scheduleId,
+            'trainer_id'  => $trainerProfileId,
+            'reason'      => $formattedReason
+        ]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Action A1: Admin resolves dispute in favor of trainer.
+     */
+    public function resolveDisputeTrainer(int $scheduleId): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE trainer_pt_schedule 
+            SET session_status = 'RESOLVED_BY_ADMIN' 
+            WHERE schedule_id = :schedule_id 
+              AND session_status = 'DISPUTED'
+        ");
+        $stmt->execute(['schedule_id' => $scheduleId]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Action A2: Admin resolves dispute in favor of member.
+     */
+    public function resolveDisputeMember(int $scheduleId): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE trainer_pt_schedule 
+            SET session_status = 'RESOLVED_BY_ADMIN' 
+            WHERE schedule_id = :schedule_id 
+              AND session_status = 'DISPUTED'
+        ");
+        $stmt->execute(['schedule_id' => $scheduleId]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Refund 1 credit to client wallet credit profile.
+     */
+    public function refundWalletCredit(int $creditId): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE client_wallet_credits 
+            SET remaining_quantity = remaining_quantity + 1 
+            WHERE credit_id = :credit_id
+        ");
+        $stmt->execute(['credit_id' => $creditId]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Nightly Evaluation: Get all pending sessions older than a specific date.
+     */
+    public function getUnresolvedPastSessions(string $date): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT * 
+            FROM trainer_pt_schedule 
+            WHERE session_status = 'PENDING' 
+              AND session_date < :date
+        ");
+        $stmt->execute(['date' => $date]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Nightly Evaluation: Get wallet credit by credit_id.
+     */
+    public function getWalletCredit(int $creditId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT * 
+            FROM client_wallet_credits 
+            WHERE credit_id = :credit_id 
+            LIMIT 1
+        ");
+        $stmt->execute(['credit_id' => $creditId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /**
+     * Nightly Evaluation: Update session status and set verification_pin to NULL.
+     */
+    public function updateSessionStatusAndClearPin(int $scheduleId, string $status): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE trainer_pt_schedule 
+            SET session_status = :status,
+                verification_pin = NULL
+            WHERE schedule_id = :schedule_id
+        ");
+        return $stmt->execute([
+            'status'      => $status,
+            'schedule_id' => $scheduleId
         ]);
     }
 }

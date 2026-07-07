@@ -212,40 +212,68 @@ function route(string $method, string $path): void
             return;
 
         // ================= PERSONAL TRAINING ROUTES =================
-        case $method === 'POST' && $path === '/api/v1/admin/pt/manual-purchase':
+        case $method === 'POST' && $path === '/api/admin/pt/manual-purchase':
             $personalTrainingController->manualPurchase();
             return;
 
-        case $method === 'POST' && $path === '/api/v1/admin/pt/assign-trainer':
+        case $method === 'POST' && $path === '/api/admin/pt/assign-trainer':
             $personalTrainingController->assignTrainer();
             return;
 
-        case $method === 'POST' && $path === '/api/v1/admin/pt/generate-schedule':
+        case $method === 'POST' && $path === '/api/admin/pt/generate-schedule':
             $personalTrainingController->generateSchedule();
             return;
 
-        case $method === 'POST' && $path === '/api/v1/trainer/availability/template':
+        case $method === 'POST' && $path === '/api/trainer/availability/template':
             $personalTrainingController->setWeeklyTemplate();
             return;
 
-        case $method === 'GET' && $path === '/api/v1/trainer/roster':
+        case $method === 'GET' && $path === '/api/trainer/roster':
             $personalTrainingController->getTrainerRoster();
             return;
 
-        case $method === 'GET' && $path === '/api/v1/member/pt/available-slots':
+        case $method === 'GET' && $path === '/api/member/pt/available-slots':
             $personalTrainingController->getMemberAvailableSlots();
             return;
 
-        case $method === 'POST' && $path === '/api/v1/member/pt/book':
+        case $method === 'POST' && $path === '/api/member/pt/book':
             $personalTrainingController->bookSlot();
             return;
 
-        case $method === 'POST' && $path === '/api/v1/trainer/session/complete':
+        case $method === 'POST' && $path === '/api/trainer/session/complete':
             $personalTrainingController->initiateSessionComplete();
             return;
 
-        case $method === 'POST' && $path === '/api/v1/pt/session/verify':
+        case $method === 'POST' && $path === '/api/pt/session/verify':
             $personalTrainingController->verifySessionComplete();
+            return;
+
+        case $method === 'POST' && $path === '/api/member/session/report-absence':
+            $personalTrainingController->reportTrainerAbsence();
+            return;
+
+        case $method === 'POST' && $path === '/api/member/session/dispute':
+            $personalTrainingController->disputeNoShow();
+            return;
+
+        case $method === 'POST' && $path === '/api/trainer/session/release':
+            $personalTrainingController->releaseSession();
+            return;
+
+        case $method === 'POST' && $path === '/api/trainer/session/no-show':
+            $personalTrainingController->flagNoShow();
+            return;
+
+        case $method === 'POST' && $path === '/api/admin/session/resolve-trainer':
+            $personalTrainingController->resolveDisputeTrainer();
+            return;
+
+        case $method === 'POST' && $path === '/api/admin/session/resolve-member':
+            $personalTrainingController->resolveDisputeMember();
+            return;
+
+        case $method === 'POST' && $path === '/api/admin/pt/nightly-evaluation':
+            $personalTrainingController->nightlyEvaluation();
             return;
 
         case $method === 'POST' && $path === '/api/assessments':
