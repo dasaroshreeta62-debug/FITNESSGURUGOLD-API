@@ -234,4 +234,69 @@ class PersonalTrainingController
         $response = $this->workflow->nightlyEvaluation($token, $input);
         echo json_encode($response);
     }
+
+    /**
+     * API: Get Trainer's Own Weekly Template Availability
+     */
+    public function getWeeklyTemplate(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $response = $this->workflow->getWeeklyTemplate($token);
+        echo json_encode($response);
+    }
+
+    /**
+     * API: Get Trainers and their active client assignment capacities (for Admin dropdown)
+     */
+    public function getTrainersCapacity(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $response = $this->workflow->getTrainersCapacity($token);
+        echo json_encode($response);
+    }
+
+    /**
+     * API: Get PT Dashboard Stats (Admin)
+     */
+    public function getDashboardStats(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $response = $this->workflow->getDashboardStats($token);
+        echo json_encode($response);
+    }
+
+    /**
+     * API: Get Filtered PT Sessions (Admin)
+     */
+    public function getSessions(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        
+        $filters = [
+            'status'     => $_GET['status'] ?? null,
+            'trainer_id' => $_GET['trainer_id'] ?? null,
+            'member_id'  => $_GET['member_id'] ?? null,
+            'start_date' => $_GET['start_date'] ?? null,
+            'end_date'   => $_GET['end_date'] ?? null
+        ];
+
+        $response = $this->workflow->getSessions($token, $filters);
+        echo json_encode($response);
+    }
+
+    /**
+     * API: Get Disputed PT Sessions (Admin)
+     */
+    public function getDisputes(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $response = $this->workflow->getDisputes($token);
+        echo json_encode($response);
+    }
 }
+

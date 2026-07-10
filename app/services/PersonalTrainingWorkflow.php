@@ -1036,4 +1036,155 @@ class PersonalTrainingWorkflow
             return ["status" => "error", "message" => $e->getMessage()];
         }
     }
+
+    /**
+     * Retrieve the weekly template availability for the logged-in trainer.
+     */
+    public function getWeeklyTemplate(string $accessToken): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['TRAINER']);
+            $trainerUserId = (int)$decoded->sub;
+
+            // Resolve trainer user ID to trainer_profile_id
+            $trainerProfileId = $this->model->getTrainerProfileIdByUserId($trainerUserId);
+            if (!$trainerProfileId) {
+                throw new Exception("Trainer profile not found in database", 404);
+            }
+
+            $rawAvailability = $this->model->getTrainerWeeklyAvailability($trainerProfileId);
+
+            // Group by day_of_week for clean calendar layout structure (1 = Monday, 7 = Sunday)
+            $grouped = [
+                1 => [],
+                2 => [],
+                3 => [],
+                4 => [],
+                5 => [],
+                6 => [],
+                7 => []
+            ];
+
+            foreach ($rawAvailability as $item) {
+                $day = $item['day_of_week'];
+                if (isset($grouped[$day])) {
+                    $grouped[$day][] = [
+                        'slot_id'    => $item['slot_id'],
+                        'slot_name'  => $item['slot_name'],
+                        'start_time' => $item['start_time'],
+                        'end_time'   => $item['end_time']
+                    ];
+                }
+            }
+
+            return [
+                "status"  => "success",
+                "message" => "Weekly recurring template availability fetched successfully",
+                "data"    => $grouped
+            ];
+
+        } catch (\Throwable $e) {
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get the active trainers and their assigned client counts (Admin capacity check).
+     */
+    public function getTrainersCapacity(string $accessToken): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+
+            $trainers = $this->model->getTrainersWithClientCount();
+
+            return [
+                "status"  => "success",
+                "message" => "Trainers list and client assignment capacities fetched successfully",
+                "data"    => $trainers
+            ];
+
+        } catch (\Throwable $e) {
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get system-wide personal training metrics for admin dashboard.
+     */
+    public function getDashboardStats(string $accessToken): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+
+            $stats = $this->model->getPtDashboardMetrics();
+
+            return [
+                "status"  => "success",
+                "message" => "PT management dashboard statistics fetched successfully",
+                "data"    => $stats
+            ];
+
+        } catch (\Throwable $e) {
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get a filterable list of all PT sessions in the system.
+     */
+    public function getSessions(string $accessToken, array $filters): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+
+            // Validate date filters if passed
+            if (!empty($filters['start_date']) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['start_date'])) {
+                throw new Exception("start_date filter must be in YYYY-MM-DD format", 400);
+            }
+            if (!empty($filters['end_date']) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['end_date'])) {
+                throw new Exception("end_date filter must be in YYYY-MM-DD format", 400);
+            }
+
+            $sessions = $this->model->getFilteredPtSessions($filters);
+
+            return [
+                "status"  => "success",
+                "message" => "PT sessions list fetched successfully",
+                "count"   => count($sessions),
+                "data"    => $sessions
+            ];
+
+        } catch (\Throwable $e) {
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get all currently DISPUTED sessions.
+     */
+    public function getDisputes(string $accessToken): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+
+            $disputes = $this->model->getDisputedPtSessions();
+
+            return [
+                "status"  => "success",
+                "message" => "Disputed PT sessions fetched successfully",
+                "count"   => count($disputes),
+                "data"    => $disputes
+            ];
+
+        } catch (\Throwable $e) {
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
 }
+

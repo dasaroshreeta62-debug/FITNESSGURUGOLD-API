@@ -212,6 +212,26 @@ function route(string $method, string $path): void
             return;
 
         // ================= PERSONAL TRAINING ROUTES =================
+        case $method === 'GET' && $path === '/api/trainer/availability/template':
+            $personalTrainingController->getWeeklyTemplate();
+            return;
+
+        case $method === 'GET' && $path === '/api/admin/pt/trainers-capacity':
+            $personalTrainingController->getTrainersCapacity();
+            return;
+
+        case $method === 'GET' && $path === '/api/admin/pt/dashboard-stats':
+            $personalTrainingController->getDashboardStats();
+            return;
+
+        case $method === 'GET' && $path === '/api/admin/pt/sessions':
+            $personalTrainingController->getSessions();
+            return;
+
+        case $method === 'GET' && $path === '/api/admin/pt/disputes':
+            $personalTrainingController->getDisputes();
+            return;
+
         case $method === 'POST' && $path === '/api/admin/pt/manual-purchase':
             $personalTrainingController->manualPurchase();
             return;

@@ -272,7 +272,7 @@ class PersonalTrainingModel extends Model
                 s.schedule_id,
                 s.session_date,
                 s.session_status,
-                s.workout_summary,
+                s.session_note AS workout_summary,
                 s.verification_pin,
                 s.member_id, -- profile_id
                 u.name AS member_name,
@@ -755,4 +755,259 @@ class PersonalTrainingModel extends Model
             'schedule_id' => $scheduleId
         ]);
     }
+
+    /**
+     * Retrieve the weekly recurring availability template for a trainer.
+     */
+    public function getTrainerWeeklyAvailability(int $trainerProfileId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT 
+                wa.day_of_week, 
+                wa.slot_id, 
+                wa.is_active,
+                slot.slot_name,
+                slot.start_time,
+                slot.end_time
+            FROM trainer_weekly_availability wa
+            JOIN gym_pt_slots slot ON slot.slot_id = wa.slot_id
+            WHERE wa.trainer_id = :trainer_id AND wa.is_active = 1
+            ORDER BY wa.day_of_week ASC, slot.start_time ASC
+        ");
+        $stmt->execute(['trainer_id' => $trainerProfileId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map(function ($r) {
+            return [
+                'day_of_week' => (int)$r['day_of_week'],
+                'slot_id'     => (int)$r['slot_id'],
+                'is_active'   => (int)$r['is_active'],
+                'slot_name'   => $r['slot_name'],
+                'start_time'  => $r['start_time'],
+                'end_time'    => $r['end_time']
+            ];
+        }, $rows);
+    }
+
+    /**
+     * Get a list of active trainers and count of assigned clients.
+     */
+    public function getTrainersWithClientCount(): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT 
+                u.user_id AS trainer_user_id,
+                tp.trainer_profile_id,
+                u.name AS trainer_name,
+                u.email AS trainer_email,
+                COUNT(mta.assignment_id) AS assigned_clients_count
+            FROM trainer_profiles tp
+            JOIN employees e ON e.employee_id = tp.employee_id
+            JOIN users u ON u.user_id = e.user_id
+            LEFT JOIN member_trainer_assignments mta 
+                ON mta.trainer_id = tp.trainer_profile_id 
+                AND mta.status = 1 
+                AND mta.assignment_type = 'PRIMARY'
+            GROUP BY tp.trainer_profile_id, u.user_id, u.name, u.email
+            ORDER BY trainer_name ASC
+        ");
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map(function ($r) {
+            return [
+                'trainer_user_id'        => (int)$r['trainer_user_id'],
+                'trainer_profile_id'     => (int)$r['trainer_profile_id'],
+                'trainer_name'           => $r['trainer_name'],
+                'trainer_email'          => $r['trainer_email'],
+                'assigned_clients_count' => (int)$r['assigned_clients_count']
+            ];
+        }, $rows);
+    }
+
+    /**
+     * Get system-wide personal training dashboard metrics.
+     */
+    public function getPtDashboardMetrics(): array
+    {
+        // 1. Session status counts
+        $stmt = $this->db->query("
+            SELECT session_status, COUNT(*) as cnt 
+            FROM trainer_pt_schedule 
+            GROUP BY session_status
+        ");
+        $statusCounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $statusBreakdown = [];
+        foreach ($statusCounts as $row) {
+            $statusBreakdown[$row['session_status']] = (int)$row['cnt'];
+        }
+
+        // 2. Active assignments count
+        $stmt = $this->db->query("
+            SELECT COUNT(*) 
+            FROM member_trainer_assignments 
+            WHERE status = 1 AND assignment_type = 'PRIMARY'
+        ");
+        $activeAssignments = (int)$stmt->fetchColumn();
+
+        // 3. Active trainers count
+        $stmt = $this->db->query("SELECT COUNT(*) FROM trainer_profiles");
+        $activeTrainers = (int)$stmt->fetchColumn();
+
+        // 4. Remaining unused credits in member wallets
+        $stmt = $this->db->query("
+            SELECT SUM(remaining_quantity) 
+            FROM client_wallet_credits 
+            WHERE entitlement_type = 'PT_1ON1' 
+              AND remaining_quantity > 0 
+              AND expiration_date >= CURDATE() 
+              AND status = 1
+        ");
+        $totalUnusedCredits = (int)$stmt->fetchColumn();
+
+        return [
+            'sessions_status_breakdown' => $statusBreakdown,
+            'active_assignments_count'  => $activeAssignments,
+            'active_trainers_count'     => $activeTrainers,
+            'total_unused_credits'      => $totalUnusedCredits
+        ];
+    }
+
+    /**
+     * Retrieve a filterable list of PT schedule sessions.
+     */
+    public function getFilteredPtSessions(array $filters): array
+    {
+        $sql = "
+            SELECT 
+                s.schedule_id,
+                s.session_date,
+                s.session_status,
+                s.session_note AS workout_summary,
+                s.session_note,
+                s.verification_pin,
+                s.member_id, -- profile_id
+                mu.name AS member_name,
+                mu.email AS member_email,
+                s.trainer_id, -- trainer_profile_id
+                tu.name AS trainer_name,
+                tu.email AS trainer_email,
+                s.slot_id,
+                slot.slot_name,
+                slot.start_time,
+                slot.end_time
+            FROM trainer_pt_schedule s
+            LEFT JOIN users_profile up ON up.profile_id = s.member_id
+            LEFT JOIN users mu ON mu.user_id = up.user_id
+            LEFT JOIN trainer_profiles tp ON tp.trainer_profile_id = s.trainer_id
+            LEFT JOIN employees e ON e.employee_id = tp.employee_id
+            LEFT JOIN users tu ON tu.user_id = e.user_id
+            LEFT JOIN gym_pt_slots slot ON slot.slot_id = s.slot_id
+            WHERE 1=1
+        ";
+        $params = [];
+
+        if (!empty($filters['status'])) {
+            $sql .= " AND s.session_status = :status";
+            $params['status'] = $filters['status'];
+        }
+        if (!empty($filters['trainer_id'])) {
+            $sql .= " AND s.trainer_id = :trainer_id";
+            $params['trainer_id'] = (int)$filters['trainer_id'];
+        }
+        if (!empty($filters['member_id'])) {
+            $sql .= " AND s.member_id = :member_id";
+            $params['member_id'] = (int)$filters['member_id'];
+        }
+        if (!empty($filters['start_date'])) {
+            $sql .= " AND s.session_date >= :start_date";
+            $params['start_date'] = $filters['start_date'];
+        }
+        if (!empty($filters['end_date'])) {
+            $sql .= " AND s.session_date <= :end_date";
+            $params['end_date'] = $filters['end_date'];
+        }
+
+        $sql .= " ORDER BY s.session_date DESC, slot.start_time ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map(function ($r) {
+            return [
+                'schedule_id'      => (int)$r['schedule_id'],
+                'session_date'     => $r['session_date'],
+                'session_status'   => $r['session_status'],
+                'workout_summary'  => $r['workout_summary'],
+                'session_note'     => $r['session_note'],
+                'verification_pin' => $r['verification_pin'] !== null ? (int)$r['verification_pin'] : null,
+                'member_id'        => $r['member_id'] !== null ? (int)$r['member_id'] : null,
+                'member_name'      => $r['member_name'],
+                'member_email'     => $r['member_email'],
+                'trainer_id'       => (int)$r['trainer_id'],
+                'trainer_name'     => $r['trainer_name'],
+                'trainer_email'    => $r['trainer_email'],
+                'slot_id'          => (int)$r['slot_id'],
+                'slot_name'        => $r['slot_name'],
+                'start_time'       => $r['start_time'],
+                'end_time'         => $r['end_time']
+            ];
+        }, $rows);
+    }
+
+    /**
+     * Retrieve all PT sessions marked as DISPUTED.
+     */
+    public function getDisputedPtSessions(): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT 
+                s.schedule_id,
+                s.session_date,
+                s.session_status,
+                s.session_note,
+                s.member_id,
+                mu.name AS member_name,
+                mu.email AS member_email,
+                s.trainer_id,
+                tu.name AS trainer_name,
+                tu.email AS trainer_email,
+                s.slot_id,
+                slot.slot_name,
+                slot.start_time,
+                slot.end_time
+            FROM trainer_pt_schedule s
+            LEFT JOIN users_profile up ON up.profile_id = s.member_id
+            LEFT JOIN users mu ON mu.user_id = up.user_id
+            LEFT JOIN trainer_profiles tp ON tp.trainer_profile_id = s.trainer_id
+            LEFT JOIN employees e ON e.employee_id = tp.employee_id
+            LEFT JOIN users tu ON tu.user_id = e.user_id
+            LEFT JOIN gym_pt_slots slot ON slot.slot_id = s.slot_id
+            WHERE s.session_status = 'DISPUTED'
+            ORDER BY s.session_date DESC, slot.start_time ASC
+        ");
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map(function ($r) {
+            return [
+                'schedule_id'    => (int)$r['schedule_id'],
+                'session_date'   => $r['session_date'],
+                'session_status' => $r['session_status'],
+                'session_note'   => $r['session_note'],
+                'member_id'      => (int)$r['member_id'],
+                'member_name'    => $r['member_name'],
+                'member_email'   => $r['member_email'],
+                'trainer_id'     => (int)$r['trainer_id'],
+                'trainer_name'   => $r['trainer_name'],
+                'trainer_email'  => $r['trainer_email'],
+                'slot_id'        => (int)$r['slot_id'],
+                'slot_name'      => $r['slot_name'],
+                'start_time'     => $r['start_time'],
+                'end_time'       => $r['end_time']
+            ];
+        }, $rows);
+    }
 }
+
