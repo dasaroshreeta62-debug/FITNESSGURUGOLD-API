@@ -7,6 +7,7 @@ require_once __DIR__ . '/../controllers/PersonalTrainingController.php';
 require_once __DIR__ . '/../controllers/FitnessAssessmentController.php';
 require_once __DIR__ . '/../controllers/MembershipController.php';
 require_once __DIR__ . '/../controllers/ShiftController.php';
+require_once __DIR__ . '/../controllers/ProductController.php';
 
 function route(string $method, string $path): void
 {
@@ -21,6 +22,7 @@ function route(string $method, string $path): void
     $fitnessAssessmentController = new FitnessAssessmentController();
     $membershipController = new MembershipController();
     $shiftController = new ShiftController();
+    $productController = new ProductController();
 
     switch (true) {
 
@@ -582,6 +584,27 @@ function route(string $method, string $path): void
 
         case $method === 'GET' && preg_match('#^/api/member/meals/(\d+)$#', $path, $matches):
             $dietPlanController->getMealDetailsByMember((int)$matches[1]);
+            return;
+
+        // ================= PRODUCT SALES & INVENTORY ROUTES =================
+        case $method === 'GET' && $path === '/api/v1/admin/products':
+            $productController->listAdminProducts();
+            return;
+
+        case $method === 'POST' && $path === '/api/v1/admin/products':
+            $productController->createProduct();
+            return;
+
+        case $method === 'POST' && $path === '/api/v1/admin/inventory/restock':
+            $productController->restockInventory();
+            return;
+
+        case $method === 'POST' && $path === '/api/v1/admin/store/sell':
+            $productController->sellProduct();
+            return;
+
+        case $method === 'GET' && $path === '/api/v1/member/products':
+            $productController->listMemberProducts();
             return;
 
         // ================= DEFAULT =================
