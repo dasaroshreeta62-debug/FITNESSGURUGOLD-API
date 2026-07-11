@@ -144,7 +144,7 @@ class ProductModel
             'sale_price'          => (float)$data['sale_price'],
             'stock_quantity'      => (int)($data['initial_stock'] ?? $data['stock_quantity'] ?? 0),
             'low_stock_alert'     => (int)($data['low_stock_alert'] ?? 5),
-            'product_picture_url' => isset($data['product_picture_url']) ? trim($data['product_picture_url']) : null,
+            'product_picture_url' => isset($data['product_picture_url']) ? trim($data['product_picture_url']) : (isset($data['product_photo_url']) ? trim($data['product_photo_url']) : null),
             'status'              => isset($data['status']) ? (int)$data['status'] : 1
         ]);
 

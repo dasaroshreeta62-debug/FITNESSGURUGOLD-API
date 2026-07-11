@@ -84,16 +84,17 @@ class ProductWorkflow
 
             $formattedProducts = array_map(function ($p) {
                 return [
-                    "product_id"      => (int)$p['product_id'],
-                    "product_name"    => $p['product_name'],
-                    "category"        => $p['category'],
-                    "sku"             => $p['sku'],
-                    "cost_price"      => number_format((float)$p['cost_price'], 2, '.', ''),
-                    "sale_price"      => number_format((float)$p['sale_price'], 2, '.', ''),
-                    "stock_quantity"  => (int)$p['stock_quantity'],
-                    "low_stock_alert" => (int)$p['low_stock_alert'],
-                    "is_low_stock"    => (int)$p['stock_quantity'] <= (int)$p['low_stock_alert'],
-                    "status"          => (int)$p['status']
+                    "product_id"        => (int)$p['product_id'],
+                    "product_name"      => $p['product_name'],
+                    "category"          => $p['category'],
+                    "sku"               => $p['sku'],
+                    "cost_price"        => number_format((float)$p['cost_price'], 2, '.', ''),
+                    "sale_price"        => number_format((float)$p['sale_price'], 2, '.', ''),
+                    "stock_quantity"    => (int)$p['stock_quantity'],
+                    "low_stock_alert"   => (int)$p['low_stock_alert'],
+                    "is_low_stock"      => (int)$p['stock_quantity'] <= (int)$p['low_stock_alert'],
+                    "product_photo_url" => $p['product_picture_url'] ?? '',
+                    "status"            => (int)$p['status']
                 ];
             }, $products);
 
@@ -624,11 +625,12 @@ class ProductWorkflow
 
             $formattedProducts = array_map(function ($p) {
                 return [
-                    "product_id"   => (int)$p['product_id'],
-                    "product_name" => $p['product_name'],
-                    "category"     => $p['category'],
-                    "price"        => number_format((float)$p['sale_price'], 2, '.', ''),
-                    "in_stock"     => (int)$p['stock_quantity'] > 0
+                    "product_id"        => (int)$p['product_id'],
+                    "product_name"      => $p['product_name'],
+                    "category"          => $p['category'],
+                    "price"             => number_format((float)$p['sale_price'], 2, '.', ''),
+                    "product_photo_url" => $p['product_picture_url'] ?? '',
+                    "in_stock"          => (int)$p['stock_quantity'] > 0
                 ];
             }, $products);
 
