@@ -8,6 +8,7 @@ require_once __DIR__ . '/../controllers/FitnessAssessmentController.php';
 require_once __DIR__ . '/../controllers/MembershipController.php';
 require_once __DIR__ . '/../controllers/ShiftController.php';
 require_once __DIR__ . '/../controllers/ProductController.php';
+require_once __DIR__ . '/../controllers/TaxController.php';
 
 function route(string $method, string $path): void
 {
@@ -23,6 +24,7 @@ function route(string $method, string $path): void
     $membershipController = new MembershipController();
     $shiftController = new ShiftController();
     $productController = new ProductController();
+    $taxController = new TaxController();
 
     switch (true) {
 
@@ -605,6 +607,23 @@ function route(string $method, string $path): void
 
         case $method === 'GET' && $path === '/api/v1/member/products':
             $productController->listMemberProducts();
+            return;
+
+        // ================= TAX CONFIGURATION ROUTES =================
+        case $method === 'GET' && $path === '/api/v1/admin/tax-rates':
+            $taxController->listTaxRates();
+            return;
+
+        case $method === 'POST' && $path === '/api/v1/admin/tax-rates':
+            $taxController->createTaxRate();
+            return;
+
+        case $method === 'PUT' && preg_match('#^/api/v1/admin/tax-rates/(\d+)$#', $path, $matches):
+            $taxController->updateTaxRate((int)$matches[1]);
+            return;
+
+        case $method === 'DELETE' && preg_match('#^/api/v1/admin/tax-rates/(\d+)$#', $path, $matches):
+            $taxController->deleteTaxRate((int)$matches[1]);
             return;
 
         // ================= DEFAULT =================
