@@ -40,7 +40,7 @@ class PersonalTrainingModel extends Model
         $stmt = $this->db->prepare("SELECT profile_id FROM users_profile WHERE user_id = :id LIMIT 1");
         $stmt->execute(['id' => $userId]);
         $val = $stmt->fetchColumn();
-        return $val !== false ? (int)$val : null;
+        return $val !== false ? (int) $val : null;
     }
 
     /**
@@ -57,7 +57,7 @@ class PersonalTrainingModel extends Model
         ");
         $stmt->execute(['id' => $userId]);
         $val = $stmt->fetchColumn();
-        return $val !== false ? (int)$val : null;
+        return $val !== false ? (int) $val : null;
     }
 
     /**
@@ -68,7 +68,7 @@ class PersonalTrainingModel extends Model
         $stmt = $this->db->prepare("SELECT user_id FROM users_profile WHERE profile_id = :id LIMIT 1");
         $stmt->execute(['id' => $profileId]);
         $val = $stmt->fetchColumn();
-        return $val !== false ? (int)$val : null;
+        return $val !== false ? (int) $val : null;
     }
 
     /**
@@ -85,7 +85,7 @@ class PersonalTrainingModel extends Model
         ");
         $stmt->execute(['id' => $trainerProfileId]);
         $val = $stmt->fetchColumn();
-        return $val !== false ? (int)$val : null;
+        return $val !== false ? (int) $val : null;
     }
 
     /**
@@ -102,6 +102,21 @@ class PersonalTrainingModel extends Model
         ");
         $stmt->execute(['id' => $trainerProfileId]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function getMemberActiveTrainerProfileId(int $memberProfileId): ?int
+    {
+        $stmt = $this->db->prepare("
+            SELECT trainer_id 
+            FROM member_trainer_assignments 
+            WHERE member_id = :member_id 
+              AND status = 1 
+            ORDER BY assignment_id DESC 
+            LIMIT 1
+        ");
+        $stmt->execute(['member_id' => $memberProfileId]);
+        $val = $stmt->fetchColumn();
+        return $val !== false ? (int)$val : null;
     }
 
     /**
@@ -147,15 +162,15 @@ class PersonalTrainingModel extends Model
             )
         ");
         $stmt->execute([
-            'gym_id'     => $data['gym_id'],
-            'branch_id'  => $data['branch_id'],
-            'user_id'    => $data['user_id'],
-            'plan_id'    => $data['plan_id'],
+            'gym_id' => $data['gym_id'],
+            'branch_id' => $data['branch_id'],
+            'user_id' => $data['user_id'],
+            'plan_id' => $data['plan_id'],
             'start_date' => $data['start_date'],
-            'end_date'   => $data['end_date'],
-            'status'     => $data['status']
+            'end_date' => $data['end_date'],
+            'status' => $data['status']
         ]);
-        return (int)$this->db->lastInsertId();
+        return (int) $this->db->lastInsertId();
     }
 
     /**
@@ -171,14 +186,14 @@ class PersonalTrainingModel extends Model
             )
         ");
         return $stmt->execute([
-            'subscription_id'    => $data['subscription_id'],
-            'user_id'            => $data['user_id'], // users.user_id
-            'entitlement_type'   => $data['entitlement_type'],
-            'is_unlimited'       => $data['is_unlimited'],
-            'original_quantity'  => $data['original_quantity'],
+            'subscription_id' => $data['subscription_id'],
+            'user_id' => $data['user_id'], // users.user_id
+            'entitlement_type' => $data['entitlement_type'],
+            'is_unlimited' => $data['is_unlimited'],
+            'original_quantity' => $data['original_quantity'],
             'remaining_quantity' => $data['remaining_quantity'],
-            'expiration_date'    => $data['expiration_date'],
-            'status'             => $data['status']
+            'expiration_date' => $data['expiration_date'],
+            'status' => $data['status']
         ]);
     }
 
@@ -195,7 +210,7 @@ class PersonalTrainingModel extends Model
               AND assignment_type = 'PRIMARY'
         ");
         $stmt->execute(['trainer_id' => $trainerProfileId]);
-        return (int)$stmt->fetchColumn();
+        return (int) $stmt->fetchColumn();
     }
 
     /**
@@ -226,12 +241,12 @@ class PersonalTrainingModel extends Model
             )
         ");
         $stmt->execute([
-            'gym_id'     => $data['gym_id'],
-            'branch_id'  => $data['branch_id'],
-            'member_id'  => $data['member_id'], // profile_id
+            'gym_id' => $data['gym_id'],
+            'branch_id' => $data['branch_id'],
+            'member_id' => $data['member_id'], // profile_id
             'trainer_id' => $data['trainer_id'] // trainer_profile_id
         ]);
-        return (int)$this->db->lastInsertId();
+        return (int) $this->db->lastInsertId();
     }
 
     /**
@@ -256,9 +271,9 @@ class PersonalTrainingModel extends Model
             )
         ");
         return $stmt->execute([
-            'trainer_id'  => $trainerProfileId,
+            'trainer_id' => $trainerProfileId,
             'day_of_week' => $dayOfWeek,
-            'slot_id'     => $slotId
+            'slot_id' => $slotId
         ]);
     }
 
@@ -291,26 +306,26 @@ class PersonalTrainingModel extends Model
         ");
         $stmt->execute([
             'trainer_id' => $trainerProfileId,
-            'date'       => $date
+            'date' => $date
         ]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         // Normalize data types
         return array_map(function ($r) {
             return [
-                'schedule_id'      => (int)$r['schedule_id'],
-                'session_date'     => $r['session_date'],
-                'session_status'   => $r['session_status'],
-                'workout_summary'  => $r['workout_summary'],
-                'verification_pin' => $r['verification_pin'] !== null ? (int)$r['verification_pin'] : null,
-                'member_id'        => $r['member_id'] !== null ? (int)$r['member_id'] : null,
-                'member_name'      => $r['member_name'],
-                'member_email'     => $r['member_email'],
-                'member_phone'     => $r['member_phone'],
-                'slot_id'          => (int)$r['slot_id'],
-                'slot_name'        => $r['slot_name'],
-                'start_time'       => $r['start_time'],
-                'end_time'         => $r['end_time']
+                'schedule_id' => (int) $r['schedule_id'],
+                'session_date' => $r['session_date'],
+                'session_status' => $r['session_status'],
+                'workout_summary' => $r['workout_summary'],
+                'verification_pin' => $r['verification_pin'] !== null ? (int) $r['verification_pin'] : null,
+                'member_id' => $r['member_id'] !== null ? (int) $r['member_id'] : null,
+                'member_name' => $r['member_name'],
+                'member_email' => $r['member_email'],
+                'member_phone' => $r['member_phone'],
+                'slot_id' => (int) $r['slot_id'],
+                'slot_name' => $r['slot_name'],
+                'start_time' => $r['start_time'],
+                'end_time' => $r['end_time']
             ];
         }, $rows);
     }
@@ -330,7 +345,7 @@ class PersonalTrainingModel extends Model
         ");
         $stmt->execute(['member_id' => $profileId]);
         $val = $stmt->fetchColumn();
-        return $val !== false ? (int)$val : null;
+        return $val !== false ? (int) $val : null;
     }
 
     /**
@@ -354,17 +369,17 @@ class PersonalTrainingModel extends Model
         ");
         $stmt->execute([
             'trainer_id' => $trainerProfileId,
-            'date'       => $date
+            'date' => $date
         ]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         return array_map(function ($r) {
             return [
-                'schedule_id' => (int)$r['schedule_id'],
-                'slot_id'     => (int)$r['slot_id'],
-                'slot_name'   => $r['slot_name'],
-                'start_time'  => $r['start_time'],
-                'end_time'    => $r['end_time']
+                'schedule_id' => (int) $r['schedule_id'],
+                'slot_id' => (int) $r['slot_id'],
+                'slot_name' => $r['slot_name'],
+                'start_time' => $r['start_time'],
+                'end_time' => $r['end_time']
             ];
         }, $rows);
     }
@@ -387,7 +402,7 @@ class PersonalTrainingModel extends Model
         ");
         $stmt->execute([
             'user_id' => $userId,
-            'type'    => $entitlementType
+            'type' => $entitlementType
         ]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
@@ -406,9 +421,9 @@ class PersonalTrainingModel extends Model
         ");
         $stmt->execute([
             'member_id' => $profileId,
-            'date'      => $date
+            'date' => $date
         ]);
-        return (int)$stmt->fetchColumn();
+        return (int) $stmt->fetchColumn();
     }
 
     /**
@@ -435,8 +450,8 @@ class PersonalTrainingModel extends Model
               AND session_status = 'AVAILABLE'
         ");
         return $stmt->execute([
-            'member_id'   => $profileId,
-            'credit_id'   => $creditId,
+            'member_id' => $profileId,
+            'credit_id' => $creditId,
             'schedule_id' => $scheduleId
         ]) && $stmt->rowCount() === 1;
     }
@@ -448,9 +463,9 @@ class PersonalTrainingModel extends Model
     {
         $sql = "UPDATE trainer_pt_schedule SET verification_pin = :pin";
         $params = [
-            'pin'         => $pin,
+            'pin' => $pin,
             'schedule_id' => $scheduleId,
-            'trainer_id'  => $trainerProfileId
+            'trainer_id' => $trainerProfileId
         ];
 
         if (!empty($summary)) {
@@ -478,7 +493,7 @@ class PersonalTrainingModel extends Model
         ");
         return $stmt->execute([
             'schedule_id' => $scheduleId,
-            'pin'         => $pin
+            'pin' => $pin
         ]) && $stmt->rowCount() === 1;
     }
 
@@ -503,7 +518,7 @@ class PersonalTrainingModel extends Model
     {
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM gym_pt_slots WHERE slot_id = :id");
         $stmt->execute(['id' => $slotId]);
-        return (int)$stmt->fetchColumn() > 0;
+        return (int) $stmt->fetchColumn() > 0;
     }
 
     /**
@@ -530,7 +545,7 @@ class PersonalTrainingModel extends Model
         ");
         $stmt->execute([
             'trainer_id' => $trainerProfileId,
-            'day'        => $dayOfWeek
+            'day' => $dayOfWeek
         ]);
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
@@ -549,10 +564,10 @@ class PersonalTrainingModel extends Model
         ");
         $stmt->execute([
             'trainer_id' => $trainerProfileId,
-            'date'       => $date,
-            'slot_id'    => $slotId
+            'date' => $date,
+            'slot_id' => $slotId
         ]);
-        return (int)$stmt->fetchColumn() > 0;
+        return (int) $stmt->fetchColumn() > 0;
     }
 
     /**
@@ -568,11 +583,11 @@ class PersonalTrainingModel extends Model
             )
         ");
         return $stmt->execute([
-            'gym_id'       => $data['gym_id'],
-            'branch_id'    => $data['branch_id'],
-            'trainer_id'   => $data['trainer_id'], // trainer_profile_id
+            'gym_id' => $data['gym_id'],
+            'branch_id' => $data['branch_id'],
+            'trainer_id' => $data['trainer_id'], // trainer_profile_id
             'session_date' => $data['session_date'],
-            'slot_id'      => $data['slot_id']
+            'slot_id' => $data['slot_id']
         ]);
     }
 
@@ -594,7 +609,7 @@ class PersonalTrainingModel extends Model
         ");
         $stmt->execute([
             'schedule_id' => $scheduleId,
-            'member_id'   => $memberProfileId
+            'member_id' => $memberProfileId
         ]);
         return $stmt->rowCount() > 0;
     }
@@ -615,8 +630,8 @@ class PersonalTrainingModel extends Model
         ");
         $stmt->execute([
             'schedule_id' => $scheduleId,
-            'member_id'   => $memberProfileId,
-            'reason'      => $formattedReason
+            'member_id' => $memberProfileId,
+            'reason' => $formattedReason
         ]);
         return $stmt->rowCount() > 0;
     }
@@ -638,7 +653,7 @@ class PersonalTrainingModel extends Model
         ");
         $stmt->execute([
             'schedule_id' => $scheduleId,
-            'trainer_id'  => $trainerProfileId
+            'trainer_id' => $trainerProfileId
         ]);
         return $stmt->rowCount() > 0;
     }
@@ -659,8 +674,8 @@ class PersonalTrainingModel extends Model
         ");
         $stmt->execute([
             'schedule_id' => $scheduleId,
-            'trainer_id'  => $trainerProfileId,
-            'reason'      => $formattedReason
+            'trainer_id' => $trainerProfileId,
+            'reason' => $formattedReason
         ]);
         return $stmt->rowCount() > 0;
     }
@@ -751,7 +766,7 @@ class PersonalTrainingModel extends Model
             WHERE schedule_id = :schedule_id
         ");
         return $stmt->execute([
-            'status'      => $status,
+            'status' => $status,
             'schedule_id' => $scheduleId
         ]);
     }
@@ -779,12 +794,12 @@ class PersonalTrainingModel extends Model
 
         return array_map(function ($r) {
             return [
-                'day_of_week' => (int)$r['day_of_week'],
-                'slot_id'     => (int)$r['slot_id'],
-                'is_active'   => (int)$r['is_active'],
-                'slot_name'   => $r['slot_name'],
-                'start_time'  => $r['start_time'],
-                'end_time'    => $r['end_time']
+                'day_of_week' => (int) $r['day_of_week'],
+                'slot_id' => (int) $r['slot_id'],
+                'is_active' => (int) $r['is_active'],
+                'slot_name' => $r['slot_name'],
+                'start_time' => $r['start_time'],
+                'end_time' => $r['end_time']
             ];
         }, $rows);
     }
@@ -816,11 +831,11 @@ class PersonalTrainingModel extends Model
 
         return array_map(function ($r) {
             return [
-                'trainer_user_id'        => (int)$r['trainer_user_id'],
-                'trainer_profile_id'     => (int)$r['trainer_profile_id'],
-                'trainer_name'           => $r['trainer_name'],
-                'trainer_email'          => $r['trainer_email'],
-                'assigned_clients_count' => (int)$r['assigned_clients_count']
+                'trainer_user_id' => (int) $r['trainer_user_id'],
+                'trainer_profile_id' => (int) $r['trainer_profile_id'],
+                'trainer_name' => $r['trainer_name'],
+                'trainer_email' => $r['trainer_email'],
+                'assigned_clients_count' => (int) $r['assigned_clients_count']
             ];
         }, $rows);
     }
@@ -839,7 +854,7 @@ class PersonalTrainingModel extends Model
         $statusCounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $statusBreakdown = [];
         foreach ($statusCounts as $row) {
-            $statusBreakdown[$row['session_status']] = (int)$row['cnt'];
+            $statusBreakdown[$row['session_status']] = (int) $row['cnt'];
         }
 
         // 2. Active assignments count
@@ -848,11 +863,11 @@ class PersonalTrainingModel extends Model
             FROM member_trainer_assignments 
             WHERE status = 1 AND assignment_type = 'PRIMARY'
         ");
-        $activeAssignments = (int)$stmt->fetchColumn();
+        $activeAssignments = (int) $stmt->fetchColumn();
 
         // 3. Active trainers count
         $stmt = $this->db->query("SELECT COUNT(*) FROM trainer_profiles");
-        $activeTrainers = (int)$stmt->fetchColumn();
+        $activeTrainers = (int) $stmt->fetchColumn();
 
         // 4. Remaining unused credits in member wallets
         $stmt = $this->db->query("
@@ -863,13 +878,13 @@ class PersonalTrainingModel extends Model
               AND expiration_date >= CURDATE() 
               AND status = 1
         ");
-        $totalUnusedCredits = (int)$stmt->fetchColumn();
+        $totalUnusedCredits = (int) $stmt->fetchColumn();
 
         return [
             'sessions_status_breakdown' => $statusBreakdown,
-            'active_assignments_count'  => $activeAssignments,
-            'active_trainers_count'     => $activeTrainers,
-            'total_unused_credits'      => $totalUnusedCredits
+            'active_assignments_count' => $activeAssignments,
+            'active_trainers_count' => $activeTrainers,
+            'total_unused_credits' => $totalUnusedCredits
         ];
     }
 
@@ -913,11 +928,11 @@ class PersonalTrainingModel extends Model
         }
         if (!empty($filters['trainer_id'])) {
             $sql .= " AND s.trainer_id = :trainer_id";
-            $params['trainer_id'] = (int)$filters['trainer_id'];
+            $params['trainer_id'] = (int) $filters['trainer_id'];
         }
         if (!empty($filters['member_id'])) {
             $sql .= " AND s.member_id = :member_id";
-            $params['member_id'] = (int)$filters['member_id'];
+            $params['member_id'] = (int) $filters['member_id'];
         }
         if (!empty($filters['start_date'])) {
             $sql .= " AND s.session_date >= :start_date";
@@ -936,22 +951,22 @@ class PersonalTrainingModel extends Model
 
         return array_map(function ($r) {
             return [
-                'schedule_id'      => (int)$r['schedule_id'],
-                'session_date'     => $r['session_date'],
-                'session_status'   => $r['session_status'],
-                'workout_summary'  => $r['workout_summary'],
-                'session_note'     => $r['session_note'],
-                'verification_pin' => $r['verification_pin'] !== null ? (int)$r['verification_pin'] : null,
-                'member_id'        => $r['member_id'] !== null ? (int)$r['member_id'] : null,
-                'member_name'      => $r['member_name'],
-                'member_email'     => $r['member_email'],
-                'trainer_id'       => (int)$r['trainer_id'],
-                'trainer_name'     => $r['trainer_name'],
-                'trainer_email'    => $r['trainer_email'],
-                'slot_id'          => (int)$r['slot_id'],
-                'slot_name'        => $r['slot_name'],
-                'start_time'       => $r['start_time'],
-                'end_time'         => $r['end_time']
+                'schedule_id' => (int) $r['schedule_id'],
+                'session_date' => $r['session_date'],
+                'session_status' => $r['session_status'],
+                'workout_summary' => $r['workout_summary'],
+                'session_note' => $r['session_note'],
+                'verification_pin' => $r['verification_pin'] !== null ? (int) $r['verification_pin'] : null,
+                'member_id' => $r['member_id'] !== null ? (int) $r['member_id'] : null,
+                'member_name' => $r['member_name'],
+                'member_email' => $r['member_email'],
+                'trainer_id' => (int) $r['trainer_id'],
+                'trainer_name' => $r['trainer_name'],
+                'trainer_email' => $r['trainer_email'],
+                'slot_id' => (int) $r['slot_id'],
+                'slot_name' => $r['slot_name'],
+                'start_time' => $r['start_time'],
+                'end_time' => $r['end_time']
             ];
         }, $rows);
     }
@@ -992,20 +1007,20 @@ class PersonalTrainingModel extends Model
 
         return array_map(function ($r) {
             return [
-                'schedule_id'    => (int)$r['schedule_id'],
-                'session_date'   => $r['session_date'],
+                'schedule_id' => (int) $r['schedule_id'],
+                'session_date' => $r['session_date'],
                 'session_status' => $r['session_status'],
-                'session_note'   => $r['session_note'],
-                'member_id'      => (int)$r['member_id'],
-                'member_name'    => $r['member_name'],
-                'member_email'   => $r['member_email'],
-                'trainer_id'     => (int)$r['trainer_id'],
-                'trainer_name'   => $r['trainer_name'],
-                'trainer_email'  => $r['trainer_email'],
-                'slot_id'        => (int)$r['slot_id'],
-                'slot_name'      => $r['slot_name'],
-                'start_time'     => $r['start_time'],
-                'end_time'       => $r['end_time']
+                'session_note' => $r['session_note'],
+                'member_id' => (int) $r['member_id'],
+                'member_name' => $r['member_name'],
+                'member_email' => $r['member_email'],
+                'trainer_id' => (int) $r['trainer_id'],
+                'trainer_name' => $r['trainer_name'],
+                'trainer_email' => $r['trainer_email'],
+                'slot_id' => (int) $r['slot_id'],
+                'slot_name' => $r['slot_name'],
+                'start_time' => $r['start_time'],
+                'end_time' => $r['end_time']
             ];
         }, $rows);
     }

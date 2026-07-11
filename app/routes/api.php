@@ -9,6 +9,7 @@ require_once __DIR__ . '/../controllers/MembershipController.php';
 require_once __DIR__ . '/../controllers/ShiftController.php';
 require_once __DIR__ . '/../controllers/ProductController.php';
 require_once __DIR__ . '/../controllers/TaxController.php';
+require_once __DIR__ . '/../controllers/FinanceController.php';
 
 function route(string $method, string $path): void
 {
@@ -25,6 +26,7 @@ function route(string $method, string $path): void
     $shiftController = new ShiftController();
     $productController = new ProductController();
     $taxController = new TaxController();
+    $financeController = new FinanceController();
 
     switch (true) {
 
@@ -624,6 +626,19 @@ function route(string $method, string $path): void
 
         case $method === 'DELETE' && preg_match('#^/api/v1/admin/tax-rates/(\d+)$#', $path, $matches):
             $taxController->deleteTaxRate((int)$matches[1]);
+            return;
+
+        // ================= FINANCE & PROMOTION ROUTES =================
+        case $method === 'GET' && preg_match('#^/api/invoices/(\d+)$#', $path, $matches):
+            $financeController->getInvoiceDetails((int)$matches[1]);
+            return;
+
+        case $method === 'POST' && $path === '/api/promos/validate':
+            $financeController->validatePromoCode();
+            return;
+
+        case $method === 'POST' && $path === '/api/admin/finance/refund':
+            $financeController->refundInvoice();
             return;
 
         // ================= DEFAULT =================

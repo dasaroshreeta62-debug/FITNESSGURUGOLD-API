@@ -859,7 +859,8 @@ class Workflow
                     "access_token"  => $accessToken,
                     "refresh_token" => $refreshToken,
                     "expires_in"    => self::ACCESS_EXP
-                ]
+                ],
+                "invoice_id" => (int)$result['invoice_id']
             ];
 
         } catch (Exception $e) {

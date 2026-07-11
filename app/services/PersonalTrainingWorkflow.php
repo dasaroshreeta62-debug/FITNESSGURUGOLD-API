@@ -10,7 +10,7 @@ class PersonalTrainingWorkflow
 {
     private PersonalTrainingModel $model;
 
-    private const JWT_SECRET  = '12b5a9899ecf1ce62e6af2dfbf8caecadf7bdcaa6e8bc92aeaf94871d9a100d1';
+    private const JWT_SECRET = '12b5a9899ecf1ce62e6af2dfbf8caecadf7bdcaa6e8bc92aeaf94871d9a100d1';
     private const MAX_CLIENTS_PER_TRAINER = 15;
 
     public function __construct()
@@ -76,23 +76,40 @@ class PersonalTrainingWorkflow
             $gymId = (int)$user['gym_id'];
             $branchId = (int)$user['branch_id'];
 
-            if (!$gymId || !$branchId) {
-                throw new Exception("User profile lacks gym_id or branch_id mapping", 400);
-            }
-
             // Ensure member has a profile in users_profile
             $profileId = $this->model->getProfileIdByUserId($userId);
             if (!$profileId) {
                 throw new Exception("Selected member does not have a profile in the users_profile directory", 400);
             }
 
-            // Retrieve membership plan details
+            // 1. Gatekeeper check: Verify active base membership
+            $activeBase = $this->model->getUserActiveBaseMembership($userId);
+            if (!$activeBase) {
+                throw new Exception("Action Blocked: Member does not have an active Base Membership", 403);
+            }
+
+            // Retrieve PT plan details
             $plan = $this->model->getMembershipPlanById($planId);
             if (!$plan || (int)$plan['status'] !== 1) {
                 throw new Exception("Invalid or inactive membership plan", 404);
             }
+            if ($plan['plan_type'] !== 'PT_UPGRADE') {
+                throw new Exception("Selected plan is not a Personal Training Upgrade", 400);
+            }
 
             $durationMonths = (int)($plan['duration_months'] ?: 1);
+
+            // Determine Trainer ID (trainer_profile_id)
+            $trainerUserId = isset($data['trainer_id']) ? (int)$data['trainer_id'] : 0;
+            $trainerId = 0;
+            if ($trainerUserId) {
+                $trainerId = $this->model->getTrainerProfileIdByUserId($trainerUserId);
+            } else {
+                $trainerId = $this->model->getMemberActiveTrainerProfileId($profileId);
+            }
+            if (!$trainerId) {
+                throw new Exception("Selected trainer does not have an active trainer profile", 400);
+            }
 
             // Get plan entitlements
             $entitlements = $this->model->getPlanEntitlements($planId);
@@ -100,9 +117,114 @@ class PersonalTrainingWorkflow
                 throw new Exception("No entitlements configured for this plan", 400);
             }
 
+            // 2. Fetch taxes & reverse tax math
+            $taxRates = $this->model->getTaxRatesForGym($gymId, 'SUBSCRIPTIONS');
+            if (empty($taxRates)) {
+                $taxRates = [
+                    ['tax_name' => 'CGST', 'percentage' => 9.00],
+                    ['tax_name' => 'SGST', 'percentage' => 9.00]
+                ];
+            }
+
+            $totalTaxRate = 0.0;
+            foreach ($taxRates as $tr) {
+                $totalTaxRate += (float)$tr['percentage'];
+            }
+
+            $inclusivePrice = (float)$plan['price'];
+            $basePrice = round($inclusivePrice / (1 + ($totalTaxRate / 100)), 2);
+            $totalTaxAmount = round($inclusivePrice - $basePrice, 2);
+
+            $taxBreakdown = [];
+            $accumulatedTax = 0.0;
+            $countRates = count($taxRates);
+            for ($i = 0; $i < $countRates; $i++) {
+                $tr = $taxRates[$i];
+                $ratePct = (float)$tr['percentage'];
+                $rateName = trim($tr['tax_name']);
+                
+                if ($i === $countRates - 1) {
+                    $rateAmount = round($totalTaxAmount - $accumulatedTax, 2);
+                } else {
+                    $rateAmount = round($inclusivePrice * ($ratePct / (100 + $totalTaxRate)), 2);
+                    $accumulatedTax += $rateAmount;
+                }
+                
+                $key = str_replace(['.', '-'], '_', strtoupper($rateName) . '_' . (int)$ratePct);
+                $taxBreakdown[$key] = $rateAmount;
+            }
+
             $this->model->beginTransaction();
 
-            // Insert subscription record
+            // 3. Write Financial Records
+            $invoiceNumber = 'INV-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
+            $invoiceId = $this->model->createInvoice([
+                'user_id'        => $userId,
+                'invoice_number' => $invoiceNumber,
+                'total_amount'   => $basePrice,
+                'tax_amount'     => $totalTaxAmount,
+                'tax_breakdown'  => $taxBreakdown,
+                'final_amount'   => $inclusivePrice,
+                'status'         => 'PAID'
+            ]);
+
+            $this->model->createInvoiceItem([
+                'invoice_id'     => $invoiceId,
+                'item_type'      => 'PT_PACKAGE',
+                'reference_id'   => $planId,
+                'item_name'      => $plan['plan_name'],
+                'quantity'       => 1,
+                'unit_price'     => $basePrice,
+                'tax_percentage' => $totalTaxRate,
+                'tax_amount'     => $totalTaxAmount,
+                'tax_breakdown'  => $taxBreakdown,
+                'total_price'    => $inclusivePrice
+            ]);
+
+            $payMode = 'Online';
+            $payMethod = strtoupper(trim($paymentMethod));
+            if ($payMethod === 'CASH') $payMode = 'Cash';
+            elseif ($payMethod === 'CARD') $payMode = 'Card';
+            elseif ($payMethod === 'UPI') $payMode = 'UPI';
+
+            $this->model->createPaymentTransaction([
+                'gym_id'          => $gymId,
+                'branch_id'       => $branchId,
+                'invoice_id'      => $invoiceId,
+                'paid_by_user_id' => $userId,
+                'amount'          => $inclusivePrice,
+                'payment_mode'    => $payMode,
+                'payment_status'  => 'SUCCESS',
+                'transaction_ref' => 'TXN-' . date('YmdHis') . '-' . rand(100, 999)
+            ]);
+
+            $flMethod = 'BANK_TRANSFER';
+            if ($payMethod === 'CASH') $flMethod = 'CASH';
+            elseif ($payMethod === 'CARD') $flMethod = 'CARD';
+            elseif ($payMethod === 'UPI') $flMethod = 'UPI';
+
+            $this->model->createFinancialLedgerEntry([
+                'gym_id'           => $gymId,
+                'branch_id'        => $branchId,
+                'transaction_type' => 'INFLOW',
+                'category'         => 'REVENUE',
+                'amount'           => $inclusivePrice,
+                'reference_table'  => 'invoices',
+                'reference_id'     => $invoiceId,
+                'payment_method'   => $flMethod
+            ]);
+
+            // 4. Trigger 70% Trainer Commission
+            $commissionAmount = round($inclusivePrice * 0.70, 2);
+            $this->model->createTrainerCommission([
+                'gym_id'            => $gymId,
+                'branch_id'         => $branchId,
+                'trainer_id'        => $trainerId,
+                'invoice_id'        => $invoiceId,
+                'commission_amount' => $commissionAmount
+            ]);
+
+            // 5. Activate subscription record
             $startDate = date('Y-m-d');
             $endDate = date('Y-m-d', strtotime("+$durationMonths months"));
 
@@ -116,7 +238,7 @@ class PersonalTrainingWorkflow
                 'status'     => 1
             ]);
 
-            // Provision credits in client_wallet_credits
+            // 6. Provision credits in client_wallet_credits
             foreach ($entitlements as $ent) {
                 $qty = (int)$ent['quantity'];
                 $validDays = (int)$ent['valid_days'];
@@ -141,17 +263,20 @@ class PersonalTrainingWorkflow
             return [
                 "status"          => "success",
                 "message"         => "Manual PT purchase and credit provisioning completed successfully",
-                "subscription_id" => $subId
+                "subscription_id" => $subId,
+                "invoice_id"      => $invoiceId
             ];
 
         } catch (\Throwable $e) {
             if ($this->model->inTransaction()) {
                 $this->model->rollBack();
             }
-            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404, 409]) ? $e->getCode() : 500);
+            $code = in_array($e->getCode(), [400, 401, 403, 404, 409]) ? $e->getCode() : 500;
+            $this->setResponseCode($code);
             return ["status" => "error", "message" => $e->getMessage()];
         }
     }
+
 
     /**
      * API 2: Balanced Trainer Assignment (Capacity Guardrail)
@@ -165,8 +290,8 @@ class PersonalTrainingWorkflow
                 throw new Exception("member_id and trainer_id are required", 400);
             }
 
-            $memberUserId = (int)$data['member_id'];
-            $trainerUserId = (int)$data['trainer_id'];
+            $memberUserId = (int) $data['member_id'];
+            $trainerUserId = (int) $data['trainer_id'];
 
             // Resolve trainer user ID to trainer_profile_id
             $trainerProfileId = $this->model->getTrainerProfileIdByUserId($trainerUserId);
@@ -199,17 +324,17 @@ class PersonalTrainingWorkflow
 
             // Create new assignment
             $assignmentId = $this->model->insertMemberTrainerAssignment([
-                'gym_id'     => $trainerGymBranch['gym_id'],
-                'branch_id'  => $trainerGymBranch['branch_id'],
-                'member_id'  => $memberProfileId,
+                'gym_id' => $trainerGymBranch['gym_id'],
+                'branch_id' => $trainerGymBranch['branch_id'],
+                'member_id' => $memberProfileId,
                 'trainer_id' => $trainerProfileId
             ]);
 
             $this->model->commit();
 
             return [
-                "status"        => "success",
-                "message"       => "Trainer assigned successfully to client",
+                "status" => "success",
+                "message" => "Trainer assigned successfully to client",
                 "assignment_id" => $assignmentId
             ];
 
@@ -229,7 +354,7 @@ class PersonalTrainingWorkflow
     {
         try {
             $decoded = $this->verifyRole($accessToken, ['TRAINER']);
-            $trainerUserId = (int)$decoded->sub;
+            $trainerUserId = (int) $decoded->sub;
 
             // Resolve trainer user ID to trainer_profile_id
             $trainerProfileId = $this->model->getTrainerProfileIdByUserId($trainerUserId);
@@ -244,7 +369,7 @@ class PersonalTrainingWorkflow
 
             $availability = [];
             foreach ($rawList as $item) {
-                $day = isset($item['day_of_week']) ? (int)$item['day_of_week'] : null;
+                $day = isset($item['day_of_week']) ? (int) $item['day_of_week'] : null;
                 if (!$day || $day < 1 || $day > 7) {
                     throw new Exception("day_of_week must be between 1 (Monday) and 7 (Sunday)", 400);
                 }
@@ -253,13 +378,13 @@ class PersonalTrainingWorkflow
                     foreach ($item['slots'] as $sId) {
                         $availability[] = [
                             'day_of_week' => $day,
-                            'slot_id'     => (int)$sId
+                            'slot_id' => (int) $sId
                         ];
                     }
                 } elseif (isset($item['slot_id'])) {
                     $availability[] = [
                         'day_of_week' => $day,
-                        'slot_id'     => (int)$item['slot_id']
+                        'slot_id' => (int) $item['slot_id']
                     ];
                 }
             }
@@ -293,7 +418,7 @@ class PersonalTrainingWorkflow
             $this->model->commit();
 
             return [
-                "status"  => "success",
+                "status" => "success",
                 "message" => "Weekly recurring availability template saved successfully"
             ];
 
@@ -313,7 +438,7 @@ class PersonalTrainingWorkflow
     {
         try {
             $decoded = $this->verifyRole($accessToken, ['TRAINER']);
-            $trainerUserId = (int)$decoded->sub;
+            $trainerUserId = (int) $decoded->sub;
 
             // Resolve trainer user ID to trainer_profile_id
             $trainerProfileId = $this->model->getTrainerProfileIdByUserId($trainerUserId);
@@ -333,11 +458,11 @@ class PersonalTrainingWorkflow
             $roster = $this->model->getTrainerPtScheduleForDate($trainerProfileId, $date);
 
             return [
-                "status"  => "success",
+                "status" => "success",
                 "message" => "Daily booking roster fetched successfully",
-                "date"    => $date,
-                "count"   => count($roster),
-                "data"    => $roster
+                "date" => $date,
+                "count" => count($roster),
+                "data" => $roster
             ];
 
         } catch (\Throwable $e) {
@@ -353,7 +478,7 @@ class PersonalTrainingWorkflow
     {
         try {
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
-            $memberUserId = (int)$decoded->sub;
+            $memberUserId = (int) $decoded->sub;
 
             // Resolve member user ID to profile_id
             $memberProfileId = $this->model->getProfileIdByUserId($memberUserId);
@@ -378,12 +503,12 @@ class PersonalTrainingWorkflow
             $slots = $this->model->getAvailablePtSlotsForTrainerAndDate($trainerProfileId, $date);
 
             return [
-                "status"     => "success",
-                "message"    => "Available personal training slots fetched successfully",
-                "date"       => $date,
+                "status" => "success",
+                "message" => "Available personal training slots fetched successfully",
+                "date" => $date,
                 "trainer_id" => $trainerProfileId,
-                "count"      => count($slots),
-                "data"       => $slots
+                "count" => count($slots),
+                "data" => $slots
             ];
 
         } catch (\Throwable $e) {
@@ -399,7 +524,7 @@ class PersonalTrainingWorkflow
     {
         try {
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
-            $memberUserId = (int)$decoded->sub;
+            $memberUserId = (int) $decoded->sub;
 
             // Resolve member user ID to profile_id
             $memberProfileId = $this->model->getProfileIdByUserId($memberUserId);
@@ -411,14 +536,14 @@ class PersonalTrainingWorkflow
                 throw new Exception("schedule_id is required", 400);
             }
 
-            $scheduleId = (int)$data['schedule_id'];
+            $scheduleId = (int) $data['schedule_id'];
 
             // 1. Verify client possesses an active wallet credit (uses users.user_id)
             $credit = $this->model->getMemberActiveCredit($memberUserId, 'PT_1ON1');
             if (!$credit) {
                 throw new Exception("No active PT credits available or credits have expired", 400);
             }
-            $creditId = (int)$credit['credit_id'];
+            $creditId = (int) $credit['credit_id'];
 
             // 2. Fetch the session details to get target date & availability status
             $session = $this->model->getPtScheduleItem($scheduleId);
@@ -448,8 +573,8 @@ class PersonalTrainingWorkflow
             $this->model->commit();
 
             return [
-                "status"      => "success",
-                "message"     => "PT slot booked successfully",
+                "status" => "success",
+                "message" => "PT slot booked successfully",
                 "schedule_id" => $scheduleId
             ];
 
@@ -469,7 +594,7 @@ class PersonalTrainingWorkflow
     {
         try {
             $decoded = $this->verifyRole($accessToken, ['TRAINER']);
-            $trainerUserId = (int)$decoded->sub;
+            $trainerUserId = (int) $decoded->sub;
 
             // Resolve trainer user ID to trainer_profile_id
             $trainerProfileId = $this->model->getTrainerProfileIdByUserId($trainerUserId);
@@ -481,12 +606,12 @@ class PersonalTrainingWorkflow
                 throw new Exception("schedule_id is required", 400);
             }
 
-            $scheduleId = (int)$data['schedule_id'];
+            $scheduleId = (int) $data['schedule_id'];
             $workoutSummary = $data['workout_summary'] ?? '';
 
             // Fetch session
             $session = $this->model->getPtScheduleItem($scheduleId);
-            if (!$session || (int)$session['trainer_id'] !== $trainerProfileId) {
+            if (!$session || (int) $session['trainer_id'] !== $trainerProfileId) {
                 throw new Exception("Session not found or not mapped to this trainer", 404);
             }
 
@@ -507,9 +632,9 @@ class PersonalTrainingWorkflow
             $this->model->commit();
 
             return [
-                "status"           => "success",
-                "message"          => "Completion handshake initiated successfully",
-                "schedule_id"      => $scheduleId,
+                "status" => "success",
+                "message" => "Completion handshake initiated successfully",
+                "schedule_id" => $scheduleId,
                 "verification_pin" => $pin
             ];
 
@@ -529,15 +654,15 @@ class PersonalTrainingWorkflow
     {
         try {
             $decoded = $this->verifyRole($accessToken, ['MEMBER', 'TRAINER']);
-            $userId = (int)$decoded->sub;
+            $userId = (int) $decoded->sub;
             $role = strtoupper($decoded->role);
 
             if (empty($data['schedule_id']) || !isset($data['entered_pin'])) {
                 throw new Exception("schedule_id and entered_pin are required", 400);
             }
 
-            $scheduleId = (int)$data['schedule_id'];
-            $enteredPin = (int)$data['entered_pin'];
+            $scheduleId = (int) $data['schedule_id'];
+            $enteredPin = (int) $data['entered_pin'];
 
             // Fetch session details
             $session = $this->model->getPtScheduleItem($scheduleId);
@@ -548,12 +673,12 @@ class PersonalTrainingWorkflow
             // Security check: ensure caller belongs to the booking
             if ($role === 'TRAINER') {
                 $trainerProfileId = $this->model->getTrainerProfileIdByUserId($userId);
-                if (!$trainerProfileId || (int)$session['trainer_id'] !== $trainerProfileId) {
+                if (!$trainerProfileId || (int) $session['trainer_id'] !== $trainerProfileId) {
                     throw new Exception("Access denied: You are not the trainer for this session", 403);
                 }
             } else if ($role === 'MEMBER') {
                 $memberProfileId = $this->model->getProfileIdByUserId($userId);
-                if (!$memberProfileId || (int)$session['member_id'] !== $memberProfileId) {
+                if (!$memberProfileId || (int) $session['member_id'] !== $memberProfileId) {
                     throw new Exception("Access denied: You are not the member for this session", 403);
                 }
             }
@@ -562,11 +687,11 @@ class PersonalTrainingWorkflow
                 throw new Exception("Only sessions in PENDING status can be verified", 400);
             }
 
-            if ($session['verification_pin'] === null || (int)$session['verification_pin'] !== $enteredPin) {
+            if ($session['verification_pin'] === null || (int) $session['verification_pin'] !== $enteredPin) {
                 throw new Exception("Invalid or expired verification token submitted.", 400);
             }
 
-            $creditId = (int)$session['credit_id'];
+            $creditId = (int) $session['credit_id'];
             if (!$creditId) {
                 throw new Exception("No credit associated with this session booking", 400);
             }
@@ -588,8 +713,8 @@ class PersonalTrainingWorkflow
             $this->model->commit();
 
             return [
-                "status"      => "success",
-                "message"     => "PIN verified. Session attendance recorded and 1 credit deducted successfully.",
+                "status" => "success",
+                "message" => "PIN verified. Session attendance recorded and 1 credit deducted successfully.",
                 "schedule_id" => $scheduleId
             ];
 
@@ -614,7 +739,7 @@ class PersonalTrainingWorkflow
                 throw new Exception("trainer_id, start_date and end_date are required", 400);
             }
 
-            $trainerUserId = (int)$data['trainer_id'];
+            $trainerUserId = (int) $data['trainer_id'];
             $startDateStr = $data['start_date'];
             $endDateStr = $data['end_date'];
 
@@ -630,8 +755,8 @@ class PersonalTrainingWorkflow
                 throw new Exception("Failed to retrieve gym/branch mapping for the trainer profile", 400);
             }
 
-            $gymId = (int)$trainerGymBranch['gym_id'];
-            $branchId = (int)$trainerGymBranch['branch_id'];
+            $gymId = (int) $trainerGymBranch['gym_id'];
+            $branchId = (int) $trainerGymBranch['branch_id'];
 
             $start = new DateTime($startDateStr);
             $end = new DateTime($endDateStr);
@@ -645,7 +770,7 @@ class PersonalTrainingWorkflow
             foreach ($period as $dateObj) {
                 $dateStr = $dateObj->format('Y-m-d');
                 // day of week representation (N: 1 for Monday to 7 for Sunday)
-                $dayOfWeek = (int)$dateObj->format('N');
+                $dayOfWeek = (int) $dateObj->format('N');
 
                 // Get weekly availability templates for this day of week
                 $templates = $this->model->getTrainerTemplatesForDay($trainerProfileId, $dayOfWeek);
@@ -654,11 +779,11 @@ class PersonalTrainingWorkflow
                     // Check if already created
                     if (!$this->model->scheduleItemExists($trainerProfileId, $dateStr, $slotId)) {
                         $this->model->insertScheduleItem([
-                            'gym_id'       => $gymId,
-                            'branch_id'    => $branchId,
-                            'trainer_id'   => $trainerProfileId,
+                            'gym_id' => $gymId,
+                            'branch_id' => $branchId,
+                            'trainer_id' => $trainerProfileId,
                             'session_date' => $dateStr,
-                            'slot_id'      => $slotId
+                            'slot_id' => $slotId
                         ]);
                         $createdCount++;
                     }
@@ -668,8 +793,8 @@ class PersonalTrainingWorkflow
             $this->model->commit();
 
             return [
-                "status"        => "success",
-                "message"       => "PT Schedule slots generated successfully",
+                "status" => "success",
+                "message" => "PT Schedule slots generated successfully",
                 "slots_created" => $createdCount
             ];
 
@@ -693,7 +818,7 @@ class PersonalTrainingWorkflow
     {
         try {
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
-            $memberUserId = (int)$decoded->sub;
+            $memberUserId = (int) $decoded->sub;
 
             $memberProfileId = $this->model->getProfileIdByUserId($memberUserId);
             if (!$memberProfileId) {
@@ -704,7 +829,7 @@ class PersonalTrainingWorkflow
                 throw new Exception("schedule_id is required", 400);
             }
 
-            $scheduleId = (int)$data['schedule_id'];
+            $scheduleId = (int) $data['schedule_id'];
             $session = $this->model->getPtScheduleItem($scheduleId);
             if (!$session) {
                 throw new Exception("Session not found", 404);
@@ -720,8 +845,8 @@ class PersonalTrainingWorkflow
             }
 
             return [
-                "status"      => "success",
-                "message"     => "Trainer absence reported successfully",
+                "status" => "success",
+                "message" => "Trainer absence reported successfully",
                 "schedule_id" => $scheduleId
             ];
 
@@ -738,7 +863,7 @@ class PersonalTrainingWorkflow
     {
         try {
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
-            $memberUserId = (int)$decoded->sub;
+            $memberUserId = (int) $decoded->sub;
 
             $memberProfileId = $this->model->getProfileIdByUserId($memberUserId);
             if (!$memberProfileId) {
@@ -749,7 +874,7 @@ class PersonalTrainingWorkflow
                 throw new Exception("schedule_id and reason are required", 400);
             }
 
-            $scheduleId = (int)$data['schedule_id'];
+            $scheduleId = (int) $data['schedule_id'];
             $counterReason = trim($data['reason']);
 
             $session = $this->model->getPtScheduleItem($scheduleId);
@@ -767,8 +892,8 @@ class PersonalTrainingWorkflow
             }
 
             return [
-                "status"      => "success",
-                "message"     => "No-show claim disputed successfully. Case submitted for admin review.",
+                "status" => "success",
+                "message" => "No-show claim disputed successfully. Case submitted for admin review.",
                 "schedule_id" => $scheduleId
             ];
 
@@ -785,7 +910,7 @@ class PersonalTrainingWorkflow
     {
         try {
             $decoded = $this->verifyRole($accessToken, ['TRAINER']);
-            $trainerUserId = (int)$decoded->sub;
+            $trainerUserId = (int) $decoded->sub;
 
             $trainerProfileId = $this->model->getTrainerProfileIdByUserId($trainerUserId);
             if (!$trainerProfileId) {
@@ -796,7 +921,7 @@ class PersonalTrainingWorkflow
                 throw new Exception("schedule_id is required", 400);
             }
 
-            $scheduleId = (int)$data['schedule_id'];
+            $scheduleId = (int) $data['schedule_id'];
 
             $session = $this->model->getPtScheduleItem($scheduleId);
             if (!$session) {
@@ -813,8 +938,8 @@ class PersonalTrainingWorkflow
             }
 
             return [
-                "status"      => "success",
-                "message"     => "Session released successfully. Block is now AVAILABLE.",
+                "status" => "success",
+                "message" => "Session released successfully. Block is now AVAILABLE.",
                 "schedule_id" => $scheduleId
             ];
 
@@ -831,7 +956,7 @@ class PersonalTrainingWorkflow
     {
         try {
             $decoded = $this->verifyRole($accessToken, ['TRAINER']);
-            $trainerUserId = (int)$decoded->sub;
+            $trainerUserId = (int) $decoded->sub;
 
             $trainerProfileId = $this->model->getTrainerProfileIdByUserId($trainerUserId);
             if (!$trainerProfileId) {
@@ -842,7 +967,7 @@ class PersonalTrainingWorkflow
                 throw new Exception("schedule_id is required", 400);
             }
 
-            $scheduleId = (int)$data['schedule_id'];
+            $scheduleId = (int) $data['schedule_id'];
             $trainerReason = !empty($data['reason']) ? trim($data['reason']) : 'Client did not show up for session';
 
             $session = $this->model->getPtScheduleItem($scheduleId);
@@ -854,7 +979,7 @@ class PersonalTrainingWorkflow
                 throw new Exception("Only PENDING sessions can be marked as MEMBER_NO_SHOW", 400);
             }
 
-            $creditId = (int)$session['credit_id'];
+            $creditId = (int) $session['credit_id'];
 
             $this->model->beginTransaction();
 
@@ -870,8 +995,8 @@ class PersonalTrainingWorkflow
             $this->model->commit();
 
             return [
-                "status"      => "success",
-                "message"     => "Client no-show flagged successfully and session credit consumed.",
+                "status" => "success",
+                "message" => "Client no-show flagged successfully and session credit consumed.",
                 "schedule_id" => $scheduleId
             ];
 
@@ -896,7 +1021,7 @@ class PersonalTrainingWorkflow
                 throw new Exception("schedule_id is required", 400);
             }
 
-            $scheduleId = (int)$data['schedule_id'];
+            $scheduleId = (int) $data['schedule_id'];
             $session = $this->model->getPtScheduleItem($scheduleId);
             if (!$session) {
                 throw new Exception("Session not found", 404);
@@ -912,8 +1037,8 @@ class PersonalTrainingWorkflow
             }
 
             return [
-                "status"      => "success",
-                "message"     => "Dispute resolved in favor of trainer. Status set to RESOLVED_BY_ADMIN.",
+                "status" => "success",
+                "message" => "Dispute resolved in favor of trainer. Status set to RESOLVED_BY_ADMIN.",
                 "schedule_id" => $scheduleId
             ];
 
@@ -935,7 +1060,7 @@ class PersonalTrainingWorkflow
                 throw new Exception("schedule_id is required", 400);
             }
 
-            $scheduleId = (int)$data['schedule_id'];
+            $scheduleId = (int) $data['schedule_id'];
             $session = $this->model->getPtScheduleItem($scheduleId);
             if (!$session) {
                 throw new Exception("Session not found", 404);
@@ -945,7 +1070,7 @@ class PersonalTrainingWorkflow
                 throw new Exception("Only DISPUTED sessions can be resolved", 400);
             }
 
-            $creditId = (int)$session['credit_id'];
+            $creditId = (int) $session['credit_id'];
 
             $this->model->beginTransaction();
 
@@ -961,8 +1086,8 @@ class PersonalTrainingWorkflow
             $this->model->commit();
 
             return [
-                "status"      => "success",
-                "message"     => "Dispute resolved in favor of member. Credit refunded and status set to RESOLVED_BY_ADMIN.",
+                "status" => "success",
+                "message" => "Dispute resolved in favor of member. Credit refunded and status set to RESOLVED_BY_ADMIN.",
                 "schedule_id" => $scheduleId
             ];
 
@@ -995,13 +1120,13 @@ class PersonalTrainingWorkflow
             $this->model->beginTransaction();
 
             foreach ($sessions as $session) {
-                $scheduleId = (int)$session['schedule_id'];
-                $creditId = (int)$session['credit_id'];
+                $scheduleId = (int) $session['schedule_id'];
+                $creditId = (int) $session['credit_id'];
 
                 $isPackageActive = false;
                 if ($creditId > 0) {
                     $credit = $this->model->getWalletCredit($creditId);
-                    if ($credit && (int)$credit['status'] === 1 && $credit['expiration_date'] >= $evalDate) {
+                    if ($credit && (int) $credit['status'] === 1 && $credit['expiration_date'] >= $evalDate) {
                         $isPackageActive = true;
                     }
                 }
@@ -1020,11 +1145,11 @@ class PersonalTrainingWorkflow
             $this->model->commit();
 
             return [
-                "status"                 => "success",
-                "message"                => "Nightly evaluation processed successfully",
-                "evaluation_date"        => $evalDate,
-                "sessions_processed"     => count($sessions),
-                "mutual_absence_count"   => $mutualAbsenceCount,
+                "status" => "success",
+                "message" => "Nightly evaluation processed successfully",
+                "evaluation_date" => $evalDate,
+                "sessions_processed" => count($sessions),
+                "mutual_absence_count" => $mutualAbsenceCount,
                 "expired_unclaimed_count" => $expiredUnclaimedCount
             ];
 
@@ -1044,7 +1169,7 @@ class PersonalTrainingWorkflow
     {
         try {
             $decoded = $this->verifyRole($accessToken, ['TRAINER']);
-            $trainerUserId = (int)$decoded->sub;
+            $trainerUserId = (int) $decoded->sub;
 
             // Resolve trainer user ID to trainer_profile_id
             $trainerProfileId = $this->model->getTrainerProfileIdByUserId($trainerUserId);
@@ -1069,18 +1194,18 @@ class PersonalTrainingWorkflow
                 $day = $item['day_of_week'];
                 if (isset($grouped[$day])) {
                     $grouped[$day][] = [
-                        'slot_id'    => $item['slot_id'],
-                        'slot_name'  => $item['slot_name'],
+                        'slot_id' => $item['slot_id'],
+                        'slot_name' => $item['slot_name'],
                         'start_time' => $item['start_time'],
-                        'end_time'   => $item['end_time']
+                        'end_time' => $item['end_time']
                     ];
                 }
             }
 
             return [
-                "status"  => "success",
+                "status" => "success",
                 "message" => "Weekly recurring template availability fetched successfully",
-                "data"    => $grouped
+                "data" => $grouped
             ];
 
         } catch (\Throwable $e) {
@@ -1100,9 +1225,9 @@ class PersonalTrainingWorkflow
             $trainers = $this->model->getTrainersWithClientCount();
 
             return [
-                "status"  => "success",
+                "status" => "success",
                 "message" => "Trainers list and client assignment capacities fetched successfully",
-                "data"    => $trainers
+                "data" => $trainers
             ];
 
         } catch (\Throwable $e) {
@@ -1122,9 +1247,9 @@ class PersonalTrainingWorkflow
             $stats = $this->model->getPtDashboardMetrics();
 
             return [
-                "status"  => "success",
+                "status" => "success",
                 "message" => "PT management dashboard statistics fetched successfully",
-                "data"    => $stats
+                "data" => $stats
             ];
 
         } catch (\Throwable $e) {
@@ -1152,10 +1277,10 @@ class PersonalTrainingWorkflow
             $sessions = $this->model->getFilteredPtSessions($filters);
 
             return [
-                "status"  => "success",
+                "status" => "success",
                 "message" => "PT sessions list fetched successfully",
-                "count"   => count($sessions),
-                "data"    => $sessions
+                "count" => count($sessions),
+                "data" => $sessions
             ];
 
         } catch (\Throwable $e) {
@@ -1175,10 +1300,10 @@ class PersonalTrainingWorkflow
             $disputes = $this->model->getDisputedPtSessions();
 
             return [
-                "status"  => "success",
+                "status" => "success",
                 "message" => "Disputed PT sessions fetched successfully",
-                "count"   => count($disputes),
-                "data"    => $disputes
+                "count" => count($disputes),
+                "data" => $disputes
             ];
 
         } catch (\Throwable $e) {
