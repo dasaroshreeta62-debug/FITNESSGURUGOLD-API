@@ -10,6 +10,7 @@ require_once __DIR__ . '/../controllers/ShiftController.php';
 require_once __DIR__ . '/../controllers/ProductController.php';
 require_once __DIR__ . '/../controllers/TaxController.php';
 require_once __DIR__ . '/../controllers/FinanceController.php';
+require_once __DIR__ . '/../controllers/PayrollController.php';
 
 function route(string $method, string $path): void
 {
@@ -27,6 +28,7 @@ function route(string $method, string $path): void
     $productController = new ProductController();
     $taxController = new TaxController();
     $financeController = new FinanceController();
+    $payrollController = new PayrollController();
 
     switch (true) {
 
@@ -643,6 +645,31 @@ function route(string $method, string $path): void
 
         case $method === 'POST' && $path === '/api/admin/finance/refund':
             $financeController->refundInvoice();
+            return;
+
+        // ================= PAYROLL & COMMISSIONS =================
+        case $method === 'POST' && $path === '/api/jobs/pt/process-completed-durations':
+            $personalTrainingController->processCompletedDurations();
+            return;
+
+        case $method === 'GET' && $path === '/api/admin/trainer-commissions':
+            $payrollController->getTrainerCommissions();
+            return;
+
+        case $method === 'POST' && preg_match('#^/api/admin/trainer-commissions/(\d+)/pay-early$#', $path, $matches):
+            $payrollController->payCommissionEarly((int)$matches[1]);
+            return;
+
+        case $method === 'POST' && $path === '/api/jobs/payroll/generate-monthly-drafts':
+            $payrollController->generateMonthlyDrafts();
+            return;
+
+        case $method === 'POST' && preg_match('#^/api/admin/payroll/(\d+)/disburse$#', $path, $matches):
+            $payrollController->disbursePayroll((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && $path === '/api/admin/payrolls':
+            $payrollController->listPayrolls();
             return;
 
         // ================= DEFAULT =================

@@ -318,5 +318,17 @@ class PersonalTrainingController
         $response = $this->workflow->getDisputes($token);
         echo json_encode($response);
     }
-}
 
+    /**
+     * POST /api/v1/jobs/pt/process-completed-durations
+     * Nightly cron: complete expired PT packages and book 70% trainer commissions.
+     */
+    public function processCompletedDurations(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->processCompletedDurations($token, $input);
+        echo json_encode($response);
+    }
+}

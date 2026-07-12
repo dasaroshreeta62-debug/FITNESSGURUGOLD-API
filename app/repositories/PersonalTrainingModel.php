@@ -1262,5 +1262,107 @@ class PersonalTrainingModel extends Model
 
         return $rows;
     }
-}
 
+    /**
+     * Fetch all active PT subscriptions whose end_date has passed the target_date.
+     * Also retrieves associated invoice and primary trainer assignment.
+     */
+    public function getExpiredPtSubscriptions(string $targetDate): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT
+                s.subscription_id,
+                s.user_id,
+                s.plan_id,
+                s.gym_id,
+                s.branch_id,
+                s.end_date,
+                mp.plan_name,
+                up.profile_id,
+                (
+                    SELECT i.invoice_id
+                    FROM invoices i
+                    JOIN invoice_items ii ON ii.invoice_id = i.invoice_id
+                    WHERE i.user_id = s.user_id
+                      AND ii.item_type = 'PT_PACKAGE'
+                      AND ii.reference_id = s.plan_id
+                      AND i.status = 'PAID'
+                    ORDER BY i.invoice_id DESC
+                    LIMIT 1
+                ) AS invoice_id,
+                (
+                    SELECT i.final_amount
+                    FROM invoices i
+                    JOIN invoice_items ii ON ii.invoice_id = i.invoice_id
+                    WHERE i.user_id = s.user_id
+                      AND ii.item_type = 'PT_PACKAGE'
+                      AND ii.reference_id = s.plan_id
+                      AND i.status = 'PAID'
+                    ORDER BY i.invoice_id DESC
+                    LIMIT 1
+                ) AS invoice_amount,
+                (
+                    SELECT mta.trainer_id
+                    FROM member_trainer_assignments mta
+                    WHERE mta.member_id = up.profile_id
+                      AND mta.assignment_type = 'PRIMARY'
+                      AND mta.status = 'ACTIVE'
+                    ORDER BY mta.assignment_id DESC
+                    LIMIT 1
+                ) AS trainer_id
+            FROM subscriptions s
+            JOIN membership_plans mp ON mp.plan_id = s.plan_id
+            LEFT JOIN users_profile up ON up.user_id = s.user_id
+            WHERE mp.plan_type = 'PT_UPGRADE'
+              AND s.status = 1
+              AND s.end_date <= :target_date
+        ");
+        $stmt->execute(['target_date' => $targetDate]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Check if a trainer commission already exists for a given invoice_id.
+     * Used to prevent double-booking.
+     */
+    public function commissionExistsForInvoice(int $invoiceId): bool
+    {
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) FROM trainer_commissions WHERE invoice_id = :invoice_id
+        ");
+        $stmt->execute(['invoice_id' => $invoiceId]);
+        return (int)$stmt->fetchColumn() > 0;
+    }
+
+    /**
+     * Insert a new trainer commission row (status = UNPAID).
+     */
+    public function insertTrainerCommission(array $data): int
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO trainer_commissions (
+                gym_id, branch_id, trainer_id, invoice_id, commission_amount, status, created_at
+            ) VALUES (
+                :gym_id, :branch_id, :trainer_id, :invoice_id, :commission_amount, 'UNPAID', NOW()
+            )
+        ");
+        $stmt->execute([
+            'gym_id'            => (int)$data['gym_id'],
+            'branch_id'         => (int)$data['branch_id'],
+            'trainer_id'        => (int)$data['trainer_id'],
+            'invoice_id'        => (int)$data['invoice_id'],
+            'commission_amount' => (float)$data['commission_amount']
+        ]);
+        return (int)$this->db->lastInsertId();
+    }
+
+    /**
+     * Update the status of a subscription by ID.
+     * status: 1 = active, 2 = completed, 0 = cancelled.
+     */
+    public function updateSubscriptionStatus(int $subId, int $status): bool
+    {
+        $stmt = $this->db->prepare("UPDATE subscriptions SET status = :status WHERE subscription_id = :id");
+        return $stmt->execute(['status' => $status, 'id' => $subId]);
+    }
+}

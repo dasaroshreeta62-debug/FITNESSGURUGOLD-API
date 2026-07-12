@@ -1340,5 +1340,94 @@ class PersonalTrainingWorkflow
             return ["status" => "error", "message" => $e->getMessage()];
         }
     }
-}
 
+    /**
+     * POST /api/v1/jobs/pt/process-completed-durations
+     * Nightly cron job: scans all active PT subscriptions whose calendar duration
+     * has expired, books 70% of the invoice as an UNPAID trainer commission, and
+     * marks the subscription as completed (status = 2).
+     */
+    public function processCompletedDurations(string $accessToken, array $data): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+
+            // Determine the target sweep date — defaults to yesterday
+            $targetDate = !empty($data['target_date']) ? trim($data['target_date'])
+                : date('Y-m-d', strtotime('-1 day'));
+
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $targetDate)) {
+                throw new Exception("Invalid target_date format. Use YYYY-MM-DD", 400);
+            }
+
+            $expiredSubs = $this->model->getExpiredPtSubscriptions($targetDate);
+
+            $this->model->beginTransaction();
+
+            $packagesDone         = 0;
+            $totalCommission      = 0.0;
+            $commissionsGenerated = [];
+
+            foreach ($expiredSubs as $sub) {
+                $subId         = (int)$sub['subscription_id'];
+                $invoiceId     = (int)($sub['invoice_id'] ?? 0);
+                $trainerId     = (int)($sub['trainer_id'] ?? 0);
+                $invoiceAmount = (float)($sub['invoice_amount'] ?? 0.0);
+
+                // Always mark the subscription as completed
+                $this->model->updateSubscriptionStatus($subId, 2);
+                $packagesDone++;
+
+                // Skip commission if no invoice or no trainer assigned
+                if (!$invoiceId || !$trainerId) {
+                    continue;
+                }
+
+                // Double-credit guard: skip if commission already booked for this invoice
+                if ($this->model->commissionExistsForInvoice($invoiceId)) {
+                    continue;
+                }
+
+                // Calculate 70% trainer cut
+                $commissionAmount = round($invoiceAmount * 0.70, 2);
+
+                $commissionId = $this->model->insertTrainerCommission([
+                    'gym_id'            => (int)$sub['gym_id'],
+                    'branch_id'         => (int)$sub['branch_id'],
+                    'trainer_id'        => $trainerId,
+                    'invoice_id'        => $invoiceId,
+                    'commission_amount' => $commissionAmount
+                ]);
+
+                $totalCommission += $commissionAmount;
+                $commissionsGenerated[] = [
+                    'commission_id' => $commissionId,
+                    'trainer_id'    => $trainerId,
+                    'invoice_id'    => $invoiceId,
+                    'amount'        => number_format($commissionAmount, 2, '.', '')
+                ];
+            }
+
+            $this->model->commit();
+
+            return [
+                'status'  => 'success',
+                'message' => 'PT package completion sweep executed successfully.',
+                'data'    => [
+                    'target_date'             => $targetDate,
+                    'packages_completed'      => $packagesDone,
+                    'total_commission_booked' => number_format($totalCommission, 2, '.', ''),
+                    'commissions_generated'   => $commissionsGenerated
+                ]
+            ];
+
+        } catch (\Throwable $e) {
+            if ($this->model->inTransaction()) {
+                $this->model->rollBack();
+            }
+            $code = in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500;
+            $this->setResponseCode($code);
+            return ['status' => 'error', 'message' => $e->getMessage()];
+        }
+    }
+}
