@@ -201,6 +201,73 @@ Retrieve a list of sessions that are currently flagged as `DISPUTED`, which requ
 }
 ```
 
+## 6. Get PT Subscriptions List
+Retrieve a list of personal training subscriptions exclusively, along with member details, plan details, active primary trainer assignments, and invoice details.
+
+* **URL**: `/api/admin/pt/subscriptions`
+* **Method**: `GET`
+* **Headers**: `Authorization: Bearer <ADMIN_JWT_TOKEN>`
+* **Query Parameters**:
+  - `status` (optional): Filter by subscription status (`1` for active, `0` for inactive)
+  - `gym_id` (optional): Filter by gym ID
+  - `branch_id` (optional): Filter by branch ID
+  - `user_id` (optional): Filter by member user ID
+  - `plan_id` (optional): Filter by plan ID
+* **Role Allowed**: `ADMIN` or `SUPER-ADMIN`
+
+### Success Response (`200 OK`)
+```json
+{
+  "status": "success",
+  "message": "PT subscriptions fetched successfully",
+  "count": 1,
+  "data": [
+    {
+      "subscription_id": 310,
+      "gym_id": 1,
+      "branch_id": 1,
+      "start_date": "2026-07-12",
+      "end_date": "2026-08-12",
+      "status": 1,
+      "created_at": "2026-07-12 03:46:55",
+      "member": {
+        "user_id": 138,
+        "profile_id": 69,
+        "name": "Ankit Das",
+        "email": "ankit.das@fg.com",
+        "phone": "8249801450"
+      },
+      "plan": {
+        "plan_id": 5,
+        "plan_name": "Basic Personal Training",
+        "plan_type": "PT_UPGRADE",
+        "price": 5000,
+        "duration_months": 1
+      },
+      "trainer_assignment": {
+        "assignment_id": 4,
+        "trainer_profile_id": 5,
+        "trainer_user_id": 489,
+        "trainer_name": "Abhinav Senapati",
+        "trainer_email": "abhinavsenapati@fg.org.in",
+        "trainer_phone": "9999999999",
+        "assignment_type": "PRIMARY",
+        "assigned_at": "2026-07-04 16:04:51"
+      },
+      "invoices": [
+        {
+          "invoice_id": 9,
+          "invoice_number": "INV-20260712-785356C5",
+          "final_amount": 5000,
+          "issued_at": "2026-07-12 03:46:55",
+          "status": "PAID"
+        }
+      ]
+    }
+  ]
+}
+```
+
 ---
 
 ## Error Handling Standards

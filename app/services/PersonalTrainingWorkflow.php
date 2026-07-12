@@ -1317,5 +1317,28 @@ class PersonalTrainingWorkflow
             return ["status" => "error", "message" => $e->getMessage()];
         }
     }
+
+    /**
+     * Get PT subscriptions list only (Admin dashboard helper).
+     */
+    public function getPtSubscriptions(string $accessToken, array $filters): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+
+            $subscriptions = $this->model->getPtSubscriptions($filters);
+
+            return [
+                "status" => "success",
+                "message" => "PT subscriptions fetched successfully",
+                "count" => count($subscriptions),
+                "data" => $subscriptions
+            ];
+
+        } catch (\Throwable $e) {
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
 }
 

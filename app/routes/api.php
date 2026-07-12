@@ -226,6 +226,10 @@ function route(string $method, string $path): void
             $personalTrainingController->getTrainersCapacity();
             return;
 
+        case $method === 'GET' && $path === '/api/admin/pt/subscriptions':
+            $personalTrainingController->getPtSubscriptions();
+            return;
+
         case $method === 'GET' && $path === '/api/admin/pt/dashboard-stats':
             $personalTrainingController->getDashboardStats();
             return;
@@ -591,40 +595,40 @@ function route(string $method, string $path): void
             return;
 
         // ================= PRODUCT SALES & INVENTORY ROUTES =================
-        case $method === 'GET' && $path === '/api/v1/admin/products':
+        case $method === 'GET' && $path === '/api/admin/products':
             $productController->listAdminProducts();
             return;
 
-        case $method === 'POST' && $path === '/api/v1/admin/products':
+        case $method === 'POST' && $path === '/api/admin/products':
             $productController->createProduct();
             return;
 
-        case $method === 'POST' && $path === '/api/v1/admin/inventory/restock':
+        case $method === 'POST' && $path === '/api/admin/inventory/restock':
             $productController->restockInventory();
             return;
 
-        case $method === 'POST' && $path === '/api/v1/admin/store/sell':
+        case $method === 'POST' && $path === '/api/admin/store/sell':
             $productController->sellProduct();
             return;
 
-        case $method === 'GET' && $path === '/api/v1/member/products':
+        case $method === 'GET' && $path === '/api/member/products':
             $productController->listMemberProducts();
             return;
 
         // ================= TAX CONFIGURATION ROUTES =================
-        case $method === 'GET' && $path === '/api/v1/admin/tax-rates':
+        case $method === 'GET' && $path === '/api/admin/tax-rates':
             $taxController->listTaxRates();
             return;
 
-        case $method === 'POST' && $path === '/api/v1/admin/tax-rates':
+        case $method === 'POST' && $path === '/api/admin/tax-rates':
             $taxController->createTaxRate();
             return;
 
-        case $method === 'PUT' && preg_match('#^/api/v1/admin/tax-rates/(\d+)$#', $path, $matches):
+        case $method === 'PUT' && preg_match('#^/api/admin/tax-rates/(\d+)$#', $path, $matches):
             $taxController->updateTaxRate((int)$matches[1]);
             return;
 
-        case $method === 'DELETE' && preg_match('#^/api/v1/admin/tax-rates/(\d+)$#', $path, $matches):
+        case $method === 'DELETE' && preg_match('#^/api/admin/tax-rates/(\d+)$#', $path, $matches):
             $taxController->deleteTaxRate((int)$matches[1]);
             return;
 
@@ -651,4 +655,5 @@ function route(string $method, string $path): void
             return;
     }
 }
+
 

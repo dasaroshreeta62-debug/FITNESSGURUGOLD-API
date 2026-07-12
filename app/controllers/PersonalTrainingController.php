@@ -269,6 +269,26 @@ class PersonalTrainingController
     }
 
     /**
+     * API: Get PT Subscriptions only (Admin dashboard)
+     */
+    public function getPtSubscriptions(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+
+        $filters = [
+            'status'    => isset($_GET['status']) && $_GET['status'] !== '' ? $_GET['status'] : null,
+            'gym_id'    => $_GET['gym_id'] ?? null,
+            'branch_id' => $_GET['branch_id'] ?? null,
+            'user_id'   => $_GET['user_id'] ?? null,
+            'plan_id'   => $_GET['plan_id'] ?? null
+        ];
+
+        $response = $this->workflow->getPtSubscriptions($token, $filters);
+        echo json_encode($response);
+    }
+
+    /**
      * API: Get Filtered PT Sessions (Admin)
      */
     public function getSessions(): void

@@ -1078,5 +1078,162 @@ class PersonalTrainingModel extends Model
             ];
         }, $rows);
     }
+
+    /**
+     * Get only PT subscriptions with details.
+     */
+    public function getPtSubscriptions(array $filters = []): array
+    {
+        $sql = "
+            SELECT 
+                s.subscription_id,
+                s.user_id AS member_user_id,
+                s.plan_id,
+                s.gym_id,
+                s.branch_id,
+                s.start_date,
+                s.end_date,
+                s.status AS subscription_status,
+                s.createdDate AS subscription_created_date,
+                s.createdTime AS subscription_created_time,
+                
+                -- Member Details
+                u.name AS member_name,
+                u.email AS member_email,
+                u.phone AS member_phone,
+                up.profile_id AS member_profile_id,
+                
+                -- Plan Details
+                mp.plan_name,
+                mp.plan_type,
+                mp.price AS plan_price,
+                mp.duration_months,
+                
+                -- Trainer Assignment Details
+                mta.assignment_id,
+                mta.assignment_type,
+                mta.status AS assignment_status,
+                mta.assigned_at,
+                tp.trainer_profile_id,
+                tu.user_id AS trainer_user_id,
+                tu.name AS trainer_name,
+                tu.email AS trainer_email,
+                tu.phone AS trainer_phone
+                
+            FROM subscriptions s
+            JOIN users u ON u.user_id = s.user_id
+            JOIN membership_plans mp ON mp.plan_id = s.plan_id
+            LEFT JOIN users_profile up ON up.user_id = u.user_id
+            LEFT JOIN member_trainer_assignments mta 
+                ON mta.member_id = up.profile_id 
+                AND mta.status = 1
+                AND mta.assignment_type = 'PRIMARY'
+            LEFT JOIN trainer_profiles tp ON tp.trainer_profile_id = mta.trainer_id
+            LEFT JOIN employees te ON te.employee_id = tp.employee_id
+            LEFT JOIN users tu ON tu.user_id = te.user_id
+            WHERE mp.plan_type = 'PT_UPGRADE'
+        ";
+        $params = [];
+
+        if (isset($filters['status']) && $filters['status'] !== '') {
+            $sql .= " AND s.status = :status";
+            $params['status'] = (int)$filters['status'];
+        }
+
+        if (!empty($filters['user_id'])) {
+            $sql .= " AND s.user_id = :user_id";
+            $params['user_id'] = (int)$filters['user_id'];
+        }
+
+        if (!empty($filters['plan_id'])) {
+            $sql .= " AND s.plan_id = :plan_id";
+            $params['plan_id'] = (int)$filters['plan_id'];
+        }
+
+        if (!empty($filters['gym_id'])) {
+            $sql .= " AND s.gym_id = :gym_id";
+            $params['gym_id'] = (int)$filters['gym_id'];
+        }
+
+        if (!empty($filters['branch_id'])) {
+            $sql .= " AND s.branch_id = :branch_id";
+            $params['branch_id'] = (int)$filters['branch_id'];
+        }
+
+        $sql .= " ORDER BY s.subscription_id DESC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $results = [];
+        foreach ($rows as $r) {
+            $invoices = $this->getSubscriptionInvoices((int)$r['member_user_id'], (int)$r['plan_id'], $r['start_date']);
+            
+            $results[] = [
+                'subscription_id' => (int) $r['subscription_id'],
+                'gym_id' => (int) $r['gym_id'],
+                'branch_id' => (int) $r['branch_id'],
+                'start_date' => $r['start_date'],
+                'end_date' => $r['end_date'],
+                'status' => (int) $r['subscription_status'],
+                'created_at' => $r['subscription_created_date'] !== null ? ($r['subscription_created_date'] . ' ' . ($r['subscription_created_time'] ?? '00:00:00')) : null,
+                'member' => [
+                    'user_id' => (int) $r['member_user_id'],
+                    'profile_id' => $r['member_profile_id'] !== null ? (int)$r['member_profile_id'] : null,
+                    'name' => $r['member_name'],
+                    'email' => $r['member_email'],
+                    'phone' => $r['member_phone']
+                ],
+                'plan' => [
+                    'plan_id' => (int) $r['plan_id'],
+                    'plan_name' => $r['plan_name'],
+                    'plan_type' => $r['plan_type'],
+                    'price' => (float) $r['plan_price'],
+                    'duration_months' => (int) $r['duration_months']
+                ],
+                'trainer_assignment' => $r['trainer_profile_id'] !== null ? [
+                    'assignment_id' => (int) $r['assignment_id'],
+                    'trainer_profile_id' => (int) $r['trainer_profile_id'],
+                    'trainer_user_id' => (int) $r['trainer_user_id'],
+                    'trainer_name' => $r['trainer_name'],
+                    'trainer_email' => $r['trainer_email'],
+                    'trainer_phone' => $r['trainer_phone'],
+                    'assignment_type' => $r['assignment_type'],
+                    'assigned_at' => $r['assigned_at']
+                ] : null,
+                'invoices' => $invoices
+            ];
+        }
+
+        return $results;
+    }
+
+    /**
+     * Fetch invoices matching the subscription user, plan, and purchase date (helper).
+     */
+    public function getSubscriptionInvoices(int $userId, int $planId, string $startDate): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT i.invoice_id, i.invoice_number, i.final_amount, i.issued_at, i.status
+            FROM invoices i
+            JOIN invoice_items ii ON ii.invoice_id = i.invoice_id
+            WHERE i.user_id = :user_id
+              AND ii.reference_id = :plan_id
+              AND ii.item_type IN ('SUBSCRIPTION', 'PT_PACKAGE')
+            ORDER BY ABS(DATEDIFF(i.issued_at, :start_date)) ASC, i.invoice_id DESC
+        ");
+        $stmt->execute([
+            'user_id'    => $userId,
+            'plan_id'    => $planId,
+            'start_date' => $startDate
+        ]);
+        $invoices = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($invoices as &$inv) {
+            $inv['invoice_id'] = (int)$inv['invoice_id'];
+            $inv['final_amount'] = (float)$inv['final_amount'];
+        }
+        return $invoices;
+    }
 }
 
