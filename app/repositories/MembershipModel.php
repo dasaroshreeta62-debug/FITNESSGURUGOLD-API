@@ -308,6 +308,7 @@ class MembershipModel
             $sub['duration_months'] = (int)$sub['duration_months'];
             $sub['status'] = (int)$sub['status'];
             $sub['wallet_credits'] = $this->getSubscriptionWalletCredits($sub['subscription_id']);
+            $sub['invoices'] = $this->getSubscriptionInvoices($sub['user_id'], $sub['plan_id'], $sub['start_date']);
         }
 
         return $subs;
@@ -349,6 +350,7 @@ class MembershipModel
         $sub['duration_months'] = (int)$sub['duration_months'];
         $sub['status'] = (int)$sub['status'];
         $sub['wallet_credits'] = $this->getSubscriptionWalletCredits($subId);
+        $sub['invoices'] = $this->getSubscriptionInvoices($sub['user_id'], $sub['plan_id'], $sub['start_date']);
 
         return $sub;
     }
@@ -475,6 +477,33 @@ class MembershipModel
         }
 
         return $rows;
+    }
+
+    /**
+     * Fetch invoices matching the subscription user, plan, and purchase date.
+     */
+    public function getSubscriptionInvoices(int $userId, int $planId, string $startDate): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT i.invoice_id, i.invoice_number, i.final_amount, i.issued_at, i.status
+            FROM invoices i
+            JOIN invoice_items ii ON ii.invoice_id = i.invoice_id
+            WHERE i.user_id = :user_id
+              AND ii.reference_id = :plan_id
+              AND ii.item_type IN ('SUBSCRIPTION', 'PT_PACKAGE')
+            ORDER BY ABS(DATEDIFF(i.issued_at, :start_date)) ASC, i.invoice_id DESC
+        ");
+        $stmt->execute([
+            'user_id'    => $userId,
+            'plan_id'    => $planId,
+            'start_date' => $startDate
+        ]);
+        $invoices = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($invoices as &$inv) {
+            $inv['invoice_id'] = (int)$inv['invoice_id'];
+            $inv['final_amount'] = (float)$inv['final_amount'];
+        }
+        return $invoices;
     }
 
     /**
