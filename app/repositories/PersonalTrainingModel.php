@@ -61,6 +61,22 @@ class PersonalTrainingModel extends Model
     }
 
     /**
+     * Get trainer profile by trainer_profile_id.
+     */
+    public function getTrainerProfileById(int $trainerProfileId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT tp.* 
+            FROM trainer_profiles tp
+            WHERE tp.trainer_profile_id = :id
+            LIMIT 1
+        ");
+        $stmt->execute(['id' => $trainerProfileId]);
+        $val = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $val !== false ? $val : null;
+    }
+
+    /**
      * Resolve profile_id from users_profile to user_id from users.
      */
     public function getUserIdByProfileId(int $profileId): ?int

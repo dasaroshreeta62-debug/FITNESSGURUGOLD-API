@@ -100,10 +100,16 @@ class PersonalTrainingWorkflow
             $durationMonths = (int)($plan['duration_months'] ?: 1);
 
             // Determine Trainer ID (trainer_profile_id)
-            $trainerUserId = isset($data['trainer_id']) ? (int)$data['trainer_id'] : 0;
+            $trainerInputId = isset($data['trainer_id']) ? (int)$data['trainer_id'] : 0;
             $trainerId = 0;
-            if ($trainerUserId) {
-                $trainerId = $this->model->getTrainerProfileIdByUserId($trainerUserId);
+            if ($trainerInputId) {
+                // Check if the input ID is directly a valid trainer_profile_id
+                if ($this->model->getTrainerProfileById($trainerInputId)) {
+                    $trainerId = $trainerInputId;
+                } else {
+                    // Otherwise, treat it as a trainer's user_id
+                    $trainerId = $this->model->getTrainerProfileIdByUserId($trainerInputId);
+                }
             } else {
                 $trainerId = $this->model->getMemberActiveTrainerProfileId($profileId);
             }
