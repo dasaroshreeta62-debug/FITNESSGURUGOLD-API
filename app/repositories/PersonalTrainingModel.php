@@ -811,10 +811,22 @@ class PersonalTrainingModel extends Model
     {
         $stmt = $this->db->prepare("
             SELECT 
+                u.user_id,
                 u.user_id AS trainer_user_id,
+                tp.trainer_profile_id AS trainer_id,
                 tp.trainer_profile_id,
+                e.employee_id,
+                e.employee_code,
                 u.name AS trainer_name,
                 u.email AS trainer_email,
+                u.phone AS trainer_phone,
+                tp.specialization,
+                tp.experience,
+                tp.certifications,
+                tp.bio,
+                tp.showcase_photo,
+                tp.availability_status,
+                tp.rating,
                 COUNT(mta.assignment_id) AS assigned_clients_count
             FROM trainer_profiles tp
             JOIN employees e ON e.employee_id = tp.employee_id
@@ -823,7 +835,21 @@ class PersonalTrainingModel extends Model
                 ON mta.trainer_id = tp.trainer_profile_id 
                 AND mta.status = 1 
                 AND mta.assignment_type = 'PRIMARY'
-            GROUP BY tp.trainer_profile_id, u.user_id, u.name, u.email
+            GROUP BY 
+                tp.trainer_profile_id, 
+                u.user_id, 
+                u.name, 
+                u.email, 
+                u.phone,
+                e.employee_id, 
+                e.employee_code, 
+                tp.specialization, 
+                tp.experience, 
+                tp.certifications, 
+                tp.bio, 
+                tp.showcase_photo, 
+                tp.availability_status, 
+                tp.rating
             ORDER BY trainer_name ASC
         ");
         $stmt->execute();
@@ -831,10 +857,22 @@ class PersonalTrainingModel extends Model
 
         return array_map(function ($r) {
             return [
+                'user_id' => (int) $r['user_id'],
                 'trainer_user_id' => (int) $r['trainer_user_id'],
+                'employee_id' => (int) $r['employee_id'],
+                'employee_code' => $r['employee_code'],
+                'trainer_id' => (int) $r['trainer_id'],
                 'trainer_profile_id' => (int) $r['trainer_profile_id'],
                 'trainer_name' => $r['trainer_name'],
                 'trainer_email' => $r['trainer_email'],
+                'trainer_phone' => $r['trainer_phone'],
+                'specialization' => $r['specialization'],
+                'experience' => $r['experience'] !== null ? (int) $r['experience'] : null,
+                'certifications' => $r['certifications'],
+                'bio' => $r['bio'],
+                'showcase_photo' => $r['showcase_photo'],
+                'availability_status' => $r['availability_status'],
+                'rating' => $r['rating'] !== null ? (float) $r['rating'] : 0.0,
                 'assigned_clients_count' => (int) $r['assigned_clients_count']
             ];
         }, $rows);

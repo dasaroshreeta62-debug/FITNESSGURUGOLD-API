@@ -62,17 +62,41 @@ Retrieve a list of all active trainers and the count of their primary client ass
   "message": "Trainers list and client assignment capacities fetched successfully",
   "data": [
     {
+      "user_id": 489,
       "trainer_user_id": 489,
+      "employee_id": 12,
+      "employee_code": "EMP0489",
+      "trainer_id": 5,
       "trainer_profile_id": 5,
       "trainer_name": "Abhinav Senapati",
       "trainer_email": "abhinavsenapati@fg.org.in",
+      "trainer_phone": "+919876543210",
+      "specialization": "Strength & Conditioning",
+      "experience": 5,
+      "certifications": "ACE Certified, CPR/AED",
+      "bio": "Passionate about health and fitness.",
+      "showcase_photo": "uploads/trainers/abhinav.jpg",
+      "availability_status": "AVAILABLE",
+      "rating": 4.8,
       "assigned_clients_count": 2
     },
     {
+      "user_id": 567,
       "trainer_user_id": 567,
+      "employee_id": 18,
+      "employee_code": "EMP0567",
+      "trainer_id": 2,
       "trainer_profile_id": 2,
       "trainer_name": "bidyulata biswal",
       "trainer_email": "bidyu49@gmail.com",
+      "trainer_phone": "+919876543211",
+      "specialization": "Yoga & Pilates",
+      "experience": 3,
+      "certifications": "RYT 200, First Aid",
+      "bio": "Helping you find balance and flexibility.",
+      "showcase_photo": null,
+      "availability_status": "AVAILABLE",
+      "rating": 4.5,
       "assigned_clients_count": 0
     }
   ]
