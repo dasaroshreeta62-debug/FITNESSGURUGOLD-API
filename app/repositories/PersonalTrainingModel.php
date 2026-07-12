@@ -833,6 +833,7 @@ class PersonalTrainingModel extends Model
                 tp.trainer_profile_id,
                 e.employee_id,
                 e.employee_code,
+                e.profile_photo,
                 u.name AS trainer_name,
                 u.email AS trainer_email,
                 u.phone AS trainer_phone,
@@ -859,6 +860,7 @@ class PersonalTrainingModel extends Model
                 u.phone,
                 e.employee_id, 
                 e.employee_code, 
+                e.profile_photo,
                 tp.specialization, 
                 tp.experience, 
                 tp.certifications, 
@@ -882,11 +884,12 @@ class PersonalTrainingModel extends Model
                 'trainer_name' => $r['trainer_name'],
                 'trainer_email' => $r['trainer_email'],
                 'trainer_phone' => $r['trainer_phone'],
+                'profile_photo_url' => $r['profile_photo'],
+                'pose_photo_url' => $r['showcase_photo'],
                 'specialization' => $r['specialization'],
                 'experience' => $r['experience'] !== null ? (int) $r['experience'] : null,
                 'certifications' => $r['certifications'],
                 'bio' => $r['bio'],
-                'showcase_photo' => $r['showcase_photo'],
                 'availability_status' => $r['availability_status'],
                 'rating' => $r['rating'] !== null ? (float) $r['rating'] : 0.0,
                 'assigned_clients_count' => (int) $r['assigned_clients_count']
@@ -1169,6 +1172,7 @@ class PersonalTrainingModel extends Model
         $results = [];
         foreach ($rows as $r) {
             $invoices = $this->getSubscriptionInvoices((int)$r['member_user_id'], (int)$r['plan_id'], $r['start_date']);
+            $walletCredits = $this->getSubscriptionWalletCredits((int)$r['subscription_id']);
             
             $results[] = [
                 'subscription_id' => (int) $r['subscription_id'],
@@ -1202,7 +1206,8 @@ class PersonalTrainingModel extends Model
                     'assignment_type' => $r['assignment_type'],
                     'assigned_at' => $r['assigned_at']
                 ] : null,
-                'invoices' => $invoices
+                'invoices' => $invoices,
+                'wallet_credits' => $walletCredits
             ];
         }
 
@@ -1234,6 +1239,28 @@ class PersonalTrainingModel extends Model
             $inv['final_amount'] = (float)$inv['final_amount'];
         }
         return $invoices;
+    }
+
+    /**
+     * Fetch wallet credits associated with a subscription ID (helper).
+     */
+    public function getSubscriptionWalletCredits(int $subId): array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM client_wallet_credits WHERE subscription_id = :sub_id");
+        $stmt->execute(['sub_id' => $subId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($rows as &$row) {
+            $row['credit_id'] = (int)$row['credit_id'];
+            $row['subscription_id'] = (int)$row['subscription_id'];
+            $row['user_id'] = (int)$row['user_id'];
+            $row['is_unlimited'] = (int)$row['is_unlimited'];
+            $row['original_quantity'] = (int)$row['original_quantity'];
+            $row['remaining_quantity'] = (int)$row['remaining_quantity'];
+            $row['status'] = (int)$row['status'];
+        }
+
+        return $rows;
     }
 }
 
