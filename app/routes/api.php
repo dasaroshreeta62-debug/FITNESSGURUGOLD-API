@@ -228,6 +228,10 @@ function route(string $method, string $path): void
             $personalTrainingController->getTrainersCapacity();
             return;
 
+        case $method === 'GET' && $path === '/api/admin/pt/trainers-members':
+            $personalTrainingController->getTrainersMembers();
+            return;
+
         case $method === 'GET' && $path === '/api/admin/pt/subscriptions':
             $personalTrainingController->getPtSubscriptions();
             return;

@@ -107,6 +107,53 @@ Retrieve a list of all active trainers and the count of their primary client ass
 
 ---
 
+## 2b. Get Trainers with Assigned Members List
+Retrieve a structured list of all trainers and the members currently assigned under them for Personal Training (PT). Supports optional filtering by trainer, gym, and branch.
+
+* **URL**: `/api/admin/pt/trainers-members`
+* **Method**: `GET`
+* **Headers**: `Authorization: Bearer <ADMIN_JWT_TOKEN>`
+* **Query Parameters (Optional)**:
+  * `trainer_id`: Filter by trainer profile ID (integer).
+  * `gym_id`: Filter by gym ID (integer).
+  * `branch_id`: Filter by branch ID (integer).
+* **Role Allowed**: `ADMIN` or `SUPER-ADMIN`
+
+### Success Response (`200 OK`)
+```json
+{
+  "status": "success",
+  "message": "Trainers and their assigned members fetched successfully",
+  "data": [
+    {
+      "trainer_id": 5,
+      "trainer_user_id": 489,
+      "trainer_name": "Abhinav Senapati",
+      "trainer_email": "abhinavsenapati@fg.org.in",
+      "trainer_phone": "+919876543210",
+      "employee_code": "EMP0489",
+      "specialization": "Strength & Conditioning",
+      "availability_status": "AVAILABLE",
+      "gym_id": 1,
+      "branch_id": 1,
+      "members": [
+        {
+          "assignment_id": 4,
+          "member_profile_id": 69,
+          "member_user_id": 138,
+          "member_name": "Ankit Das",
+          "member_email": "ankit.das@fg.com",
+          "member_phone": "8249801450",
+          "assigned_at": "2026-07-04 16:04:51"
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
 ## 3. Get PT Dashboard Statistics
 Retrieve aggregate stats about active member allocations, total trainers, remaining credits, and a session status breakdown.
 

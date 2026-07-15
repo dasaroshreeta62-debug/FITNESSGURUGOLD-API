@@ -331,4 +331,22 @@ class PersonalTrainingController
         $response = $this->workflow->processCompletedDurations($token, $input);
         echo json_encode($response);
     }
+
+    /**
+     * API: Get Trainers and their assigned members under PT (Admin)
+     */
+    public function getTrainersMembers(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+
+        $filters = [
+            'trainer_id' => $_GET['trainer_id'] ?? null,
+            'gym_id'     => $_GET['gym_id'] ?? null,
+            'branch_id'  => $_GET['branch_id'] ?? null
+        ];
+
+        $response = $this->workflow->getTrainersMembers($token, $filters);
+        echo json_encode($response);
+    }
 }

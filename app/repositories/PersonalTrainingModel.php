@@ -1365,4 +1365,99 @@ class PersonalTrainingModel extends Model
         $stmt = $this->db->prepare("UPDATE subscriptions SET status = :status WHERE subscription_id = :id");
         return $stmt->execute(['status' => $status, 'id' => $subId]);
     }
+
+    /**
+     * Get active trainers and their assigned members.
+     */
+    public function getTrainersWithMembers(array $filters): array
+    {
+        $sql = "
+            SELECT 
+                tp.trainer_profile_id AS trainer_id,
+                tu.user_id AS trainer_user_id,
+                tu.name AS trainer_name,
+                tu.email AS trainer_email,
+                tu.phone AS trainer_phone,
+                te.employee_code AS trainer_employee_code,
+                te.gym_id AS trainer_gym_id,
+                te.branch_id AS trainer_branch_id,
+                tp.specialization AS trainer_specialization,
+                tp.availability_status AS trainer_availability_status,
+                
+                -- Member details
+                mta.assignment_id,
+                mta.assigned_at,
+                mta.status AS assignment_status,
+                up.profile_id AS member_profile_id,
+                mu.user_id AS member_user_id,
+                mu.name AS member_name,
+                mu.email AS member_email,
+                mu.phone AS member_phone
+            FROM trainer_profiles tp
+            JOIN employees te ON te.employee_id = tp.employee_id
+            JOIN users tu ON tu.user_id = te.user_id
+            LEFT JOIN member_trainer_assignments mta 
+                ON mta.trainer_id = tp.trainer_profile_id 
+                AND mta.status = 1 
+                AND mta.assignment_type = 'PRIMARY'
+            LEFT JOIN users_profile up ON up.profile_id = mta.member_id
+            LEFT JOIN users mu ON mu.user_id = up.user_id
+            WHERE 1=1
+        ";
+        
+        $params = [];
+        if (!empty($filters['trainer_id'])) {
+            $sql .= " AND tp.trainer_profile_id = :trainer_id";
+            $params['trainer_id'] = (int)$filters['trainer_id'];
+        }
+        if (!empty($filters['gym_id'])) {
+            $sql .= " AND te.gym_id = :gym_id";
+            $params['gym_id'] = (int)$filters['gym_id'];
+        }
+        if (!empty($filters['branch_id'])) {
+            $sql .= " AND te.branch_id = :branch_id";
+            $params['branch_id'] = (int)$filters['branch_id'];
+        }
+
+        $sql .= " ORDER BY trainer_name ASC, member_name ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Group rows by trainer
+        $trainers = [];
+        foreach ($rows as $row) {
+            $tId = (int)$row['trainer_id'];
+            if (!isset($trainers[$tId])) {
+                $trainers[$tId] = [
+                    'trainer_id' => $tId,
+                    'trainer_user_id' => (int)$row['trainer_user_id'],
+                    'trainer_name' => $row['trainer_name'],
+                    'trainer_email' => $row['trainer_email'],
+                    'trainer_phone' => $row['trainer_phone'],
+                    'employee_code' => $row['trainer_employee_code'],
+                    'specialization' => $row['trainer_specialization'],
+                    'availability_status' => $row['trainer_availability_status'],
+                    'gym_id' => (int)$row['trainer_gym_id'],
+                    'branch_id' => (int)$row['trainer_branch_id'],
+                    'members' => []
+                ];
+            }
+
+            if ($row['assignment_id'] !== null) {
+                $trainers[$tId]['members'][] = [
+                    'assignment_id' => (int)$row['assignment_id'],
+                    'member_profile_id' => (int)$row['member_profile_id'],
+                    'member_user_id' => (int)$row['member_user_id'],
+                    'member_name' => $row['member_name'],
+                    'member_email' => $row['member_email'],
+                    'member_phone' => $row['member_phone'],
+                    'assigned_at' => $row['assigned_at']
+                ];
+            }
+        }
+
+        return array_values($trainers);
+    }
 }

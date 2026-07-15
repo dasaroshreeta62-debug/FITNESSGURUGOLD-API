@@ -1430,4 +1430,26 @@ class PersonalTrainingWorkflow
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
+
+    /**
+     * Get list of trainers and their assigned members under PT (Admin).
+     */
+    public function getTrainersMembers(string $accessToken, array $filters): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+
+            $data = $this->model->getTrainersWithMembers($filters);
+
+            return [
+                "status" => "success",
+                "message" => "Trainers and their assigned members fetched successfully",
+                "data" => $data
+            ];
+
+        } catch (\Throwable $e) {
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
 }
