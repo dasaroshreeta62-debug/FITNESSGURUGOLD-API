@@ -1781,12 +1781,14 @@ class Model
     public function fetchTrainers(array $filters, int $limit, int $offset): array
     {
         $sql = "
-            SELECT tp.*, e.employee_code,   
+            SELECT tp.*, e.*,
                    COALESCE(e.full_name, u.name) as name, 
                    COALESCE(e.email, u.email) as email, 
                    COALESCE(e.phone, u.phone) as phone, 
                    u.role, 
-                   tp.trainer_profile_id AS trainer_id
+                   tp.trainer_profile_id AS trainer_id,
+                   e.joining_date AS join_date,
+                   e.profile_photo AS profile_photo_url
             FROM trainer_profiles tp
             JOIN employees e ON e.employee_id = tp.employee_id
             JOIN users u ON u.user_id = e.user_id
@@ -1868,12 +1870,14 @@ class Model
     public function fetchTrainerById(int $trainerId): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT tp.*, e.employee_code, 
+            SELECT tp.*, e.*,
                    COALESCE(e.full_name, u.name) as name, 
                    COALESCE(e.email, u.email) as email, 
                    COALESCE(e.phone, u.phone) as phone, 
                    u.role, 
-                   tp.trainer_profile_id AS trainer_id
+                   tp.trainer_profile_id AS trainer_id,
+                   e.joining_date AS join_date,
+                   e.profile_photo AS profile_photo_url
             FROM trainer_profiles tp
             JOIN employees e ON e.employee_id = tp.employee_id
             JOIN users u ON u.user_id = e.user_id
@@ -2157,12 +2161,14 @@ class Model
     public function fetchTrainerByUserId(int $userId): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT tp.*, e.employee_code, 
+            SELECT tp.*, e.*,
                    COALESCE(e.full_name, u.name) as name, 
                    COALESCE(e.email, u.email) as email, 
                    COALESCE(e.phone, u.phone) as phone, 
                    u.role, 
-                   tp.trainer_profile_id AS trainer_id
+                   tp.trainer_profile_id AS trainer_id,
+                   e.joining_date AS join_date,
+                   e.profile_photo AS profile_photo_url
             FROM trainer_profiles tp
             JOIN employees e ON e.employee_id = tp.employee_id
             JOIN users u ON u.user_id = e.user_id
