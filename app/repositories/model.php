@@ -46,11 +46,11 @@ class Model
         );
 
         $stmt->execute([
-            'id'    => $userId,
+            'id' => $userId,
             'token' => $refreshToken
         ]);
 
-        return (bool)$stmt->fetch();
+        return (bool) $stmt->fetch();
     }
 
     public function revokeRefreshToken(int $userId): void
@@ -90,16 +90,16 @@ class Model
         ");
 
         $stmt->execute([
-            'gym_id'    => $data['gym_id'],
+            'gym_id' => $data['gym_id'],
             'branch_id' => $data['branch_id'],
-            'name'      => $data['name'],
-            'email'     => $data['email'],
-            'phone'     => $data['phone'],
-            'password'  => $data['password'],
-            'role'      => $data['role']
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'phone' => $data['phone'],
+            'password' => $data['password'],
+            'role' => $data['role']
         ]);
 
-        return (int)$this->db->lastInsertId();
+        return (int) $this->db->lastInsertId();
     }
     public function getUserProfileById(int $userId): ?array
     {
@@ -177,12 +177,12 @@ class Model
 
         if (!empty($filters['gym_id'])) {
             $sql .= " AND gym_id = :gym_id";
-            $params[':gym_id'] = (int)$filters['gym_id'];
+            $params[':gym_id'] = (int) $filters['gym_id'];
         }
 
         if (!empty($filters['branch_id'])) {
             $sql .= " AND branch_id = :branch_id";
-            $params[':branch_id'] = (int)$filters['branch_id'];
+            $params[':branch_id'] = (int) $filters['branch_id'];
         }
 
         $sql .= " ORDER BY user_id DESC LIMIT :limit OFFSET :offset";
@@ -203,15 +203,15 @@ class Model
         // Format output
         return array_map(function ($u) {
             return [
-                "user_id"    => (int)$u['user_id'],
-                "gym_id"     => (int)$u['gym_id'],
-                "branch_id"  => (int)$u['branch_id'],
-                "name"       => $u['name'],
-                "email"      => $u['email'],
-                "phone"      => $u['phone'],
-                "role"       => strtoupper($u['role']),
-                "status"     => ((int)$u['status'] === 1) ? "ACTIVE" : "INACTIVE",
-                "createdDate"=> $u['createdDate'] . 'T' . $u['createdTime'] . 'Z'
+                "user_id" => (int) $u['user_id'],
+                "gym_id" => (int) $u['gym_id'],
+                "branch_id" => (int) $u['branch_id'],
+                "name" => $u['name'],
+                "email" => $u['email'],
+                "phone" => $u['phone'],
+                "role" => strtoupper($u['role']),
+                "status" => ((int) $u['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "createdDate" => $u['createdDate'] . 'T' . $u['createdTime'] . 'Z'
             ];
         }, $users);
     }
@@ -232,18 +232,18 @@ class Model
 
         if (!empty($filters['gym_id'])) {
             $sql .= " AND gym_id = :gym_id";
-            $params[':gym_id'] = (int)$filters['gym_id'];
+            $params[':gym_id'] = (int) $filters['gym_id'];
         }
 
         if (!empty($filters['branch_id'])) {
             $sql .= " AND branch_id = :branch_id";
-            $params[':branch_id'] = (int)$filters['branch_id'];
+            $params[':branch_id'] = (int) $filters['branch_id'];
         }
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return (int)$stmt->fetchColumn();
+        return (int) $stmt->fetchColumn();
     }
     public function getGyms(array $filters): array
     {
@@ -267,11 +267,11 @@ class Model
 
         if (!empty($filters['city_id'])) {
             $sql .= " AND city_id = :city_id";
-            $params[':city_id'] = (int)$filters['city_id'];
+            $params[':city_id'] = (int) $filters['city_id'];
         }
 
-        $limit  = max(1, (int)$filters['limit']);
-        $offset = (max(1, (int)$filters['page']) - 1) * $limit;
+        $limit = max(1, (int) $filters['limit']);
+        $offset = (max(1, (int) $filters['page']) - 1) * $limit;
 
         $sql .= " ORDER BY gym_id DESC LIMIT :limit OFFSET :offset";
 
@@ -301,13 +301,13 @@ class Model
 
         if (!empty($filters['city_id'])) {
             $sql .= " AND city_id = :city_id";
-            $params[':city_id'] = (int)$filters['city_id'];
+            $params[':city_id'] = (int) $filters['city_id'];
         }
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return (int)$stmt->fetchColumn();
+        return (int) $stmt->fetchColumn();
     }
     public function createGym(array $data): int
     {
@@ -340,18 +340,18 @@ class Model
         ");
 
         $stmt->execute([
-            'gym_name'      => trim($data['gym_name']),
-            'email'         => $data['email'] ?? null,
-            'phone_number'  => $data['phone_number'] ?? null,
+            'gym_name' => trim($data['gym_name']),
+            'email' => $data['email'] ?? null,
+            'phone_number' => $data['phone_number'] ?? null,
             'address_line1' => $data['address_line1'] ?? null,
-            'city_id'       => (int)$data['city_id'],
-            'district_id'   => (int)($data['district_id'] ?? null),
-            'state_id'      => (int)($data['state_id'] ?? null),
-            'country_id'    => (int)($data['country_id'] ?? null),
-            'pincode'       => $data['pincode'] ?? null
+            'city_id' => (int) $data['city_id'],
+            'district_id' => (int) ($data['district_id'] ?? null),
+            'state_id' => (int) ($data['state_id'] ?? null),
+            'country_id' => (int) ($data['country_id'] ?? null),
+            'pincode' => $data['pincode'] ?? null
         ]);
 
-        return (int)$this->db->lastInsertId();
+        return (int) $this->db->lastInsertId();
     }
     public function getGymById(int $gymId): ?array
     {
@@ -393,7 +393,7 @@ class Model
         ];
 
         $fields = [];
-        $params = ['gym_id' => (int)$gymId];
+        $params = ['gym_id' => (int) $gymId];
 
         foreach ($data as $key => $value) {
             if (in_array($key, $allowedFields)) {
@@ -429,9 +429,9 @@ class Model
 
         return array_map(function ($c) {
             return [
-                "country_id" => (int)$c['country_id'],
+                "country_id" => (int) $c['country_id'],
                 "country_name" => $c['country_name'],
-                "status"     => ((int)$c['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "status" => ((int) $c['status'] === 1) ? "ACTIVE" : "INACTIVE",
                 "created_at" => $c['createdDate'] . 'T' . $c['createdTime'] . 'Z'
             ];
         }, $states);
@@ -460,10 +460,10 @@ class Model
 
         return array_map(function ($s) {
             return [
-                "state_id"   => (int)$s['state_id'],
-                "country_id" => (int)$s['country_id'],
+                "state_id" => (int) $s['state_id'],
+                "country_id" => (int) $s['country_id'],
                 "state_name" => $s['state_name'],
-                "status"     => ((int)$s['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "status" => ((int) $s['status'] === 1) ? "ACTIVE" : "INACTIVE",
                 "created_at" => $s['createdDate'] . 'T' . $s['createdTime'] . 'Z'
             ];
         }, $states);
@@ -492,11 +492,11 @@ class Model
 
         return array_map(function ($d) {
             return [
-                "district_id"   => (int)$d['district_id'],
-                "state_id"      => (int)$d['state_id'],
+                "district_id" => (int) $d['district_id'],
+                "state_id" => (int) $d['state_id'],
                 "district_name" => $d['district_name'],
-                "status"        => ((int)$d['status'] === 1) ? "ACTIVE" : "INACTIVE",
-                "created_at"    => $d['createdDate'] . 'T' . $d['createdTime'] . 'Z'
+                "status" => ((int) $d['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "created_at" => $d['createdDate'] . 'T' . $d['createdTime'] . 'Z'
             ];
         }, $districts);
     }
@@ -530,11 +530,11 @@ class Model
 
         return array_map(function ($b) {
             return [
-                "branch_id"   => (int)$b['branch_id'],
-                "gym_id"      => (int)$b['gym_id'],
+                "branch_id" => (int) $b['branch_id'],
+                "gym_id" => (int) $b['gym_id'],
                 "branch_name" => $b['branch_name'],
-                "status"      => ((int)$b['status'] === 1) ? "ACTIVE" : "INACTIVE",
-                "created_at"  => $b['createdDate'] . 'T' . $b['createdTime'] . 'Z'
+                "status" => ((int) $b['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "created_at" => $b['createdDate'] . 'T' . $b['createdTime'] . 'Z'
             ];
         }, $branches);
     }
@@ -561,28 +561,28 @@ class Model
 
         return array_map(function ($b) {
             return [
-                "branch_id"       => (int)$b['branch_id'],
-                "gym_id"          => (int)$b['gym_id'],
-                "branch_name"     => $b['branch_name'],
-                "address_line1"   => $b['address_line1'],
-                "address_line2"   => $b['address_line2'],
-                "city_id"         => $b['city_id'] !== null ? (int)$b['city_id'] : null,
-                "city_name"       => $b['city_name'],
-                "district_id"     => $b['district_id'] !== null ? (int)$b['district_id'] : null,
-                "district_name"   => $b['district_name'],
-                "state_id"        => $b['state_id'] !== null ? (int)$b['state_id'] : null,
-                "state_name"      => $b['state_name'],
-                "pincode"         => $b['pincode'],
-                "phone_number"    => $b['phone_number'],
+                "branch_id" => (int) $b['branch_id'],
+                "gym_id" => (int) $b['gym_id'],
+                "branch_name" => $b['branch_name'],
+                "address_line1" => $b['address_line1'],
+                "address_line2" => $b['address_line2'],
+                "city_id" => $b['city_id'] !== null ? (int) $b['city_id'] : null,
+                "city_name" => $b['city_name'],
+                "district_id" => $b['district_id'] !== null ? (int) $b['district_id'] : null,
+                "district_name" => $b['district_name'],
+                "state_id" => $b['state_id'] !== null ? (int) $b['state_id'] : null,
+                "state_name" => $b['state_name'],
+                "pincode" => $b['pincode'],
+                "phone_number" => $b['phone_number'],
                 "alternate_phone" => $b['alternate_phone'],
-                "email"           => $b['email'],
-                "opening_time"    => $b['opening_time'],
-                "closing_time"    => $b['closing_time'],
-                "latitude"        => $b['latitude'] !== null ? (float)$b['latitude'] : null,
-                "longitude"       => $b['longitude'] !== null ? (float)$b['longitude'] : null,
-                "status"          => ((int)$b['status'] === 1) ? "ACTIVE" : "INACTIVE",
-                "created_at"      => $b['createdDate'] . 'T' . $b['createdTime'] . 'Z',
-                "updated_at"      => ($b['updatedDate'] && $b['updatedTime']) ? ($b['updatedDate'] . 'T' . $b['updatedTime'] . 'Z') : null
+                "email" => $b['email'],
+                "opening_time" => $b['opening_time'],
+                "closing_time" => $b['closing_time'],
+                "latitude" => $b['latitude'] !== null ? (float) $b['latitude'] : null,
+                "longitude" => $b['longitude'] !== null ? (float) $b['longitude'] : null,
+                "status" => ((int) $b['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "created_at" => $b['createdDate'] . 'T' . $b['createdTime'] . 'Z',
+                "updated_at" => ($b['updatedDate'] && $b['updatedTime']) ? ($b['updatedDate'] . 'T' . $b['updatedTime'] . 'Z') : null
             ];
         }, $branches);
     }
@@ -617,11 +617,11 @@ class Model
 
         return array_map(function ($b) {
             return [
-                "city_id"   => (int)$b['city_id'],
-                "district_id"      => (int)$b['district_id'],
+                "city_id" => (int) $b['city_id'],
+                "district_id" => (int) $b['district_id'],
                 "city_name" => $b['city_name'],
-                "status"      => ((int)$b['status'] === 1) ? "ACTIVE" : "INACTIVE",
-                "created_at"  => $b['createdDate'] . 'T' . $b['createdTime'] . 'Z'
+                "status" => ((int) $b['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "created_at" => $b['createdDate'] . 'T' . $b['createdTime'] . 'Z'
             ];
         }, $branches);
     }
@@ -764,14 +764,14 @@ class Model
             ");
 
             $stmtUser->execute([
-                'name'      => $data['name'],
-                'email'     => $data['email'],
-                'phone'     => $data['phone'],
-                'password'  => password_hash($data['password'], PASSWORD_BCRYPT),
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'phone' => $data['phone'],
+                'password' => password_hash($data['password'], PASSWORD_BCRYPT),
                 'branch_id' => $data['branch_id'],
-                'status'    => $data['status'],
-                'role'      => 'MEMBER',
-                'gym_id'    => $data['gym_id'],
+                'status' => $data['status'],
+                'role' => 'MEMBER',
+                'gym_id' => $data['gym_id'],
             ]);
 
             $user_id = $this->db->lastInsertId();
@@ -794,23 +794,23 @@ class Model
             ");
 
             $stmtProfile->execute([
-                'user_id'           => $user_id,
-                'name'              => $data['name'],
-                'date_of_joining'   => $data['join_date'],
-                'membership_plan'   => $data['membership_plan'],
-                'date_of_birth'     => $data['dob'],
-                'gender'            => $data['gender'],
-                'blood_group'       => $data['blood_group'],
-                'height_cm'         => $data['height'],
-                'weight_kg'         => $data['weight'],
-                'fitness_level'     => $data['fitness_level'],
-                'goal_focus'        => $data['goal_focus'],
-                'country_id'        => $data['country'],
-                'state_id'          => $data['state'],
-                'district_id'       => $data['district'],
-                'city_id'           => $data['city'],
-                'address_line1'     => $data['address_line1'],
-                'address_line2'     => $data['address_line2'],
+                'user_id' => $user_id,
+                'name' => $data['name'],
+                'date_of_joining' => $data['join_date'],
+                'membership_plan' => $data['membership_plan'],
+                'date_of_birth' => $data['dob'],
+                'gender' => $data['gender'],
+                'blood_group' => $data['blood_group'],
+                'height_cm' => $data['height'],
+                'weight_kg' => $data['weight'],
+                'fitness_level' => $data['fitness_level'],
+                'goal_focus' => $data['goal_focus'],
+                'country_id' => $data['country'],
+                'state_id' => $data['state'],
+                'district_id' => $data['district'],
+                'city_id' => $data['city'],
+                'address_line1' => $data['address_line1'],
+                'address_line2' => $data['address_line2'],
                 'emergency_contact' => $data['emergency_contact']
             ]);
 
@@ -825,8 +825,8 @@ class Model
             ");
 
             $stmtPlan->execute([
-                'plan_id'   => $data['membership_plan'],
-                'gym_id'    => $data['gym_id'],
+                'plan_id' => $data['membership_plan'],
+                'gym_id' => $data['gym_id'],
                 'branch_id' => $data['branch_id']
             ]);
 
@@ -837,7 +837,7 @@ class Model
             }
 
             $startDate = new DateTime($data['join_date']);
-            $endDate   = (clone $startDate)->modify("+{$plan['duration_months']} months");
+            $endDate = (clone $startDate)->modify("+{$plan['duration_months']} months");
 
             /* ========== TAXES & REVERSE TAX MATH ========== */
             $stmtTax = $this->db->prepare("
@@ -859,10 +859,10 @@ class Model
 
             $totalTaxRate = 0.0;
             foreach ($taxRates as $tr) {
-                $totalTaxRate += (float)$tr['percentage'];
+                $totalTaxRate += (float) $tr['percentage'];
             }
 
-            $inclusivePrice = (float)$plan['price'];
+            $inclusivePrice = (float) $plan['price'];
             $basePrice = round($inclusivePrice / (1 + ($totalTaxRate / 100)), 2);
             $totalTaxAmount = round($inclusivePrice - $basePrice, 2);
 
@@ -871,17 +871,17 @@ class Model
             $countRates = count($taxRates);
             for ($i = 0; $i < $countRates; $i++) {
                 $tr = $taxRates[$i];
-                $ratePct = (float)$tr['percentage'];
+                $ratePct = (float) $tr['percentage'];
                 $rateName = trim($tr['tax_name']);
-                
+
                 if ($i === $countRates - 1) {
                     $rateAmount = round($totalTaxAmount - $accumulatedTax, 2);
                 } else {
                     $rateAmount = round($inclusivePrice * ($ratePct / (100 + $totalTaxRate)), 2);
                     $accumulatedTax += $rateAmount;
                 }
-                
-                $key = str_replace(['.', '-'], '_', strtoupper($rateName) . '_' . (int)$ratePct);
+
+                $key = str_replace(['.', '-'], '_', strtoupper($rateName) . '_' . (int) $ratePct);
                 $taxBreakdown[$key] = $rateAmount;
             }
 
@@ -895,14 +895,14 @@ class Model
             ");
             $invoiceNumber = 'INV-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
             $stmtInv->execute([
-                'user_id'        => $user_id,
+                'user_id' => $user_id,
                 'invoice_number' => $invoiceNumber,
-                'total_amount'   => $basePrice,
-                'tax_amount'     => $totalTaxAmount,
-                'tax_breakdown'  => json_encode($taxBreakdown),
-                'final_amount'   => $inclusivePrice
+                'total_amount' => $basePrice,
+                'tax_amount' => $totalTaxAmount,
+                'tax_breakdown' => json_encode($taxBreakdown),
+                'final_amount' => $inclusivePrice
             ]);
-            $invoiceId = (int)$this->db->lastInsertId();
+            $invoiceId = (int) $this->db->lastInsertId();
 
             /* ========== INVOICE ITEMS ========== */
             $stmtItem = $this->db->prepare("
@@ -913,14 +913,14 @@ class Model
                 )
             ");
             $stmtItem->execute([
-                'invoice_id'     => $invoiceId,
-                'reference_id'   => $data['membership_plan'],
-                'item_name'      => $plan['plan_name'],
-                'unit_price'     => $basePrice,
+                'invoice_id' => $invoiceId,
+                'reference_id' => $data['membership_plan'],
+                'item_name' => $plan['plan_name'],
+                'unit_price' => $basePrice,
                 'tax_percentage' => $totalTaxRate,
-                'tax_amount'     => $totalTaxAmount,
-                'tax_breakdown'  => json_encode($taxBreakdown),
-                'total_price'    => $inclusivePrice
+                'tax_amount' => $totalTaxAmount,
+                'tax_breakdown' => json_encode($taxBreakdown),
+                'total_price' => $inclusivePrice
             ]);
 
             /* ========== PAYMENT TRANSACTIONS ========== */
@@ -934,17 +934,20 @@ class Model
             $payMode = 'Online';
             if (isset($data['payment_method'])) {
                 $payMethod = strtoupper(trim($data['payment_method']));
-                if ($payMethod === 'CASH') $payMode = 'Cash';
-                elseif ($payMethod === 'CARD') $payMode = 'Card';
-                elseif ($payMethod === 'UPI') $payMode = 'UPI';
+                if ($payMethod === 'CASH')
+                    $payMode = 'Cash';
+                elseif ($payMethod === 'CARD')
+                    $payMode = 'Card';
+                elseif ($payMethod === 'UPI')
+                    $payMode = 'UPI';
             }
             $stmtPt->execute([
-                'gym_id'          => $data['gym_id'],
-                'branch_id'       => $data['branch_id'],
-                'invoice_id'      => $invoiceId,
+                'gym_id' => $data['gym_id'],
+                'branch_id' => $data['branch_id'],
+                'invoice_id' => $invoiceId,
                 'paid_by_user_id' => $user_id,
-                'amount'          => $inclusivePrice,
-                'payment_mode'    => $payMode,
+                'amount' => $inclusivePrice,
+                'payment_mode' => $payMode,
                 'transaction_ref' => 'TXN-' . date('YmdHis') . '-' . rand(100, 999)
             ]);
 
@@ -959,15 +962,18 @@ class Model
             $flMethod = 'BANK_TRANSFER';
             if (isset($data['payment_method'])) {
                 $payMethod = strtoupper(trim($data['payment_method']));
-                if ($payMethod === 'CASH') $flMethod = 'CASH';
-                elseif ($payMethod === 'CARD') $flMethod = 'CARD';
-                elseif ($payMethod === 'UPI') $flMethod = 'UPI';
+                if ($payMethod === 'CASH')
+                    $flMethod = 'CASH';
+                elseif ($payMethod === 'CARD')
+                    $flMethod = 'CARD';
+                elseif ($payMethod === 'UPI')
+                    $flMethod = 'UPI';
             }
             $stmtFl->execute([
-                'gym_id'         => $data['gym_id'],
-                'branch_id'      => $data['branch_id'],
-                'amount'         => $inclusivePrice,
-                'reference_id'   => $invoiceId,
+                'gym_id' => $data['gym_id'],
+                'branch_id' => $data['branch_id'],
+                'amount' => $inclusivePrice,
+                'reference_id' => $invoiceId,
                 'payment_method' => $flMethod
             ]);
 
@@ -983,18 +989,18 @@ class Model
             ");
 
             $stmtSub->execute([
-                'gym_id'     => $data['gym_id'],
-                'branch_id'  => $data['branch_id'],
-                'user_id'    => $user_id,
-                'plan_id'    => $data['membership_plan'],
+                'gym_id' => $data['gym_id'],
+                'branch_id' => $data['branch_id'],
+                'user_id' => $user_id,
+                'plan_id' => $data['membership_plan'],
                 'start_date' => $startDate->format('Y-m-d'),
-                'end_date'   => $endDate->format('Y-m-d')
+                'end_date' => $endDate->format('Y-m-d')
             ]);
 
             $this->db->commit();
 
             return [
-                "user_id"    => $user_id,
+                "user_id" => $user_id,
                 "invoice_id" => $invoiceId
             ] + $data;
 
@@ -1203,12 +1209,12 @@ class Model
             $stmt = $this->db->prepare($userSql);
 
             $params = [
-                'name'      => $data['name'],
-                'email'     => $data['email'],
-                'phone'     => $data['phone'],
-                'branch_id'=> $data['branch_id'],
-                'status'    => $data['status'],
-                'user_id'   => $data['user_id']
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'phone' => $data['phone'],
+                'branch_id' => $data['branch_id'],
+                'status' => $data['status'],
+                'user_id' => $data['user_id']
             ];
 
             if (!empty($data['hashed_password'])) {
@@ -1238,24 +1244,24 @@ class Model
                     emergency_contact = :emergency
                 WHERE user_id = :user_id
             ")->execute([
-                'join_date'        => $data['join_date'],
-                'membership_plan'  => $data['membership_plan'],
-                'dob'              => $data['dob'],
-                'gender'           => $data['gender'],
-                'blood_group'      => $data['blood_group'],
-                'height'           => $data['height'],
-                'weight'           => $data['weight'],
-                'fitness_level'    => $data['fitness_level'],
-                'goal_focus'       => $data['goal_focus'],
-                'country'          => $data['country'],
-                'state'            => $data['state'],
-                'district'         => $data['district'],
-                'city'             => $data['city'],
-                'address1'         => $data['address_line1'],
-                'address2'         => $data['address_line2'],
-                'emergency'        => $data['emergency_contact'],
-                'user_id'          => $data['user_id']
-            ]);
+                        'join_date' => $data['join_date'],
+                        'membership_plan' => $data['membership_plan'],
+                        'dob' => $data['dob'],
+                        'gender' => $data['gender'],
+                        'blood_group' => $data['blood_group'],
+                        'height' => $data['height'],
+                        'weight' => $data['weight'],
+                        'fitness_level' => $data['fitness_level'],
+                        'goal_focus' => $data['goal_focus'],
+                        'country' => $data['country'],
+                        'state' => $data['state'],
+                        'district' => $data['district'],
+                        'city' => $data['city'],
+                        'address1' => $data['address_line1'],
+                        'address2' => $data['address_line2'],
+                        'emergency' => $data['emergency_contact'],
+                        'user_id' => $data['user_id']
+                    ]);
 
             $this->db->commit();
 
@@ -1264,7 +1270,7 @@ class Model
             throw $e;
         }
     }
-    public function getMembershipPlanByGymBranch(int $gym_id,int $branch_id): array 
+    public function getMembershipPlanByGymBranch(int $gym_id, int $branch_id): array
     {
         $sql = "
             SELECT 
@@ -1281,7 +1287,7 @@ class Model
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
-            'gym_id'    => $gym_id,
+            'gym_id' => $gym_id,
             'branch_id' => $branch_id
         ]);
 
@@ -1289,10 +1295,10 @@ class Model
 
         return array_map(function ($p) {
             return [
-                "gym_id"     => (int)$p['gym_id'],
-                "branch_id"  => (int)$p['branch_id'],
-                "plan_name"  => $p['plan_name'],
-                "status"     => ((int)$p['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "gym_id" => (int) $p['gym_id'],
+                "branch_id" => (int) $p['branch_id'],
+                "plan_name" => $p['plan_name'],
+                "status" => ((int) $p['status'] === 1) ? "ACTIVE" : "INACTIVE",
                 "created_at" => $p['createdDate'] . 'T' . $p['createdTime'] . 'Z'
             ];
         }, $plans);
@@ -1316,7 +1322,7 @@ class Model
             ");
 
             $stmt->execute([
-                'user_id'         => $data['user_id'],
+                'user_id' => $data['user_id'],
                 'attendance_date' => $attendanceDate
             ]);
 
@@ -1352,26 +1358,25 @@ class Model
                 ");
 
                 $stmt->execute([
-                    'user_id'         => $data['user_id'],
-                    'gym_id'          => $data['gym_id'],
-                    'branch_id'       => $data['branch_id'],
-                    'shift_id'        => $data['shift_id'],
-                    'role_type'       => $data['role_type'] ?? 'MEMBER',
+                    'user_id' => $data['user_id'],
+                    'gym_id' => $data['gym_id'],
+                    'branch_id' => $data['branch_id'],
+                    'shift_id' => $data['shift_id'],
+                    'role_type' => $data['role_type'] ?? 'MEMBER',
                     'attendance_date' => $attendanceDate,
-                    'status'          => $data['status'] ?? 'ON_TIME',
-                    'created_at'      => $now,
-                    'updated_at'      => $now
+                    'status' => $data['status'] ?? 'ON_TIME',
+                    'created_at' => $now,
+                    'updated_at' => $now
                 ]);
 
-                $attendanceId = (int)$this->db->lastInsertId();
+                $attendanceId = (int) $this->db->lastInsertId();
                 $sessionNo = 1;
 
-            } 
-            /* ========= MULTIPLE SESSIONS ========= */
-            else {
+            }
+            /* ========= MULTIPLE SESSIONS ========= */ else {
 
-                $attendanceId = (int)$attendance['attendance_id'];
-                $sessionNo    = (int)$attendance['total_sessions'] + 1;
+                $attendanceId = (int) $attendance['attendance_id'];
+                $sessionNo = (int) $attendance['total_sessions'] + 1;
 
                 $stmt = $this->db->prepare("
                     UPDATE attendance_logs
@@ -1382,7 +1387,7 @@ class Model
 
                 $stmt->execute([
                     'attendance_id' => $attendanceId,
-                    'updated_at'    => $now
+                    'updated_at' => $now
                 ]);
             }
 
@@ -1419,17 +1424,17 @@ class Model
 
             $stmt->execute([
                 'attendance_id' => $attendanceId,
-                'user_id'       => $data['user_id'],
-                'gym_id'        => $data['gym_id'],
-                'branch_id'     => $data['branch_id'],
-                'shift_id'      => $data['shift_id'],
-                'device_id'     => $data['device_id'] ?? null,
-                'session_no'    => $sessionNo,
+                'user_id' => $data['user_id'],
+                'gym_id' => $data['gym_id'],
+                'branch_id' => $data['branch_id'],
+                'shift_id' => $data['shift_id'],
+                'device_id' => $data['device_id'] ?? null,
+                'session_no' => $sessionNo,
                 'check_in_time' => $now,
-                'source'        => $data['source'] ?? 'DEVICE',
-                'remarks'       => $data['remarks'] ?? null,
-                'created_at'    => $now,
-                'updated_at'    => $now
+                'source' => $data['source'] ?? 'DEVICE',
+                'remarks' => $data['remarks'] ?? null,
+                'created_at' => $now,
+                'updated_at' => $now
             ]);
 
             $this->db->commit();
@@ -1445,7 +1450,7 @@ class Model
 
         try {
             date_default_timezone_set('Asia/Kolkata');
-            $now  = date('Y-m-d H:i:s');
+            $now = date('Y-m-d H:i:s');
             $today = date('Y-m-d');
 
             /* ========= FIND TODAY'S OPEN SESSION ========= */
@@ -1466,8 +1471,8 @@ class Model
             ");
 
             $stmt->execute([
-                'user_id'         => $data['user_id'],
-                'attendance_date'=> $today
+                'user_id' => $data['user_id'],
+                'attendance_date' => $today
             ]);
 
             $session = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -1478,7 +1483,7 @@ class Model
             }
 
             /* ========= CALCULATE DURATION ========= */
-            $checkIn  = new DateTime($session['check_in_time']);
+            $checkIn = new DateTime($session['check_in_time']);
             $checkOut = new DateTime($now);
 
             $duration = floor(
@@ -1497,8 +1502,8 @@ class Model
 
             $stmt->execute([
                 'check_out_time' => $now,
-                'updated_at'     => $now,
-                'session_id'     => $session['session_id']
+                'updated_at' => $now,
+                'session_id' => $session['session_id']
             ]);
 
             /* ========= UPDATE DAILY TOTAL ========= */
@@ -1511,8 +1516,8 @@ class Model
             ");
 
             $stmt->execute([
-                'duration'      => $duration,
-                'updated_at'    => $now,
+                'duration' => $duration,
+                'updated_at' => $now,
                 'attendance_id' => $session['attendance_id']
             ]);
 
@@ -1526,7 +1531,7 @@ class Model
     }
     public function getAttendanceList(array $filters): array
     {
-        $offset = ((int)$filters['page'] - 1) * (int)$filters['limit'];
+        $offset = ((int) $filters['page'] - 1) * (int) $filters['limit'];
 
         $where = [];
         $params = [];
@@ -1599,8 +1604,8 @@ class Model
             $stmt->bindValue(":$key", $value);
         }
 
-        $stmt->bindValue(':limit', (int)$filters['limit'], PDO::PARAM_INT);
-        $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
+        $stmt->bindValue(':limit', (int) $filters['limit'], PDO::PARAM_INT);
+        $stmt->bindValue(':offset', (int) $offset, PDO::PARAM_INT);
 
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -1663,13 +1668,13 @@ class Model
 
         return array_map(function ($s) {
             return [
-                "session_no" => (int)$s['session_no'],
-                "device"     => $s['source'],
-                "check_in"   => date('h:i a', strtotime($s['check_in_time'])),
-                "check_out"  => $s['check_out_time']
+                "session_no" => (int) $s['session_no'],
+                "device" => $s['source'],
+                "check_in" => date('h:i a', strtotime($s['check_in_time'])),
+                "check_out" => $s['check_out_time']
                     ? date('h:i a', strtotime($s['check_out_time']))
                     : null,
-                "duration"   => $s['duration_min']
+                "duration" => $s['duration_min']
                     ? floor($s['duration_min'] / 60) . "h " . ($s['duration_min'] % 60) . "m"
                     : null
             ];
@@ -1686,9 +1691,9 @@ class Model
         ");
 
         return $stmt->execute([
-            "name"    => $data['name'],
-            "email"   => $data['email'],
-            "phone"   => $data['phone'],
+            "name" => $data['name'],
+            "email" => $data['email'],
+            "phone" => $data['phone'],
             "service" => $data['service'],
             "message" => $data['message']
         ]);
@@ -1720,96 +1725,96 @@ class Model
     public function countContactList(): int
     {
         $stmt = $this->db->query("SELECT COUNT(*) FROM contact_forms");
-        return (int)$stmt->fetchColumn();
+        return (int) $stmt->fetchColumn();
     }
     public function insertTrainer(array $data): int
     {
-        $stmt = $this->db->prepare("
-            INSERT INTO trainers (
-                user_id,
-                gym_id,
-                branch_id,
-                shift_id,
-                name,
-                email,
-                phone,
-                specialization,
-                experience,
-                availability,
-                certifications,
-                bio,
-                profile_photo,
-                join_date,
-                status,
-                createdDate,
-                createdTime
+        $employeeCode = "EMP-" . str_pad($data['user_id'], 5, '0', STR_PAD_LEFT);
+        
+        $stmtEmp = $this->db->prepare("
+            INSERT INTO employees (
+                user_id, gym_id, branch_id, employee_code, full_name, email, phone,
+                designation, employment_type, salary_type, salary_amount, joining_date,
+                profile_photo, status, created_at, updated_at, created_by
             ) VALUES (
-                :user_id,
-                :gym_id,
-                :branch_id,
-                :shift_id,
-                :name,
-                :email,
-                :phone,
-                :specialization,
-                :experience,
-                :availability,
-                :certifications,
-                :bio,
-                :profile_photo,
-                :join_date,
-                :status,
-                CURDATE(),
-                CURTIME()
+                :user_id, :gym_id, :branch_id, :employee_code, :full_name, :email, :phone,
+                'TRAINER', 'FULL_TIME', 'MONTHLY', 0.00, :joining_date,
+                :profile_photo, 'ACTIVE', NOW(), NOW(), :user_id
             )
         ");
-
-        $stmt->execute([
-            'user_id'        => $data['user_id'],
-            'gym_id'         => $data['gym_id'],
-            'branch_id'      => $data['branch_id'],
-            'shift_id'       => $data['shift_id'],
-            'name'           => $data['name'],
-            'email'          => $data['email'],
-            'phone'          => $data['phone'],
-            'specialization' => $data['specialization'] ?? null,
-            'experience'     => $data['experience'] ?? null,
-            'availability'   => $data['availability'] ?? 'Available',
-            'certifications' => $data['certifications'] ?? null,
-            'bio'            => $data['bio'] ?? '',
-            'profile_photo'  => $data['profile_photo'] ?? null,
-            'join_date'      => $data['joining_date'],
-            'status'         => ($data['status'] ?? 'Active') === 'Active' ? 1 : 0
+        $stmtEmp->execute([
+            'user_id' => $data['user_id'],
+            'gym_id' => $data['gym_id'],
+            'branch_id' => $data['branch_id'],
+            'employee_code' => $employeeCode,
+            'full_name' => $data['name'],
+            'email' => $data['email'],
+            'phone' => $data['phone'],
+            'joining_date' => $data['joining_date'] ?? $data['join_date'] ?? date('Y-m-d'),
+            'profile_photo' => $data['profile_photo'] ?? null
         ]);
-
-        return (int)$this->db->lastInsertId();
+        
+        $employeeId = (int)$this->db->lastInsertId();
+        
+        $stmtTp = $this->db->prepare("
+            INSERT INTO trainer_profiles (
+                employee_id, specialization, experience, certifications, bio,
+                showcase_photo, availability_status, rating, created_at, updated_at
+            ) VALUES (
+                :employee_id, :specialization, :experience, :certifications, :bio,
+                :showcase_photo, :availability_status, 0.0, NOW(), NOW()
+            )
+        ");
+        
+        $stmtTp->execute([
+            'employee_id' => $employeeId,
+            'specialization' => $data['specialization'] ?? null,
+            'experience' => isset($data['experience']) ? (float)$data['experience'] : null,
+            'certifications' => $data['certifications'] ?? null,
+            'bio' => $data['bio'] ?? null,
+            'showcase_photo' => $data['profile_photo'] ?? null,
+            'availability_status' => $data['availability'] ?? 'AVAILABLE'
+        ]);
+        
+        return $employeeId;
     }
     public function fetchTrainers(array $filters, int $limit, int $offset): array
     {
-        $sql = "SELECT * FROM trainers WHERE 1=1";
+        $sql = "
+            SELECT tp.*, e.employee_code,   
+                   COALESCE(e.full_name, u.name) as name, 
+                   COALESCE(e.email, u.email) as email, 
+                   COALESCE(e.phone, u.phone) as phone, 
+                   u.role, 
+                   tp.trainer_profile_id AS trainer_id
+            FROM trainer_profiles tp
+            JOIN employees e ON e.employee_id = tp.employee_id
+            JOIN users u ON u.user_id = e.user_id
+            WHERE 1=1
+        ";
         $params = [];
 
         if (!empty($filters['gym_id'])) {
-            $sql .= " AND gym_id = :gym_id";
+            $sql .= " AND e.gym_id = :gym_id";
             $params[':gym_id'] = $filters['gym_id'];
         }
 
         if (!empty($filters['branch_id'])) {
-            $sql .= " AND branch_id = :branch_id";
+            $sql .= " AND e.branch_id = :branch_id";
             $params[':branch_id'] = $filters['branch_id'];
         }
 
         if (!empty($filters['status'])) {
-            $sql .= " AND status = :status";
-            $params[':status'] = ($filters['status'] === 'Active') ? 1 : 0;
+            $sql .= " AND e.status = :status";
+            $params[':status'] = ($filters['status'] === 'Active' || $filters['status'] === 'ACTIVE' || $filters['status'] === 1 || $filters['status'] === '1') ? 'ACTIVE' : 'INACTIVE';
         }
 
         if (!empty($filters['search'])) {
-            $sql .= " AND (name LIKE :search OR phone LIKE :search)";
+            $sql .= " AND (e.full_name LIKE :search OR e.phone LIKE :search OR e.email LIKE :search)";
             $params[':search'] = '%' . $filters['search'] . '%';
         }
 
-        $sql .= " ORDER BY trainer_id DESC LIMIT :limit OFFSET :offset";
+        $sql .= " ORDER BY tp.trainer_profile_id DESC LIMIT :limit OFFSET :offset";
 
         $stmt = $this->db->prepare($sql);
 
@@ -1826,33 +1831,53 @@ class Model
     }
     public function countTrainers(array $filters): int
     {
-        $sql = "SELECT COUNT(*) FROM trainers WHERE 1=1";
+        $sql = "
+            SELECT COUNT(*)
+            FROM trainer_profiles tp
+            JOIN employees e ON e.employee_id = tp.employee_id
+            JOIN users u ON u.user_id = e.user_id
+            WHERE 1=1
+        ";
         $params = [];
 
         if (!empty($filters['gym_id'])) {
-            $sql .= " AND gym_id = :gym_id";
+            $sql .= " AND e.gym_id = :gym_id";
             $params[':gym_id'] = $filters['gym_id'];
         }
 
         if (!empty($filters['branch_id'])) {
-            $sql .= " AND branch_id = :branch_id";
+            $sql .= " AND e.branch_id = :branch_id";
             $params[':branch_id'] = $filters['branch_id'];
         }
 
         if (!empty($filters['status'])) {
-            $sql .= " AND status = :status";
-            $params[':status'] = ($filters['status'] === 'Active') ? 1 : 0;
+            $sql .= " AND e.status = :status";
+            $params[':status'] = ($filters['status'] === 'Active' || $filters['status'] === 'ACTIVE' || $filters['status'] === 1 || $filters['status'] === '1') ? 'ACTIVE' : 'INACTIVE';
+        }
+
+        if (!empty($filters['search'])) {
+            $sql .= " AND (e.full_name LIKE :search OR e.phone LIKE :search OR e.email LIKE :search)";
+            $params[':search'] = '%' . $filters['search'] . '%';
         }
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return (int)$stmt->fetchColumn();
+        return (int) $stmt->fetchColumn();
     }
     public function fetchTrainerById(int $trainerId): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT * FROM trainers WHERE trainer_id = :id LIMIT 1
+            SELECT tp.*, e.employee_code, 
+                   COALESCE(e.full_name, u.name) as name, 
+                   COALESCE(e.email, u.email) as email, 
+                   COALESCE(e.phone, u.phone) as phone, 
+                   u.role, 
+                   tp.trainer_profile_id AS trainer_id
+            FROM trainer_profiles tp
+            JOIN employees e ON e.employee_id = tp.employee_id
+            JOIN users u ON u.user_id = e.user_id
+            WHERE tp.trainer_profile_id = :id LIMIT 1
         ");
 
         $stmt->execute([':id' => $trainerId]);
@@ -1861,56 +1886,77 @@ class Model
     }
     public function updateTrainer(int $trainerId, array $data): bool
     {
-        $fields = [];
-        $params = [];
+        $stmt = $this->db->prepare("SELECT employee_id FROM trainer_profiles WHERE trainer_profile_id = :trainer_id LIMIT 1");
+        $stmt->execute([':trainer_id' => $trainerId]);
+        $employeeId = $stmt->fetchColumn();
+        if (!$employeeId) {
+            return false;
+        }
 
-        // Allowed fields
-        $allowed = [
-            'gym_id',
-            'branch_id',
-            'shift_id',
-            'name',
-            'email',
-            'phone',
-            'specialization',
-            'experience',
-            'availability',
-            'certifications',
-            'bio',
-            'profile_photo',
-            'join_date',
-            'status'
+        $tpFields = [];
+        $tpParams = [':trainer_id' => $trainerId];
+        
+        $tpAllowed = [
+            'specialization' => 'specialization',
+            'experience' => 'experience',
+            'certifications' => 'certifications',
+            'bio' => 'bio',
+            'profile_photo' => 'showcase_photo',
+            'showcase_photo' => 'showcase_photo',
+            'availability' => 'availability_status',
+            'availability_status' => 'availability_status'
         ];
 
-        foreach ($allowed as $field) {
-            if (isset($data[$field])) {
-                $fields[] = "$field = :$field";
-
-                if ($field === 'status') {
-                    $params[":$field"] = ($data[$field] === 'Active') ? 1 : 0;
+        foreach ($tpAllowed as $key => $column) {
+            if (isset($data[$key])) {
+                $tpFields[] = "$column = :$column";
+                if ($key === 'experience') {
+                    $tpParams[":$column"] = (float)$data[$key];
                 } else {
-                    $params[":$field"] = $data[$field];
+                    $tpParams[":$column"] = $data[$key];
                 }
             }
         }
 
-        if (empty($fields)) {
-            return false;
+        if (!empty($tpFields)) {
+            $sqlTp = "UPDATE trainer_profiles SET " . implode(', ', $tpFields) . ", updated_at = NOW() WHERE trainer_profile_id = :trainer_id";
+            $stmtTp = $this->db->prepare($sqlTp);
+            $stmtTp->execute($tpParams);
         }
 
-        $params[':trainer_id'] = $trainerId;
+        $empFields = [];
+        $empParams = [':employee_id' => $employeeId];
 
-        $sql = "
-            UPDATE trainers
-            SET " . implode(', ', $fields) . ",
-                updatedDate = CURDATE(),
-                updatedTime = CURTIME()
-            WHERE trainer_id = :trainer_id
-        ";
+        $empAllowed = [
+            'gym_id' => 'gym_id',
+            'branch_id' => 'branch_id',
+            'name' => 'full_name',
+            'email' => 'email',
+            'phone' => 'phone',
+            'profile_photo' => 'profile_photo',
+            'join_date' => 'joining_date',
+            'joining_date' => 'joining_date',
+            'status' => 'status'
+        ];
 
-        $stmt = $this->db->prepare($sql);
+        foreach ($empAllowed as $key => $column) {
+            if (isset($data[$key])) {
+                $empFields[] = "$column = :$column";
+                if ($key === 'status') {
+                    $empParams[":$column"] = (strtoupper((string)$data[$key]) === 'ACTIVE' || $data[$key] === 1 || $data[$key] === '1') ? 'ACTIVE' : 'INACTIVE';
+                } else {
+                    $empParams[":$column"] = $data[$key];
+                }
+            }
+        }
 
-        return $stmt->execute($params);
+        if (!empty($empFields)) {
+            $sqlEmp = "UPDATE employees SET " . implode(', ', $empFields) . ", updated_at = NOW() WHERE employee_id = :employee_id";
+            $stmtEmp = $this->db->prepare($sqlEmp);
+            $stmtEmp->execute($empParams);
+        }
+
+        return true;
     }
     public function insertStaff(array $data): int
     {
@@ -1945,20 +1991,20 @@ class Model
         ");
 
         $stmt->execute([
-            'user_id'        => $data['user_id'],
-            'gym_id'         => $data['gym_id'],
-            'branch_id'      => $data['branch_id'],
-            'shift_id'       => $data['shift_id'],
-            'designation'    => $data['designation'],
-            'department'     => $data['department'],
+            'user_id' => $data['user_id'],
+            'gym_id' => $data['gym_id'],
+            'branch_id' => $data['branch_id'],
+            'shift_id' => $data['shift_id'],
+            'designation' => $data['designation'],
+            'department' => $data['department'],
             'salary_monthly' => $data['salary_monthly'],
-            'salary_type'    => $data['salary_type'], // FULL_TIME, PART_TIME
-            'joining_date'   => $data['joining_date'],
-            'access_level'   => $data['access_level'], // LOW, MEDIUM, HIGH
-            'status'         => $data['status'] // ACTIVE, INACTIVE
+            'salary_type' => $data['salary_type'], // FULL_TIME, PART_TIME
+            'joining_date' => $data['joining_date'],
+            'access_level' => $data['access_level'], // LOW, MEDIUM, HIGH
+            'status' => $data['status'] // ACTIVE, INACTIVE
         ]);
 
-        return (int)$this->db->lastInsertId();
+        return (int) $this->db->lastInsertId();
     }
     public function fetchStaff(array $filters, int $limit, int $offset): array
     {
@@ -2038,7 +2084,7 @@ class Model
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
 
-        return (int)$stmt->fetchColumn();
+        return (int) $stmt->fetchColumn();
     }
     public function fetchStaffById(int $staffId): ?array
     {
@@ -2111,10 +2157,16 @@ class Model
     public function fetchTrainerByUserId(int $userId): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT t.*, u.name, u.email, u.phone, u.role
-            FROM trainers t
-            JOIN users u ON u.user_id = t.user_id
-            WHERE t.user_id = :user_id LIMIT 1
+            SELECT tp.*, e.employee_code, 
+                   COALESCE(e.full_name, u.name) as name, 
+                   COALESCE(e.email, u.email) as email, 
+                   COALESCE(e.phone, u.phone) as phone, 
+                   u.role, 
+                   tp.trainer_profile_id AS trainer_id
+            FROM trainer_profiles tp
+            JOIN employees e ON e.employee_id = tp.employee_id
+            JOIN users u ON u.user_id = e.user_id
+            WHERE u.user_id = :user_id LIMIT 1
         ");
         $stmt->execute([':user_id' => $userId]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -2136,10 +2188,11 @@ class Model
                 sub.start_date,
                 sub.end_date,
                 sub.status AS subscription_status
-            FROM subscriptions sub
-            JOIN users u ON u.user_id = sub.user_id
-            LEFT JOIN users_profile up ON up.user_id = u.user_id
-            WHERE sub.trainer_id = :trainer_id AND sub.status = 1
+            FROM member_trainer_assignments mta
+            JOIN users_profile up ON up.profile_id = mta.member_id
+            JOIN users u ON u.user_id = up.user_id
+            LEFT JOIN subscriptions sub ON sub.user_id = u.user_id AND sub.status = 1
+            WHERE mta.trainer_id = :trainer_id AND mta.status = 1
         ");
         $stmt->execute([':trainer_id' => $trainerId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -2176,18 +2229,18 @@ class Model
                 WHERE branch_id = :branch_id AND status = 1
             ");
             $stmtCount->execute([':branch_id' => $branchId]);
-            $enrolled = (int)$stmtCount->fetchColumn();
+            $enrolled = (int) $stmtCount->fetchColumn();
 
             $results[] = [
-                'id'          => (int)$row['id'],
-                'gym_id'      => (int)$row['gym_id'],
-                'branch_id'   => (int)$row['branch_id'],
-                'shift_name'  => $row['shift_name'],
-                'start_time'  => $startTime,
-                'end_time'    => $endTime,
-                'capacity'    => 50,
-                'enrolled'    => $enrolled,
-                'is_active'   => (bool)$row['is_active'],
+                'id' => (int) $row['id'],
+                'gym_id' => (int) $row['gym_id'],
+                'branch_id' => (int) $row['branch_id'],
+                'shift_name' => $row['shift_name'],
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'capacity' => 50,
+                'enrolled' => $enrolled,
+                'is_active' => (bool) $row['is_active'],
                 'description' => $row['description']
             ];
         }
@@ -2263,16 +2316,16 @@ class Model
         ");
 
         $stmt->execute([
-            'user_id'        => (int)($data['user_id'] ?? 0),
+            'user_id' => (int) ($data['user_id'] ?? 0),
             'invoice_number' => $data['invoice_number'],
-            'total_amount'   => (float)$data['total_amount'],
-            'tax_amount'     => (float)($data['tax_amount'] ?? 0.0),
-            'tax_breakdown'  => isset($data['tax_breakdown']) ? (is_array($data['tax_breakdown']) ? json_encode($data['tax_breakdown']) : $data['tax_breakdown']) : null,
-            'final_amount'   => (float)$data['final_amount'],
-            'status'         => $data['status'] ?? 'UNPAID'
+            'total_amount' => (float) $data['total_amount'],
+            'tax_amount' => (float) ($data['tax_amount'] ?? 0.0),
+            'tax_breakdown' => isset($data['tax_breakdown']) ? (is_array($data['tax_breakdown']) ? json_encode($data['tax_breakdown']) : $data['tax_breakdown']) : null,
+            'final_amount' => (float) $data['final_amount'],
+            'status' => $data['status'] ?? 'UNPAID'
         ]);
 
-        return (int)$this->db->lastInsertId();
+        return (int) $this->db->lastInsertId();
     }
 
     public function createInvoiceItem(array $data): int
@@ -2304,19 +2357,19 @@ class Model
         ");
 
         $stmt->execute([
-            'invoice_id'     => (int)$data['invoice_id'],
-            'item_type'      => $data['item_type'], // SUBSCRIPTION or PRODUCT or PT_PACKAGE
-            'reference_id'   => (int)$data['reference_id'],
-            'item_name'      => trim($data['item_name']),
-            'quantity'       => (int)($data['quantity'] ?? 1),
-            'unit_price'     => (float)$data['unit_price'],
-            'tax_percentage' => (float)($data['tax_percentage'] ?? 0.0),
-            'tax_amount'     => (float)($data['tax_amount'] ?? 0.0),
-            'tax_breakdown'  => isset($data['tax_breakdown']) ? (is_array($data['tax_breakdown']) ? json_encode($data['tax_breakdown']) : $data['tax_breakdown']) : null,
-            'total_price'    => (float)$data['total_price']
+            'invoice_id' => (int) $data['invoice_id'],
+            'item_type' => $data['item_type'], // SUBSCRIPTION or PRODUCT or PT_PACKAGE
+            'reference_id' => (int) $data['reference_id'],
+            'item_name' => trim($data['item_name']),
+            'quantity' => (int) ($data['quantity'] ?? 1),
+            'unit_price' => (float) $data['unit_price'],
+            'tax_percentage' => (float) ($data['tax_percentage'] ?? 0.0),
+            'tax_amount' => (float) ($data['tax_amount'] ?? 0.0),
+            'tax_breakdown' => isset($data['tax_breakdown']) ? (is_array($data['tax_breakdown']) ? json_encode($data['tax_breakdown']) : $data['tax_breakdown']) : null,
+            'total_price' => (float) $data['total_price']
         ]);
 
-        return (int)$this->db->lastInsertId();
+        return (int) $this->db->lastInsertId();
     }
 
     public function createPaymentTransaction(array $data): int
@@ -2352,17 +2405,17 @@ class Model
         ");
 
         $stmt->execute([
-            'gym_id'          => (int)$data['gym_id'],
-            'branch_id'       => (int)$data['branch_id'],
-            'invoice_id'      => (int)$data['invoice_id'],
-            'paid_by_user_id' => isset($data['paid_by_user_id']) && (int)$data['paid_by_user_id'] > 0 ? (int)$data['paid_by_user_id'] : null,
-            'amount'          => (float)$data['amount'],
-            'payment_mode'    => trim($data['payment_mode']),
-            'payment_status'  => $data['payment_status'] ?? 'PENDING',
+            'gym_id' => (int) $data['gym_id'],
+            'branch_id' => (int) $data['branch_id'],
+            'invoice_id' => (int) $data['invoice_id'],
+            'paid_by_user_id' => isset($data['paid_by_user_id']) && (int) $data['paid_by_user_id'] > 0 ? (int) $data['paid_by_user_id'] : null,
+            'amount' => (float) $data['amount'],
+            'payment_mode' => trim($data['payment_mode']),
+            'payment_status' => $data['payment_status'] ?? 'PENDING',
             'transaction_ref' => isset($data['transaction_ref']) ? trim($data['transaction_ref']) : null
         ]);
 
-        return (int)$this->db->lastInsertId();
+        return (int) $this->db->lastInsertId();
     }
 
     public function createFinancialLedgerEntry(array $data): int
@@ -2392,17 +2445,17 @@ class Model
         ");
 
         $stmt->execute([
-            'gym_id'           => (int)$data['gym_id'],
-            'branch_id'        => (int)$data['branch_id'],
+            'gym_id' => (int) $data['gym_id'],
+            'branch_id' => (int) $data['branch_id'],
             'transaction_type' => strtoupper(trim($data['transaction_type'])),
-            'category'         => strtoupper(trim($data['category'])),
-            'amount'           => (float)$data['amount'],
-            'reference_table'  => trim($data['reference_table']),
-            'reference_id'     => (int)$data['reference_id'],
-            'payment_method'   => strtoupper(trim($data['payment_method']))
+            'category' => strtoupper(trim($data['category'])),
+            'amount' => (float) $data['amount'],
+            'reference_table' => trim($data['reference_table']),
+            'reference_id' => (int) $data['reference_id'],
+            'payment_method' => strtoupper(trim($data['payment_method']))
         ]);
 
-        return (int)$this->db->lastInsertId();
+        return (int) $this->db->lastInsertId();
     }
 
     public function createTrainerCommission(array $data): int
@@ -2428,14 +2481,14 @@ class Model
         ");
 
         $stmt->execute([
-            'gym_id'            => (int)$data['gym_id'],
-            'branch_id'         => (int)$data['branch_id'],
-            'trainer_id'        => (int)$data['trainer_id'],
-            'invoice_id'        => (int)$data['invoice_id'],
-            'commission_amount' => (float)$data['commission_amount']
+            'gym_id' => (int) $data['gym_id'],
+            'branch_id' => (int) $data['branch_id'],
+            'trainer_id' => (int) $data['trainer_id'],
+            'invoice_id' => (int) $data['invoice_id'],
+            'commission_amount' => (float) $data['commission_amount']
         ]);
 
-        return (int)$this->db->lastInsertId();
+        return (int) $this->db->lastInsertId();
     }
 }
 
