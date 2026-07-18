@@ -590,7 +590,12 @@ class DietPlanWorkflow
                 return ["status" => "error", "message" => "Access denied. Member is not assigned to you."];
             }
 
-            if (!$this->model->checkDietPlanAccess($memberId)) {
+            $memberUserId = $this->model->getUserIdFromProfileId($memberId);
+            if (!$memberUserId) {
+                throw new Exception("Member user ID not found for profile ID $memberId", 404);
+            }
+
+            if (!$this->model->checkDietPlanAccess($memberUserId)) {
                 @http_response_code(400);
                 return [
                     "success" => false,
@@ -643,7 +648,7 @@ class DietPlanWorkflow
             $endDate = date('Y-m-d', strtotime($startDate . " + $duration days"));
 
             $planData = [
-                'member_id' => $memberId,
+                'member_id' => $memberUserId,
                 'trainer_id' => $trainerId,
                 'goal' => $goal,
                 'duration_days' => $duration,
@@ -658,7 +663,7 @@ class DietPlanWorkflow
             ];
 
             if ($status === 'ACTIVE') {
-                $this->model->deactivateMemberActivePlans($memberId);
+                $this->model->deactivateMemberActivePlans($memberUserId);
             }
 
             $dietPlanId = $this->model->createDietPlan($planData);
@@ -668,7 +673,6 @@ class DietPlanWorkflow
                 "message" => "Diet plan created successfully",
                 "diet_plan_id" => $dietPlanId
             ];
-
         } catch (\Throwable $e) {
             http_response_code($e->getCode() === 403 ? 403 : 401);
             return ["status" => "error", "message" => $e->getMessage()];
@@ -688,7 +692,12 @@ class DietPlanWorkflow
                 return ["status" => "error", "message" => "Access denied. Member is not assigned to you."];
             }
 
-            if (!$this->model->checkDietPlanAccess($memberId)) {
+            $memberUserId = $this->model->getUserIdFromProfileId($memberId);
+            if (!$memberUserId) {
+                throw new Exception("Member user ID not found for profile ID $memberId", 404);
+            }
+
+            if (!$this->model->checkDietPlanAccess($memberUserId)) {
                 @http_response_code(400);
                 return [
                     "success" => false,
@@ -746,7 +755,7 @@ class DietPlanWorkflow
             $endDate = date('Y-m-d', strtotime($startDate . " + $duration days"));
 
             $planData = [
-                'member_id' => $memberId,
+                'member_id' => $memberUserId,
                 'trainer_id' => $trainerId,
                 'goal' => $goal,
                 'duration_days' => $duration,
@@ -761,7 +770,7 @@ class DietPlanWorkflow
             ];
 
             if ($status === 'ACTIVE') {
-                $this->model->deactivateMemberActivePlans($memberId);
+                $this->model->deactivateMemberActivePlans($memberUserId);
             }
 
             $dietPlanId = $this->model->createDietPlanWithMeals($planData, $data['meals']);
@@ -1284,7 +1293,12 @@ class DietPlanWorkflow
                 return ["status" => "error", "message" => "Access denied. Member is not assigned to you."];
             }
 
-            $plans = $this->model->getMemberDietPlans($memberId);
+            $memberUserId = $this->model->getUserIdFromProfileId($memberId);
+            if (!$memberUserId) {
+                throw new Exception("Member user ID not found for profile ID $memberId", 404);
+            }
+
+            $plans = $this->model->getMemberDietPlans($memberUserId);
             return ["status" => "success", "data" => $plans];
         } catch (\Throwable $e) {
             http_response_code($e->getCode() === 403 ? 403 : 401);
@@ -1304,7 +1318,12 @@ class DietPlanWorkflow
                 return ["status" => "error", "message" => "Access denied. Member is not assigned to you."];
             }
 
-            $plan = $this->model->getMemberActiveDietPlan($memberId);
+            $memberUserId = $this->model->getUserIdFromProfileId($memberId);
+            if (!$memberUserId) {
+                throw new Exception("Member user ID not found for profile ID $memberId", 404);
+            }
+
+            $plan = $this->model->getMemberActiveDietPlan($memberUserId);
             if ($plan) {
                 $plan['meals'] = $this->model->getDietPlanMeals($plan['diet_plan_id']);
             }
@@ -1328,7 +1347,12 @@ class DietPlanWorkflow
                 return ["status" => "error", "message" => "Access denied. Member is not assigned to you."];
             }
 
-            $history = $this->model->getMemberDietPlansHistory($memberId);
+            $memberUserId = $this->model->getUserIdFromProfileId($memberId);
+            if (!$memberUserId) {
+                throw new Exception("Member user ID not found for profile ID $memberId", 404);
+            }
+
+            $history = $this->model->getMemberDietPlansHistory($memberUserId);
             return ["status" => "success", "data" => $history];
         } catch (\Throwable $e) {
             http_response_code($e->getCode() === 403 ? 403 : 401);

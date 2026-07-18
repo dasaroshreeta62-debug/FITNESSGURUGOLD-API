@@ -2183,6 +2183,7 @@ class Model
         $stmt = $this->db->prepare("
             SELECT 
                 u.user_id,
+                up.profile_id AS member_id,
                 u.name,
                 u.email,
                 u.phone,
@@ -2201,7 +2202,14 @@ class Model
             WHERE mta.trainer_id = :trainer_id AND mta.status = 1
         ");
         $stmt->execute([':trainer_id' => $trainerId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as &$row) {
+            $row['user_id'] = (int)$row['user_id'];
+            $row['member_id'] = (int)$row['member_id'];
+            $row['status'] = (int)$row['status'];
+            $row['subscription_status'] = $row['subscription_status'] !== null ? (int)$row['subscription_status'] : null;
+        }
+        return $rows;
     }
 
     public function fetchShifts(int $gymId, int $branchId): array

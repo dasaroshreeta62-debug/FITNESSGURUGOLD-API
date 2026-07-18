@@ -48,26 +48,30 @@ class DietPlanModel extends Model
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    public function isMemberAssignedToTrainer(int $memberUserId, int $trainerId): bool
+    public function isMemberAssignedToTrainer(int $memberProfileId, int $trainerId): bool
     {
         $stmt = $this->db->prepare("
             SELECT COUNT(*) 
             FROM member_trainer_assignments 
-            WHERE member_id = :user_id AND trainer_id = :trainer_id AND status = 1
+            WHERE member_id = :member_id AND trainer_id = :trainer_id AND status = 1
         ");
         $stmt->execute([
-            'user_id' => $memberUserId,
+            'member_id' => $memberProfileId,
             'trainer_id' => $trainerId
         ]);
         return (int)$stmt->fetchColumn() > 0;
     }
 
-    public function getTrainerAssignedMemberDetails(int $trainerId, int $memberId): ?array
+    public function getTrainerAssignedMemberDetails(int $trainerId, int $memberProfileId): ?array
     {
-        if (!$this->isMemberAssignedToTrainer($memberId, $trainerId)) {
+        if (!$this->isMemberAssignedToTrainer($memberProfileId, $trainerId)) {
             return null;
         }
-        return $this->fetchMemberDetails($memberId);
+        $userId = $this->getUserIdFromProfileId($memberProfileId);
+        if (!$userId) {
+            return null;
+        }
+        return $this->fetchMemberDetails($userId);
     }
 
     public function deactivateMemberActivePlans(int $memberId, ?int $exceptPlanId = null): bool
@@ -543,6 +547,17 @@ class DietPlanModel extends Model
         $stmt = $this->db->prepare($sql);
         $stmt->execute(['user_id' => $userId]);
         return (int)$stmt->fetchColumn() > 0;
+    }
+
+    /**
+     * Resolve user_id from profile_id.
+     */
+    public function getUserIdFromProfileId(int $profileId): ?int
+    {
+        $stmt = $this->db->prepare("SELECT user_id FROM users_profile WHERE profile_id = :id LIMIT 1");
+        $stmt->execute(['id' => $profileId]);
+        $val = $stmt->fetchColumn();
+        return $val !== false ? (int)$val : null;
     }
 }
 
