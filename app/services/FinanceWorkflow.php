@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../repositories/FinanceModel.php';
 require_once __DIR__ . '/../repositories/model.php';
+require_once __DIR__ . '/../repositories/MembershipModel.php';
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 use Firebase\JWT\JWT;
@@ -214,6 +215,231 @@ class FinanceWorkflow
             if ($this->model->inTransaction()) {
                 $this->model->rollBack();
             }
+            $code = in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500;
+            $this->setResponseCode($code);
+            return [
+                "status"  => "error",
+                "message" => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * GET /api/member/purchase-history
+     */
+    public function getMemberPurchaseHistory(string $accessToken): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['MEMBER']);
+            $memberUserId = (int)$decoded->sub;
+
+            // 1. Fetch subscriptions with invoices
+            $membershipModel = new MembershipModel();
+            $subscriptions = $membershipModel->getAllSubscriptions(['user_id' => $memberUserId]);
+
+            // 2. Fetch product purchases with invoices
+            $productPurchases = $this->model->getMemberProductPurchases($memberUserId);
+
+            return [
+                "status" => "success",
+                "data"   => [
+                    "subscriptions"     => $subscriptions,
+                    "product_purchases" => $productPurchases
+                ]
+            ];
+
+        } catch (\Throwable $e) {
+            $code = in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500;
+            $this->setResponseCode($code);
+            return [
+                "status"  => "error",
+                "message" => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * GET /api/admin/dashboard-kpis
+     * Retrieve system KPIs for Admin dashboard: Revenue Overview and Membership Status.
+     */
+    public function getDashboardKpis(string $accessToken): array
+    {
+        try {
+            // Verify roles allowed to view dashboard statistics
+            $decoded = $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN', 'GYM_ADMIN', 'STAFF']);
+            $callerUserId = (int)$decoded->sub;
+
+            // Get caller's gym and branch details
+            $callerProfile = $this->baseModel->getUserProfileById($callerUserId);
+            if (!$callerProfile) {
+                throw new Exception("Caller profile not found", 404);
+            }
+
+            $gymId = (int)$callerProfile['gym_id'];
+            $branchId = (int)$callerProfile['branch_id'];
+
+            // -----------------------------------------------------------------
+            // 1. REVENUE OVERVIEW: DATES BOUNDARIES & CALCULATIONS
+            // -----------------------------------------------------------------
+            // Find most recent Saturday (or today if today is Saturday)
+            $today = new DateTime();
+            $dayOfWeek = (int)$today->format('N'); // 1 (Mon) to 7 (Sun)
+            if ($dayOfWeek === 6) { // Saturday
+                $startThisWeek = clone $today;
+            } else {
+                $startThisWeek = new DateTime('last Saturday');
+            }
+            $startThisWeek->setTime(0, 0, 0);
+
+            // Construct arrays of days with their corresponding Dates for matching
+            // Sat, Sun, Mon, Tue, Wed, Thu, Fri
+            $daysOfWeek = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+            
+            $thisWeekDates = [];
+            $lastWeekDates = [];
+            
+            for ($i = 0; $i < 7; $i++) {
+                $dateThis = (clone $startThisWeek)->modify("+$i days");
+                $dateLast = (clone $startThisWeek)->modify("-" . (7 - $i) . " days");
+                
+                $thisWeekDates[$daysOfWeek[$i]] = $dateThis->format('Y-m-d');
+                $lastWeekDates[$daysOfWeek[$i]] = $dateLast->format('Y-m-d');
+            }
+
+            // Boundary variables for database querying
+            $startLastWeekStr = (clone $startThisWeek)->modify('-7 days')->format('Y-m-d 00:00:00');
+            $endThisWeekStr   = (clone $startThisWeek)->modify('+6 days')->format('Y-m-d 23:59:59');
+
+            // Query database for all paid revenues in the double-week span
+            $revenues = $this->model->getRevenueBetweenDates($gymId, $branchId, $startLastWeekStr, $endThisWeekStr);
+
+            // Structure revenue maps by Date & Item Type
+            $revenueMap = [];
+            foreach ($revenues as $r) {
+                $date = $r['invoice_date'];
+                $type = strtoupper($r['item_type']);
+                $val  = (float)$r['total_revenue'];
+                
+                if (!isset($revenueMap[$date])) {
+                    $revenueMap[$date] = [
+                        'TOTAL'        => 0.0,
+                        'SUBSCRIPTION' => 0.0,
+                        'PT_PACKAGE'   => 0.0,
+                        'OTHER'        => 0.0
+                    ];
+                }
+                
+                $revenueMap[$date]['TOTAL'] += $val;
+                if ($type === 'SUBSCRIPTION') {
+                    $revenueMap[$date]['SUBSCRIPTION'] += $val;
+                } elseif ($type === 'PT_PACKAGE') {
+                    $revenueMap[$date]['PT_PACKAGE'] += $val;
+                } else {
+                    // Storing PRODUCT or FEE as OTHER
+                    $revenueMap[$date]['OTHER'] += $val;
+                }
+            }
+
+            // Fill comparison chart daily values
+            $thisWeekChart = [];
+            $lastWeekChart = [];
+            
+            // Running sums for current week totals
+            $totalMembershipRev = 0.0;
+            $totalPtRev         = 0.0;
+            $totalOtherRev      = 0.0;
+            $totalRevenue       = 0.0;
+
+            foreach ($daysOfWeek as $day) {
+                $tDate = $thisWeekDates[$day];
+                $lDate = $lastWeekDates[$day];
+
+                $tWeekData = $revenueMap[$tDate] ?? ['TOTAL' => 0.0, 'SUBSCRIPTION' => 0.0, 'PT_PACKAGE' => 0.0, 'OTHER' => 0.0];
+                $lWeekData = $revenueMap[$lDate] ?? ['TOTAL' => 0.0, 'SUBSCRIPTION' => 0.0, 'PT_PACKAGE' => 0.0, 'OTHER' => 0.0];
+
+                $thisWeekChart[] = round($tWeekData['TOTAL'], 2);
+                $lastWeekChart[] = round($lWeekData['TOTAL'], 2);
+
+                // Add to current week category sums
+                $totalMembershipRev += $tWeekData['SUBSCRIPTION'];
+                $totalPtRev         += $tWeekData['PT_PACKAGE'];
+                $totalOtherRev      += $tWeekData['OTHER'];
+                $totalRevenue       += $tWeekData['TOTAL'];
+            }
+
+            // -----------------------------------------------------------------
+            // 2. MEMBERSHIP STATUS OVERVIEW
+            // -----------------------------------------------------------------
+            $membersData = $this->model->getMembersStatusData($gymId, $branchId);
+
+            $activeCount   = 0;
+            $expiringCount = 0;
+            $expiredCount  = 0;
+            $frozenCount   = 0;
+
+            $now = new DateTime();
+            $now->setTime(0,0,0);
+            $expLimit = (clone $now)->modify('+30 days');
+
+            foreach ($membersData as $m) {
+                $userStatus = (int)$m['user_status'];
+                $subStatus  = $m['sub_status'] !== null ? (int)$m['sub_status'] : null;
+                $endDateStr = $m['end_date'];
+
+                if ($userStatus === 2) {
+                    $frozenCount++;
+                } elseif ($userStatus === 0) {
+                    $expiredCount++;
+                } elseif (empty($endDateStr) || $subStatus !== 1) {
+                    // No active subscription record
+                    $expiredCount++;
+                } else {
+                    $endDate = new DateTime($endDateStr);
+                    $endDate->setTime(0,0,0);
+
+                    if ($endDate < $now) {
+                        $expiredCount++;
+                    } elseif ($endDate >= $now && $endDate <= $expLimit) {
+                        $expiringCount++;
+                    } else {
+                        $activeCount++;
+                    }
+                }
+            }
+
+            $totalMembers = count($membersData);
+
+            // Compute percentages safely
+            $activePct   = $totalMembers > 0 ? round(($activeCount / $totalMembers) * 100, 1) : 0.0;
+            $expiringPct = $totalMembers > 0 ? round(($expiringCount / $totalMembers) * 100, 1) : 0.0;
+            $expiredPct  = $totalMembers > 0 ? round(($expiredCount / $totalMembers) * 100, 1) : 0.0;
+            $frozenPct   = $totalMembers > 0 ? round(($frozenCount / $totalMembers) * 100, 1) : 0.0;
+
+            return [
+                "status" => "success",
+                "data"   => [
+                    "revenue_overview" => [
+                        "total_revenue"      => round($totalRevenue, 2),
+                        "membership_revenue" => round($totalMembershipRev, 2),
+                        "pt_revenue"         => round($totalPtRev, 2),
+                        "other_revenue"      => round($totalOtherRev, 2),
+                        "chart_data"         => [
+                            "days"      => $daysOfWeek,
+                            "this_week" => $thisWeekChart,
+                            "last_week" => $lastWeekChart
+                        ]
+                    ],
+                    "membership_status" => [
+                        "total_members" => $totalMembers,
+                        "active"        => ["count" => $activeCount, "percentage" => $activePct],
+                        "expiring_soon" => ["count" => $expiringCount, "percentage" => $expiringPct],
+                        "expired"       => ["count" => $expiredCount, "percentage" => $expiredPct],
+                        "frozen"        => ["count" => $frozenCount, "percentage" => $frozenPct]
+                    ]
+                ]
+            ];
+
+        } catch (\Throwable $e) {
             $code = in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500;
             $this->setResponseCode($code);
             return [

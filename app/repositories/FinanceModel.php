@@ -175,4 +175,107 @@ class FinanceModel
 
         return true;
     }
+
+    /**
+     * Fetch all product buy records for a member user with invoices.
+     */
+    public function getMemberProductPurchases(int $userId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT 
+                ii.invoice_item_id,
+                ii.invoice_id,
+                ii.item_name,
+                ii.quantity,
+                ii.unit_price,
+                ii.tax_percentage,
+                ii.tax_amount,
+                ii.total_price,
+                i.invoice_number,
+                i.total_amount AS invoice_subtotal,
+                i.tax_amount AS invoice_tax,
+                i.final_amount AS invoice_total,
+                i.status AS invoice_status,
+                i.issued_at AS invoice_date
+            FROM invoice_items ii
+            JOIN invoices i ON i.invoice_id = ii.invoice_id
+            WHERE i.user_id = :user_id 
+              AND ii.item_type = 'PRODUCT'
+            ORDER BY i.invoice_id DESC, ii.invoice_item_id DESC
+        ");
+        $stmt->execute(['user_id' => $userId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as &$row) {
+            $row['invoice_item_id'] = (int)$row['invoice_item_id'];
+            $row['invoice_id'] = (int)$row['invoice_id'];
+            $row['quantity'] = (int)$row['quantity'];
+            $row['unit_price'] = (float)$row['unit_price'];
+            $row['tax_percentage'] = (float)$row['tax_percentage'];
+            $row['tax_amount'] = (float)$row['tax_amount'];
+            $row['total_price'] = (float)$row['total_price'];
+            $row['invoice_subtotal'] = (float)$row['invoice_subtotal'];
+            $row['invoice_tax'] = (float)$row['invoice_tax'];
+            $row['invoice_total'] = (float)$row['invoice_total'];
+        }
+        return $rows;
+    }
+
+    /**
+     * Fetch daily paid revenues grouped by item type for a gym branch in a date range.
+     */
+    public function getRevenueBetweenDates(int $gymId, int $branchId, string $startDate, string $endDate): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT 
+                DATE(i.issued_at) as invoice_date, 
+                ii.item_type,
+                SUM(ii.total_price) as total_revenue
+            FROM invoices i
+            JOIN invoice_items ii ON ii.invoice_id = i.invoice_id
+            JOIN users u ON u.user_id = i.user_id
+            WHERE i.status = 'PAID'
+              AND i.issued_at >= :start_date
+              AND i.issued_at <= :end_date
+              AND u.gym_id = :gym_id 
+              AND u.branch_id = :branch_id
+            GROUP BY DATE(i.issued_at), ii.item_type
+        ");
+        $stmt->execute([
+            'gym_id'     => $gymId,
+            'branch_id'  => $branchId,
+            'start_date' => $startDate,
+            'end_date'   => $endDate
+        ]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Fetch members and their latest active subscription details for a gym branch.
+     */
+    public function getMembersStatusData(int $gymId, int $branchId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT 
+                u.user_id,
+                u.status AS user_status,
+                s.end_date,
+                s.status AS sub_status
+            FROM users u
+            LEFT JOIN subscriptions s ON s.subscription_id = (
+                SELECT subscription_id 
+                FROM subscriptions 
+                WHERE user_id = u.user_id AND status = 1 
+                ORDER BY end_date DESC, subscription_id DESC 
+                LIMIT 1
+            )
+            WHERE u.role = 'MEMBER'
+              AND u.gym_id = :gym_id
+              AND u.branch_id = :branch_id
+        ");
+        $stmt->execute([
+            'gym_id'    => $gymId,
+            'branch_id' => $branchId
+        ]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }

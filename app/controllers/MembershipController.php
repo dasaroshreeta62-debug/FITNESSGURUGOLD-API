@@ -212,4 +212,16 @@ class MembershipController
         $response = $this->workflow->getMyActiveSubscription($token);
         echo json_encode($response);
     }
+
+    /**
+     * GET /api/member/membership-plans
+     */
+    public function listMemberMembershipPlans(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+
+        $response = $this->workflow->listMemberMembershipPlans($token, $_GET);
+        echo json_encode($response);
+    }
 }

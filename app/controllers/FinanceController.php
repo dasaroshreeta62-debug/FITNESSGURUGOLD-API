@@ -71,4 +71,26 @@ class FinanceController
         $response = $this->workflow->refundInvoice($token, $input);
         echo json_encode($response);
     }
+
+    /**
+     * GET /api/member/purchase-history
+     */
+    public function getMemberPurchaseHistory(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $response = $this->workflow->getMemberPurchaseHistory($token);
+        echo json_encode($response);
+    }
+
+    /**
+     * GET /api/admin/dashboard-kpis
+     */
+    public function getDashboardKpis(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $response = $this->workflow->getDashboardKpis($token);
+        echo json_encode($response);
+    }
 }

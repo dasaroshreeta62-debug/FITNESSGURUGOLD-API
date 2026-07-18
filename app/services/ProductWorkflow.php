@@ -630,6 +630,7 @@ class ProductWorkflow
                     "category"          => $p['category'],
                     "price"             => number_format((float)$p['sale_price'], 2, '.', ''),
                     "product_photo_url" => $p['product_picture_url'] ?? '',
+                    "stock_quantity"    => (int)$p['stock_quantity'],
                     "in_stock"          => (int)$p['stock_quantity'] > 0
                 ];
             }, $products);

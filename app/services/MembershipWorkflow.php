@@ -499,4 +499,33 @@ class MembershipWorkflow
             return ["status" => "error", "message" => $e->getMessage()];
         }
     }
+
+    /**
+     * GET /api/member/membership-plans
+     * Fetch all active membership plans for the member's gym and branch, optional filter by plan_type.
+     */
+    public function listMemberMembershipPlans(string $accessToken, array $filters = []): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['MEMBER']);
+            $memberUserId = (int)$decoded->sub;
+
+            // Resolve gym & branch ID for this member
+            $gymBranch = $this->model->getUserGymBranch($memberUserId);
+            if (!$gymBranch) {
+                throw new Exception("Member gym/branch context not found", 404);
+            }
+
+            $filters['gym_id'] = $gymBranch['gym_id'];
+            $filters['branch_id'] = $gymBranch['branch_id'];
+            $filters['status'] = 1; // Only active plans
+
+            $plans = $this->model->getAllPlans($filters);
+            return ["status" => "success", "data" => $plans];
+
+        } catch (\Throwable $e) {
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
 }

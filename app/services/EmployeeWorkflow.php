@@ -935,4 +935,70 @@ class EmployeeWorkflow
             ];
         }
     }
+
+    /**
+     * GET /api/member/trainers
+     * Fetch all active trainers and their profile details for the member's gym/branch.
+     */
+    public function listMemberTrainers(string $accessToken, array $filters = []): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['MEMBER']);
+            $memberUserId = (int)$decoded->sub;
+
+            // Resolve gym_id & branch_id from member's profile
+            $stmt = Database::getConnection()->prepare("SELECT gym_id, branch_id FROM users WHERE user_id = :id LIMIT 1");
+            $stmt->execute(['id' => $memberUserId]);
+            $member = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$member) {
+                throw new Exception("Member profile not found", 404);
+            }
+
+            $filters['gym_id'] = (int)($member['gym_id'] ?? 1);
+            $filters['branch_id'] = (int)($member['branch_id'] ?? 1);
+            $filters['status'] = 'ACTIVE'; // Only active trainers
+
+            $page  = max(1, isset($filters['page']) ? (int)$filters['page'] : 1);
+            $limit = max(1, isset($filters['limit']) ? (int)$filters['limit'] : 10);
+            $offset = ($page - 1) * $limit;
+
+            $trainers = $this->model->fetchTrainers($filters, $limit, $offset);
+            $total = $this->model->countTrainers($filters);
+
+            // Sanitize response to only return necessary profile fields for the member view
+            $formattedTrainers = array_map(function($t) {
+                return [
+                    "employee_id"         => (int)$t['employee_id'],
+                    "full_name"           => $t['full_name'],
+                    "email"               => $t['email'],
+                    "phone"               => $t['phone'],
+                    "specialization"      => $t['specialization'],
+                    "experience"          => $t['experience'] !== null ? (float)$t['experience'] : null,
+                    "certifications"      => $t['certifications'],
+                    "bio"                 => $t['bio'],
+                    "showcase_photo"      => $t['showcase_photo'],
+                    "availability_status" => $t['availability_status'],
+                    "rating"              => (float)$t['rating'],
+                    "instagram_url"       => $t['instagram_url'],
+                    "facebook_url"        => $t['facebook_url'],
+                    "linkedin_url"        => $t['linkedin_url']
+                ];
+            }, $trainers);
+
+            return [
+                "status"  => "success",
+                "message" => "Trainers fetched successfully",
+                "count"   => count($formattedTrainers),
+                "total"   => $total,
+                "page"    => $page,
+                "limit"   => $limit,
+                "data"    => $formattedTrainers
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
 }

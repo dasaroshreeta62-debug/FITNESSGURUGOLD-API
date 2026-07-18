@@ -389,6 +389,18 @@ function route(string $method, string $path): void
             $membershipController->getMyActiveSubscription();
             return;
 
+        case $method === 'GET' && $path === '/api/member/purchase-history':
+            $financeController->getMemberPurchaseHistory();
+            return;
+
+        case $method === 'GET' && $path === '/api/member/membership-plans':
+            $membershipController->listMemberMembershipPlans();
+            return;
+
+        case $method === 'GET' && $path === '/api/member/trainers':
+            $employeeController->listMemberTrainers();
+            return;
+
         // ================= GYM SHIFTS & PT SLOTS =================
         case $method === 'GET' && $path === '/api/admin/shifts':
             $shiftController->listShifts();
@@ -653,6 +665,10 @@ function route(string $method, string $path): void
 
         case $method === 'POST' && $path === '/api/admin/finance/refund':
             $financeController->refundInvoice();
+            return;
+
+        case $method === 'GET' && $path === '/api/admin/dashboard-kpis':
+            $financeController->getDashboardKpis();
             return;
 
         // ================= PAYROLL & COMMISSIONS =================
