@@ -205,6 +205,10 @@ function route(string $method, string $path): void
             $employeeController->listTrainers();
             return;
 
+        case $method === 'PUT' && $path === '/api/trainer/profile/update':
+            $employeeController->updateTrainerSelfProfile();
+            return;
+
         //=============Diet Plan APIs==========
         //Admin Diet Plan APIs
         case $method === 'POST' && $path === '/api/admin/diet-plans':

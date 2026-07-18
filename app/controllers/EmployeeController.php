@@ -140,4 +140,13 @@ class EmployeeController
         $response = $this->workflow->listTrainers($token, $_GET);
         echo json_encode($response);
     }
+
+    public function updateTrainerSelfProfile(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->updateTrainerSelfProfile($token, $input);
+        echo json_encode($response);
+    }
 }

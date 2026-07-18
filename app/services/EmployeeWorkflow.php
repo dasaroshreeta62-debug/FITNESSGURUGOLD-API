@@ -798,4 +798,141 @@ class EmployeeWorkflow
             return ["status" => "error", "message" => $e->getMessage()];
         }
     }
+
+    public function updateTrainerSelfProfile(string $accessToken, array $data): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['TRAINER']);
+            $userId = (int)$decoded->sub;
+
+            // Fetch trainer profile by user_id
+            $trainer = $this->model->fetchTrainerByUserId($userId);
+            if (!$trainer) {
+                http_response_code(404);
+                return [
+                    "status" => "error",
+                    "message" => "Trainer profile not found"
+                ];
+            }
+
+            $trainerProfileId = (int)$trainer['trainer_profile_id'];
+            $employeeId = (int)$trainer['employee_id'];
+
+            // Allowed keys
+            $allowedKeys = [
+                'name', 'phone', 'specialization', 'certification', 'certifications', 'bio', 
+                'showcase_photo', 'availability_status', 'instagram_url', 'facebook_url', 
+                'linkedin_url', 'full_name', 'profile_photo', 'emergency_contact_name', 
+                'emergency_contact_phone', 'address'
+            ];
+
+            $filteredData = [];
+            foreach ($allowedKeys as $key) {
+                if (isset($data[$key])) {
+                    $filteredData[$key] = $data[$key];
+                }
+            }
+
+            if (empty($filteredData)) {
+                http_response_code(400);
+                return [
+                    "status" => "error",
+                    "message" => "No valid fields provided for update"
+                ];
+            }
+
+            $this->model->beginTransaction();
+
+            // 1. Update users table if name or phone changed
+            $userUpdate = [];
+            if (isset($filteredData['name'])) {
+                $userUpdate['name'] = trim($filteredData['name']);
+            }
+            if (isset($filteredData['phone'])) {
+                $userUpdate['phone'] = trim($filteredData['phone']);
+            }
+            if (!empty($userUpdate)) {
+                $this->model->updateUser($userId, $userUpdate);
+            }
+
+            // 2. Update employees table
+            $employeeUpdate = [];
+            if (isset($filteredData['full_name'])) {
+                $employeeUpdate['full_name'] = trim($filteredData['full_name']);
+            } else if (isset($filteredData['name'])) {
+                $employeeUpdate['full_name'] = trim($filteredData['name']);
+            }
+            if (isset($filteredData['phone'])) {
+                $employeeUpdate['phone'] = trim($filteredData['phone']);
+            }
+            if (isset($filteredData['profile_photo'])) {
+                $employeeUpdate['profile_photo'] = trim($filteredData['profile_photo']);
+            }
+            if (isset($filteredData['emergency_contact_name'])) {
+                $employeeUpdate['emergency_contact_name'] = trim($filteredData['emergency_contact_name']);
+            }
+            if (isset($filteredData['emergency_contact_phone'])) {
+                $employeeUpdate['emergency_contact_phone'] = trim($filteredData['emergency_contact_phone']);
+            }
+            if (isset($filteredData['address'])) {
+                $employeeUpdate['address'] = trim($filteredData['address']);
+            }
+            if (!empty($employeeUpdate)) {
+                $this->model->updateEmployeeFields($employeeId, $employeeUpdate);
+            }
+
+            // 3. Update trainer_profiles table
+            $trainerUpdate = [];
+            if (isset($filteredData['specialization'])) {
+                $trainerUpdate['specialization'] = trim($filteredData['specialization']);
+            }
+            if (isset($filteredData['certifications'])) {
+                $trainerUpdate['certifications'] = trim($filteredData['certifications']);
+            } else if (isset($filteredData['certification'])) {
+                $trainerUpdate['certifications'] = trim($filteredData['certification']);
+            }
+            if (isset($filteredData['bio'])) {
+                $trainerUpdate['bio'] = trim($filteredData['bio']);
+            }
+            if (isset($filteredData['showcase_photo'])) {
+                $trainerUpdate['showcase_photo'] = trim($filteredData['showcase_photo']);
+            }
+            if (isset($filteredData['availability_status'])) {
+                $trainerUpdate['availability_status'] = trim($filteredData['availability_status']);
+            }
+            if (isset($filteredData['instagram_url'])) {
+                $trainerUpdate['instagram_url'] = trim($filteredData['instagram_url']);
+            }
+            if (isset($filteredData['facebook_url'])) {
+                $trainerUpdate['facebook_url'] = trim($filteredData['facebook_url']);
+            }
+            if (isset($filteredData['linkedin_url'])) {
+                $trainerUpdate['linkedin_url'] = trim($filteredData['linkedin_url']);
+            }
+            if (!empty($trainerUpdate)) {
+                $this->model->updateTrainerFields($trainerProfileId, $trainerUpdate);
+            }
+
+            $this->model->commit();
+
+            // Fetch final profile to return
+            $updatedProfile = $this->model->fetchTrainerByUserId($userId);
+
+            return [
+                "status" => "success",
+                "message" => "Trainer profile updated successfully",
+                "data" => $updatedProfile
+            ];
+
+        } catch (\Throwable $e) {
+            if ($this->model->inTransaction()) {
+                $this->model->rollBack();
+            }
+            http_response_code($e->getCode() === 403 ? 403 : 400);
+            return [
+                "status" => "error",
+                "message" => $e->getMessage()
+            ];
+        }
+    }
 }

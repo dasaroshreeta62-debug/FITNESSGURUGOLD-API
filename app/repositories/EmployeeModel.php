@@ -572,4 +572,72 @@ class EmployeeModel
         $stmt->execute($params);
         return (int)$stmt->fetchColumn();
     }
+
+    public function fetchTrainerByUserId(int $userId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT tp.*, e.*,
+                   COALESCE(e.full_name, u.name) as name, 
+                   COALESCE(e.email, u.email) as email, 
+                   COALESCE(e.phone, u.phone) as phone, 
+                   u.role, 
+                   tp.trainer_profile_id AS trainer_id,
+                   e.joining_date AS join_date,
+                   e.profile_photo AS profile_photo_url
+            FROM trainer_profiles tp
+            JOIN employees e ON e.employee_id = tp.employee_id
+            JOIN users u ON u.user_id = e.user_id
+            WHERE u.user_id = :user_id LIMIT 1
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function updateEmployeeFields(int $employeeId, array $data): bool
+    {
+        $fields = [];
+        $params = ['employee_id' => $employeeId];
+
+        $allowed = [
+            'full_name', 'phone', 'profile_photo', 'emergency_contact_name', 
+            'emergency_contact_phone', 'address'
+        ];
+
+        foreach ($allowed as $field) {
+            if (array_key_exists($field, $data)) {
+                $fields[] = "$field = :$field";
+                $params[$field] = $data[$field];
+            }
+        }
+
+        if (empty($fields)) return false;
+
+        $sql = "UPDATE employees SET " . implode(", ", $fields) . ", updated_at = NOW() WHERE employee_id = :employee_id";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($params);
+    }
+
+    public function updateTrainerFields(int $trainerProfileId, array $data): bool
+    {
+        $fields = [];
+        $params = ['trainer_profile_id' => $trainerProfileId];
+
+        $allowed = [
+            'specialization', 'certifications', 'bio', 'showcase_photo', 
+            'availability_status', 'instagram_url', 'facebook_url', 'linkedin_url'
+        ];
+
+        foreach ($allowed as $field) {
+            if (array_key_exists($field, $data)) {
+                $fields[] = "$field = :$field";
+                $params[$field] = $data[$field];
+            }
+        }
+
+        if (empty($fields)) return false;
+
+        $sql = "UPDATE trainer_profiles SET " . implode(", ", $fields) . ", updated_at = NOW() WHERE trainer_profile_id = :trainer_profile_id";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($params);
+    }
 }

@@ -298,22 +298,38 @@ class Workflow
 
             $this->model->updateUserProfile($userId, $updateData);
 
+            if ($role === 'TRAINER') {
+                $trainer = $this->model->fetchTrainerByUserId($userId);
+                if ($trainer) {
+                    $this->model->updateTrainer($trainer['trainer_id'], $data);
+                }
+            }
+
             $updatedUser = $this->model->getUserProfileById($userId);
+
+            $userResponse = [
+                "user_id"    => (int)$updatedUser['user_id'],
+                "gym_id"     => (int)$updatedUser['gym_id'],
+                "branch_id"  => (int)$updatedUser['branch_id'],
+                "name"       => $updatedUser['name'],
+                "email"      => $updatedUser['email'],
+                "phone"      => $updatedUser['phone'],
+                "role"       => strtoupper($updatedUser['role']),
+                "status"     => ((int)$updatedUser['status'] === 1) ? "ACTIVE" : "INACTIVE",
+                "updatedDate"=> gmdate('Y-m-d\TH:i:s\Z')
+            ];
+
+            if ($role === 'TRAINER') {
+                $updatedTrainer = $this->model->fetchTrainerByUserId($userId);
+                if ($updatedTrainer) {
+                    $userResponse = array_merge($userResponse, $updatedTrainer);
+                }
+            }
 
             return [
                 "status" => "success",
                 "message" => "Profile updated successfully",
-                "user" => [
-                    "user_id"    => (int)$updatedUser['user_id'],
-                    "gym_id"     => (int)$updatedUser['gym_id'],
-                    "branch_id"  => (int)$updatedUser['branch_id'],
-                    "name"       => $updatedUser['name'],
-                    "email"      => $updatedUser['email'],
-                    "phone"      => $updatedUser['phone'],
-                    "role"       => strtoupper($updatedUser['role']),
-                    "status"     => ((int)$updatedUser['status'] === 1) ? "ACTIVE" : "INACTIVE",
-                    "updatedDate"=> gmdate('Y-m-d\TH:i:s\Z')
-                ]
+                "user" => $userResponse
             ];
 
         } catch (\Throwable $e) {
