@@ -52,8 +52,8 @@ class DietPlanModel extends Model
     {
         $stmt = $this->db->prepare("
             SELECT COUNT(*) 
-            FROM subscriptions 
-            WHERE user_id = :user_id AND trainer_id = :trainer_id AND status = 1
+            FROM member_trainer_assignments 
+            WHERE member_id = :user_id AND trainer_id = :trainer_id AND status = 1
         ");
         $stmt->execute([
             'user_id' => $memberUserId,
