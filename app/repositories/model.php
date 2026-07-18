@@ -2191,14 +2191,10 @@ class Model
                 up.date_of_joining,
                 up.gender,
                 up.fitness_level,
-                up.goal_focus,
-                sub.start_date,
-                sub.end_date,
-                sub.status AS subscription_status
+                up.goal_focus
             FROM member_trainer_assignments mta
             JOIN users_profile up ON up.profile_id = mta.member_id
             JOIN users u ON u.user_id = up.user_id
-            LEFT JOIN subscriptions sub ON sub.user_id = u.user_id AND sub.status = 1
             WHERE mta.trainer_id = :trainer_id AND mta.status = 1
         ");
         $stmt->execute([':trainer_id' => $trainerId]);
@@ -2207,7 +2203,6 @@ class Model
             $row['user_id'] = (int)$row['user_id'];
             $row['member_id'] = (int)$row['member_id'];
             $row['status'] = (int)$row['status'];
-            $row['subscription_status'] = $row['subscription_status'] !== null ? (int)$row['subscription_status'] : null;
         }
         return $rows;
     }
