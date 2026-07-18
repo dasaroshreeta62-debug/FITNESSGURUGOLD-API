@@ -315,6 +315,18 @@ class DietPlanWorkflow
             return ["status" => "success", "data" => $plans];
         } catch (\Throwable $e) {
             http_response_code($e->getCode() === 403 ? 403 : 401);
+            return ["status" => "error", "message" => "Access denied. Authorized role required."];
+        }
+    }
+
+    public function listDietPlanMeals(string $accessToken, int $dietPlanId): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+            $meals = $this->model->getDietPlanMeals($dietPlanId);
+            return ["status" => "success", "data" => $meals];
+        } catch (\Throwable $e) {
+            http_response_code($e->getCode() === 403 ? 403 : 401);
             return ["status" => "error", "message" => $e->getMessage()];
         }
     }
