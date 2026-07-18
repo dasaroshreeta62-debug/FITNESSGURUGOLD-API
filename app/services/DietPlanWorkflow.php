@@ -331,6 +331,77 @@ class DietPlanWorkflow
         }
     }
 
+    public function getMealDetails(string $accessToken, int $mealId): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+            $meal = $this->model->getMeal($mealId);
+            if (!$meal) {
+                http_response_code(404);
+                return ["status" => "error", "message" => "Meal not found"];
+            }
+            return ["status" => "success", "data" => $meal];
+        } catch (\Throwable $e) {
+            http_response_code($e->getCode() === 403 ? 403 : ($e->getCode() === 404 ? 404 : 401));
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    public function updateMeal(string $accessToken, int $mealId, array $data): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+            $existing = $this->model->getMeal($mealId);
+            if (!$existing) {
+                http_response_code(404);
+                return ["status" => "error", "message" => "Meal not found"];
+            }
+
+            $updateData = [];
+            if (isset($data['meal_title'])) $updateData['meal_title'] = trim($data['meal_title']);
+            if (isset($data['meal_time'])) $updateData['meal_time'] = !empty($data['meal_time']) ? trim($data['meal_time']) : null;
+            if (isset($data['notes'])) $updateData['notes'] = $data['notes'];
+            if (isset($data['meal_order'])) $updateData['meal_order'] = (int)$data['meal_order'];
+            
+            if (isset($data['meal_items'])) {
+                if (is_array($data['meal_items'])) {
+                    $updateData['meal_items'] = json_encode($data['meal_items']);
+                } else {
+                    json_decode($data['meal_items']);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        http_response_code(400);
+                        return ["status" => "error", "message" => "Meal items must be a valid JSON array or object"];
+                    }
+                    $updateData['meal_items'] = $data['meal_items'];
+                }
+            }
+
+            $this->model->updateMeal($mealId, $updateData);
+            return ["status" => "success", "message" => "Meal updated successfully"];
+        } catch (\Throwable $e) {
+            http_response_code($e->getCode() === 403 ? 403 : ($e->getCode() === 404 ? 404 : 401));
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    public function deleteMeal(string $accessToken, int $mealId): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
+            $existing = $this->model->getMeal($mealId);
+            if (!$existing) {
+                http_response_code(404);
+                return ["status" => "error", "message" => "Meal not found"];
+            }
+
+            $this->model->deleteMeal($mealId);
+            return ["status" => "success", "message" => "Meal deleted successfully"];
+        } catch (\Throwable $e) {
+            http_response_code($e->getCode() === 403 ? 403 : ($e->getCode() === 404 ? 404 : 401));
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
     public function getDietPlanDetails(string $accessToken, int $dietPlanId): array
     {
         try {
@@ -1391,7 +1462,12 @@ class DietPlanWorkflow
                 ];
             }
 
-            $plan = $this->model->getMemberActiveDietPlan($memberUserId);
+            $memberProfileId = $this->model->getProfileIdFromUserId($memberUserId);
+            if (!$memberProfileId) {
+                throw new Exception("Member profile not found", 404);
+            }
+
+            $plan = $this->model->getMemberActiveDietPlan($memberProfileId);
             if ($plan) {
                 $plan['meals'] = $this->model->getDietPlanMeals($plan['diet_plan_id']);
             }
@@ -1418,7 +1494,12 @@ class DietPlanWorkflow
                 ];
             }
 
-            $history = $this->model->getMemberDietPlansHistory($memberUserId);
+            $memberProfileId = $this->model->getProfileIdFromUserId($memberUserId);
+            if (!$memberProfileId) {
+                throw new Exception("Member profile not found", 404);
+            }
+
+            $history = $this->model->getMemberDietPlansHistory($memberProfileId);
             return ["status" => "success", "data" => $history];
         } catch (\Throwable $e) {
             http_response_code($e->getCode() === 403 ? 403 : 401);
@@ -1441,7 +1522,12 @@ class DietPlanWorkflow
                 ];
             }
 
-            $plans = $this->model->getMemberDietPlans($memberUserId);
+            $memberProfileId = $this->model->getProfileIdFromUserId($memberUserId);
+            if (!$memberProfileId) {
+                throw new Exception("Member profile not found", 404);
+            }
+
+            $plans = $this->model->getMemberDietPlans($memberProfileId);
             return ["status" => "success", "data" => $plans];
         } catch (\Throwable $e) {
             http_response_code($e->getCode() === 403 ? 403 : 401);
@@ -1470,8 +1556,13 @@ class DietPlanWorkflow
                 return ["status" => "error", "message" => "Diet plan not found"];
             }
 
+            $memberProfileId = $this->model->getProfileIdFromUserId($memberUserId);
+            if (!$memberProfileId) {
+                throw new Exception("Member profile not found", 404);
+            }
+
             // Security check: must belong to this member
-            if ((int)$plan['member_id'] !== $memberUserId) {
+            if ((int)$plan['member_id'] !== $memberProfileId) {
                 http_response_code(403);
                 return ["status" => "error", "message" => "Access denied. You do not have access to this diet plan."];
             }
@@ -1504,7 +1595,12 @@ class DietPlanWorkflow
                 return ["status" => "error", "message" => "Diet plan not found"];
             }
 
-            if ((int)$plan['member_id'] !== $memberUserId) {
+            $memberProfileId = $this->model->getProfileIdFromUserId($memberUserId);
+            if (!$memberProfileId) {
+                throw new Exception("Member profile not found", 404);
+            }
+
+            if ((int)$plan['member_id'] !== $memberProfileId) {
                 http_response_code(403);
                 return ["status" => "error", "message" => "Access denied. You do not have access to this diet plan."];
             }

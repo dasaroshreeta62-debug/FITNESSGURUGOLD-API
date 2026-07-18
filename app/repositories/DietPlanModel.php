@@ -126,7 +126,8 @@ class DietPlanModel extends Model
                    u_creator.name AS creator_name,
                    t.full_name AS trainer_name
             FROM member_diet_plans dp
-            JOIN users u_member ON u_member.user_id = dp.member_id
+            JOIN users_profile up ON up.profile_id = dp.member_id
+            JOIN users u_member ON u_member.user_id = up.user_id
             JOIN users u_creator ON u_creator.user_id = dp.created_by
             JOIN trainer_profiles tp ON tp.trainer_profile_id = dp.trainer_id
             JOIN employees t ON t.employee_id = tp.employee_id
@@ -156,7 +157,8 @@ class DietPlanModel extends Model
                        u_creator.name AS creator_name,
                        t.full_name AS trainer_name
                 FROM member_diet_plans dp
-                JOIN users u_member ON u_member.user_id = dp.member_id
+                JOIN users_profile up ON up.profile_id = dp.member_id
+                JOIN users u_member ON u_member.user_id = up.user_id
                 JOIN users u_creator ON u_creator.user_id = dp.created_by
                 JOIN trainer_profiles tp ON tp.trainer_profile_id = dp.trainer_id
                 JOIN employees t ON t.employee_id = tp.employee_id";
@@ -457,7 +459,8 @@ class DietPlanModel extends Model
                        u_creator.name AS creator_name,
                        t.full_name AS trainer_name
                 FROM member_diet_plans dp
-                JOIN users u_member ON u_member.user_id = dp.member_id
+                JOIN users_profile up ON up.profile_id = dp.member_id
+                JOIN users u_member ON u_member.user_id = up.user_id
                 JOIN users u_creator ON u_creator.user_id = dp.created_by
                 JOIN trainer_profiles tp ON tp.trainer_profile_id = dp.trainer_id
                 JOIN employees t ON t.employee_id = tp.employee_id
@@ -556,6 +559,17 @@ class DietPlanModel extends Model
     {
         $stmt = $this->db->prepare("SELECT user_id FROM users_profile WHERE profile_id = :id LIMIT 1");
         $stmt->execute(['id' => $profileId]);
+        $val = $stmt->fetchColumn();
+        return $val !== false ? (int)$val : null;
+    }
+
+    /**
+     * Resolve profile_id from user_id.
+     */
+    public function getProfileIdFromUserId(int $userId): ?int
+    {
+        $stmt = $this->db->prepare("SELECT profile_id FROM users_profile WHERE user_id = :id LIMIT 1");
+        $stmt->execute(['id' => $userId]);
         $val = $stmt->fetchColumn();
         return $val !== false ? (int)$val : null;
     }
