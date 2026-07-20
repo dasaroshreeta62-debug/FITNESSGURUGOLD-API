@@ -546,18 +546,19 @@ class Controller
         }
 
         $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
-        $user_id = $_GET['user_id'] ?? null;
+        $userId = isset($_GET['user_id']) && $_GET['user_id'] !== '' ? (int)$_GET['user_id'] : null;
+        $registrationNumber = isset($_GET['registration_number']) && $_GET['registration_number'] !== '' ? (int)$_GET['registration_number'] : null;
 
-        if (!$user_id) {
+        if (!$userId && !$registrationNumber) {
             http_response_code(400);
             echo json_encode([
                 'status'  => 'error',
-                'message' => 'user_id is required'
+                'message' => 'user_id or registration_number is required'
             ]);
             return;
         }
 
-        $result = $this->workflow->getMemberDetailsSecure($accessToken, (int)$user_id);
+        $result = $this->workflow->getMemberDetailsSecure($accessToken, $userId, $registrationNumber);
 
         if (isset($result['status']) && $result['status'] === 'error') {
             if ($result['message'] === 'Access denied' || $result['message'] === 'Unauthorized') {

@@ -777,15 +777,19 @@ class Model
             $user_id = $this->db->lastInsertId();
 
             /* ========== USERS PROFILE ========== */
+            $regNo = (isset($data['registration_number']) && $data['registration_number'] !== '')
+                ? (int)$data['registration_number']
+                : null;
+
             $stmtProfile = $this->db->prepare("
                 INSERT INTO member_profiles (
-                    user_id, name, date_of_joining, membership_plan,
+                    user_id, registration_number, name, date_of_joining,
                     date_of_birth, gender, blood_group,
                     height_cm, weight_kg, fitness_level, goal_focus,
                     country_id, state_id, district_id, city_id,
                     address_line1, address_line2, emergency_contact
                 ) VALUES (
-                    :user_id, :name, :date_of_joining, :membership_plan,
+                    :user_id, :registration_number, :name, :date_of_joining,
                     :date_of_birth, :gender, :blood_group,
                     :height_cm, :weight_kg, :fitness_level, :goal_focus,
                     :country_id, :state_id, :district_id, :city_id,
@@ -795,9 +799,9 @@ class Model
 
             $stmtProfile->execute([
                 'user_id' => $user_id,
+                'registration_number' => $regNo,
                 'name' => $data['name'],
                 'date_of_joining' => $data['join_date'],
-                'membership_plan' => $data['membership_plan'],
                 'date_of_birth' => $data['dob'],
                 'gender' => $data['gender'],
                 'blood_group' => $data['blood_group'],
@@ -828,7 +832,7 @@ class Model
                 'plan_id' => $data['membership_plan'],
                 'gym_id' => $data['gym_id'],
                 'branch_id' => $data['branch_id']
-            ]);
+            ]); 
 
             $plan = $stmtPlan->fetch(PDO::FETCH_ASSOC);
 
@@ -1010,9 +1014,9 @@ class Model
             return false;
         }
     }
-    public function fetchMemberDetails(int $user_id): array|false
+    public function fetchMemberDetails(?int $user_id = null, ?int $registrationNumber = null): array|false
     {
-        $stmt = $this->db->prepare("
+        $sql = "
             SELECT
                 u.user_id        AS user_id,
                 u.name           AS name,
@@ -1027,8 +1031,9 @@ class Model
                 gb.branch_name,
 
                 up.profile_id,
+                up.registration_number,
                 up.date_of_joining,
-                up.membership_plan,
+                s.plan_id AS membership_plan,
                 up.date_of_birth,
                 up.gender,
                 up.blood_group,
@@ -1053,9 +1058,16 @@ class Model
                 s.start_date,
                 s.end_date,
                 s.status AS subscription_status,
+                DATEDIFF(s.end_date, CURDATE()) AS days_remaining,
 
                 mp.plan_name,
-                mp.duration_months
+                mp.plan_type,
+                mp.price AS plan_price,
+                mp.duration_months,
+
+                tp.trainer_profile_id AS trainer_id,
+                tu.name AS trainer_name,
+                tu.phone AS trainer_phone
 
             FROM users u
 
@@ -1091,13 +1103,40 @@ class Model
             LEFT JOIN membership_plans mp 
                 ON mp.plan_id = s.plan_id
 
-            WHERE u.user_id = :user_id
-            AND u.role = 'MEMBER'
-            LIMIT 1
-        ");
+            /* ========= PRIMARY TRAINER ========= */
+            LEFT JOIN member_trainer_assignments mta 
+                ON mta.member_id = up.profile_id 
+                AND mta.status = 1 
+                AND mta.assignment_type = 'PRIMARY'
+            LEFT JOIN trainer_profiles tp ON tp.trainer_profile_id = mta.trainer_id
+            LEFT JOIN employees te ON te.employee_id = tp.employee_id
+            LEFT JOIN users tu ON tu.user_id = te.user_id
 
-        $stmt->execute(['user_id' => $user_id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+            WHERE u.role = 'MEMBER'
+        ";
+        $params = [];
+
+        if ($user_id !== null && $user_id > 0) {
+            $sql .= " AND u.user_id = :user_id";
+            $params['user_id'] = $user_id;
+        } elseif ($registrationNumber !== null && $registrationNumber > 0) {
+            $sql .= " AND up.registration_number = :reg_no";
+            $params['reg_no'] = $registrationNumber;
+        } else {
+            return false;
+        }
+
+        $sql .= " LIMIT 1";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $row['user_id'] = (int)$row['user_id'];
+            $row['profile_id'] = $row['profile_id'] !== null ? (int)$row['profile_id'] : null;
+            $row['registration_number'] = $row['registration_number'] !== null ? (int)$row['registration_number'] : null;
+        }
+        return $row;
     }
     public function fetchAllMemberDetails(): array
     {
@@ -1119,8 +1158,9 @@ class Model
 
                 /* ========= PROFILE ========= */
                 up.profile_id,
+                up.registration_number,
                 up.date_of_joining,
-                up.membership_plan,
+                s.plan_id AS membership_plan,
                 up.date_of_birth,
                 up.gender,
                 up.blood_group,
@@ -1143,10 +1183,18 @@ class Model
                 s.start_date,
                 s.end_date,
                 s.status AS subscription_status,
+                DATEDIFF(s.end_date, CURDATE()) AS days_remaining,
 
                 /* ========= PLAN ========= */
                 mp.plan_name,
-                mp.duration_months
+                mp.plan_type,
+                mp.price AS plan_price,
+                mp.duration_months,
+
+                /* ========= PRIMARY TRAINER ========= */
+                tp.trainer_profile_id AS trainer_id,
+                tu.name AS trainer_name,
+                tu.phone AS trainer_phone
 
             FROM users u
 
@@ -1178,12 +1226,26 @@ class Model
             LEFT JOIN membership_plans mp
                 ON mp.plan_id = s.plan_id
 
+            LEFT JOIN member_trainer_assignments mta 
+                ON mta.member_id = up.profile_id 
+                AND mta.status = 1 
+                AND mta.assignment_type = 'PRIMARY'
+            LEFT JOIN trainer_profiles tp ON tp.trainer_profile_id = mta.trainer_id
+            LEFT JOIN employees te ON te.employee_id = tp.employee_id
+            LEFT JOIN users tu ON tu.user_id = te.user_id
+
             WHERE u.role = 'MEMBER'
             ORDER BY u.user_id DESC
         ");
 
         $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return array_map(function ($row) {
+            $row['user_id'] = (int)$row['user_id'];
+            $row['profile_id'] = $row['profile_id'] !== null ? (int)$row['profile_id'] : null;
+            $row['registration_number'] = $row['registration_number'] !== null ? (int)$row['registration_number'] : null;
+            return $row;
+        }, $rows);
     }
     public function updateMember(array $data): void
     {
@@ -1224,10 +1286,14 @@ class Model
             $stmt->execute($params);
 
             /* ========= updating the USERS PROFILE table ========= */
+            $regNo = isset($data['registration_number']) && $data['registration_number'] !== ''
+                ? (int)$data['registration_number']
+                : null;
+
             $this->db->prepare("
                 UPDATE member_profiles SET
+                    registration_number = COALESCE(:registration_number, registration_number),
                     date_of_joining = :join_date,
-                    membership_plan = :membership_plan,
                     date_of_birth = :dob,
                     gender = :gender,
                     blood_group = :blood_group,
@@ -1244,8 +1310,8 @@ class Model
                     emergency_contact = :emergency
                 WHERE user_id = :user_id
             ")->execute([
+                        'registration_number' => $regNo,
                         'join_date' => $data['join_date'],
-                        'membership_plan' => $data['membership_plan'],
                         'dob' => $data['dob'],
                         'gender' => $data['gender'],
                         'blood_group' => $data['blood_group'],

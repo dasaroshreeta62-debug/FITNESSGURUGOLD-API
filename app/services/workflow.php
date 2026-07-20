@@ -1411,21 +1411,21 @@ class Workflow
             ];
         }
     }
-    public function getMemberDetailsSecure(string $accessToken, int $userId): array
+    public function getMemberDetailsSecure(string $accessToken, ?int $userId = null, ?int $registrationNumber = null): array
     {
         try {
             $decoded = JWT::decode($accessToken, new Key(self::JWT_SECRET, 'HS256'));
             $callerUserId = (int)$decoded->sub;
             $role = strtoupper($decoded->role ?? '');
 
-            if ($role !== 'ADMIN' && $role !== 'STAFF' && $role !== 'TRAINER' && $userId !== $callerUserId) {
+            if ($role !== 'ADMIN' && $role !== 'STAFF' && $role !== 'TRAINER' && $userId !== null && $userId !== $callerUserId) {
                 return [
                     "status" => "error",
                     "message" => "Access denied"
                 ];
             }
 
-            $member = $this->model->fetchMemberDetails($userId);
+            $member = $this->model->fetchMemberDetails($userId, $registrationNumber);
 
             if (!$member) {
                 return [
