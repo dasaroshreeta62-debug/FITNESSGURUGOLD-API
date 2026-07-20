@@ -273,6 +273,15 @@ class DietPlanController
         echo json_encode($response);
     }
 
+    public function updateDietPlanWithMealsByTrainer(int $dietPlanId): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->updateDietPlanWithMealsByTrainer($token, $dietPlanId, $input);
+        echo json_encode($response);
+    }
+
     public function deleteDietPlanByTrainer(int $dietPlanId): void
     {
         $token = $this->getBearerToken();

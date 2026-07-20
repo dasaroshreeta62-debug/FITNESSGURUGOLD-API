@@ -33,11 +33,11 @@ class PersonalTrainingModel extends Model
     }
 
     /**
-     * Resolve user_id from users table to profile_id in users_profile table.
+     * Resolve user_id from users table to profile_id in member_profiles table.
      */
     public function getProfileIdByUserId(int $userId): ?int
     {
-        $stmt = $this->db->prepare("SELECT profile_id FROM users_profile WHERE user_id = :id LIMIT 1");
+        $stmt = $this->db->prepare("SELECT profile_id FROM member_profiles WHERE user_id = :id LIMIT 1");
         $stmt->execute(['id' => $userId]);
         $val = $stmt->fetchColumn();
         return $val !== false ? (int) $val : null;
@@ -77,11 +77,11 @@ class PersonalTrainingModel extends Model
     }
 
     /**
-     * Resolve profile_id from users_profile to user_id from users.
+     * Resolve profile_id from member_profiles to user_id from users.
      */
     public function getUserIdByProfileId(int $profileId): ?int
     {
-        $stmt = $this->db->prepare("SELECT user_id FROM users_profile WHERE profile_id = :id LIMIT 1");
+        $stmt = $this->db->prepare("SELECT user_id FROM member_profiles WHERE profile_id = :id LIMIT 1");
         $stmt->execute(['id' => $profileId]);
         $val = $stmt->fetchColumn();
         return $val !== false ? (int) $val : null;
@@ -314,7 +314,7 @@ class PersonalTrainingModel extends Model
                 slot.start_time,
                 slot.end_time
             FROM trainer_pt_schedule s
-            LEFT JOIN users_profile up ON up.profile_id = s.member_id
+            LEFT JOIN member_profiles up ON up.profile_id = s.member_id
             LEFT JOIN users u ON u.user_id = up.user_id
             LEFT JOIN gym_pt_slots slot ON slot.slot_id = s.slot_id
             WHERE s.trainer_id = :trainer_id AND s.session_date = :date
@@ -969,7 +969,7 @@ class PersonalTrainingModel extends Model
                 slot.start_time,
                 slot.end_time
             FROM trainer_pt_schedule s
-            LEFT JOIN users_profile up ON up.profile_id = s.member_id
+            LEFT JOIN member_profiles up ON up.profile_id = s.member_id
             LEFT JOIN users mu ON mu.user_id = up.user_id
             LEFT JOIN trainer_profiles tp ON tp.trainer_profile_id = s.trainer_id
             LEFT JOIN employees e ON e.employee_id = tp.employee_id
@@ -1050,7 +1050,7 @@ class PersonalTrainingModel extends Model
                 slot.start_time,
                 slot.end_time
             FROM trainer_pt_schedule s
-            LEFT JOIN users_profile up ON up.profile_id = s.member_id
+            LEFT JOIN member_profiles up ON up.profile_id = s.member_id
             LEFT JOIN users mu ON mu.user_id = up.user_id
             LEFT JOIN trainer_profiles tp ON tp.trainer_profile_id = s.trainer_id
             LEFT JOIN employees e ON e.employee_id = tp.employee_id
@@ -1126,7 +1126,7 @@ class PersonalTrainingModel extends Model
             FROM subscriptions s
             JOIN users u ON u.user_id = s.user_id
             JOIN membership_plans mp ON mp.plan_id = s.plan_id
-            LEFT JOIN users_profile up ON up.user_id = u.user_id
+            LEFT JOIN member_profiles up ON up.user_id = u.user_id
             LEFT JOIN member_trainer_assignments mta 
                 ON mta.member_id = up.profile_id 
                 AND mta.status = 1
@@ -1312,7 +1312,7 @@ class PersonalTrainingModel extends Model
                 ) AS trainer_id
             FROM subscriptions s
             JOIN membership_plans mp ON mp.plan_id = s.plan_id
-            LEFT JOIN users_profile up ON up.user_id = s.user_id
+            LEFT JOIN member_profiles up ON up.user_id = s.user_id
             WHERE mp.plan_type = 'PT_UPGRADE'
               AND s.status = 1
               AND s.end_date <= :target_date
@@ -1400,7 +1400,7 @@ class PersonalTrainingModel extends Model
                 ON mta.trainer_id = tp.trainer_profile_id 
                 AND mta.status = 1 
                 AND mta.assignment_type = 'PRIMARY'
-            LEFT JOIN users_profile up ON up.profile_id = mta.member_id
+            LEFT JOIN member_profiles up ON up.profile_id = mta.member_id
             LEFT JOIN users mu ON mu.user_id = up.user_id
             WHERE 1=1
         ";

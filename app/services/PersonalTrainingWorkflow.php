@@ -76,10 +76,10 @@ class PersonalTrainingWorkflow
             $gymId = (int)$user['gym_id'];
             $branchId = (int)$user['branch_id'];
 
-            // Ensure member has a profile in users_profile
+            // Ensure member has a profile in member_profiles
             $profileId = $this->model->getProfileIdByUserId($userId);
             if (!$profileId) {
-                throw new Exception("Selected member does not have a profile in the users_profile directory", 400);
+                throw new Exception("Selected member does not have a profile in the member_profiles directory", 400);
             }
 
             // 1. Gatekeeper check: Verify active base membership

@@ -537,6 +537,10 @@ function route(string $method, string $path): void
             $dietPlanController->updateDietPlanByTrainer((int)$matches[1]);
             return;
 
+        case $method === 'PUT' && preg_match('#^/api/trainer/diet-plans/(\d+)/collective$#', $path, $matches):
+            $dietPlanController->updateDietPlanWithMealsByTrainer((int)$matches[1]);
+            return;
+
         case $method === 'DELETE' && preg_match('#^/api/trainer/diet-plans/(\d+)$#', $path, $matches):
             $dietPlanController->deleteDietPlanByTrainer((int)$matches[1]);
             return;

@@ -51,7 +51,7 @@ class FitnessAssessmentModel
      */
     public function getGenderByUserId(int $userId): string
     {
-        $stmt = $this->db->prepare("SELECT gender FROM users_profile WHERE user_id = :uid LIMIT 1");
+        $stmt = $this->db->prepare("SELECT gender FROM member_profiles WHERE user_id = :uid LIMIT 1");
         $stmt->execute(['uid' => $userId]);
         $gender = $stmt->fetchColumn();
         return $gender ? strtoupper(trim($gender)) : 'MALE';

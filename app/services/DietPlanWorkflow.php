@@ -1019,6 +1019,118 @@ class DietPlanWorkflow
         }
     }
 
+    public function updateDietPlanWithMealsByTrainer(string $accessToken, int $dietPlanId, array $data): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['TRAINER']);
+            $trainerUserId = (int)$decoded->sub;
+
+            $existing = $this->model->getDietPlan($dietPlanId);
+            if (!$existing) {
+                http_response_code(404);
+                return ["status" => "error", "message" => "Diet plan not found"];
+            }
+
+            // Edit boundaries: "Edit plans created by them"
+            if ((int)$existing['created_by'] !== $trainerUserId) {
+                http_response_code(403);
+                return ["status" => "error", "message" => "Access denied. You can only update plans created by you."];
+            }
+
+            $updateData = [];
+
+            if (isset($data['member_id'])) {
+                $trainerId = $this->getTrainerIdFromUser($trainerUserId);
+                if (!$this->model->isMemberAssignedToTrainer((int)$data['member_id'], $trainerId)) {
+                    http_response_code(403);
+                    return ["status" => "error", "message" => "Access denied. Member is not assigned to you."];
+                }
+                $updateData['member_id'] = (int)$data['member_id'];
+            }
+
+            if (isset($data['goal'])) {
+                $goal = strtoupper(trim($data['goal']));
+                if (!in_array($goal, self::ALLOWED_GOALS)) {
+                    http_response_code(400);
+                    return ["status" => "error", "message" => "Invalid goal. Allowed goals: " . implode(', ', self::ALLOWED_GOALS)];
+                }
+                $updateData['goal'] = $goal;
+            }
+
+            if (isset($data['duration_days'])) {
+                $duration = (int)$data['duration_days'];
+                if ($duration <= 0) {
+                    http_response_code(400);
+                    return ["status" => "error", "message" => "Duration days must be a positive number"];
+                }
+                $updateData['duration_days'] = $duration;
+            }
+
+            if (isset($data['water_intake_l'])) {
+                $updateData['water_intake_l'] = (float)$data['water_intake_l'];
+            }
+
+            if (isset($data['sleep_hours'])) {
+                $updateData['sleep_hours'] = (float)$data['sleep_hours'];
+            }
+
+            if (isset($data['trainer_comments'])) {
+                $updateData['trainer_comments'] = $data['trainer_comments'];
+            }
+
+            if (isset($data['start_date'])) {
+                $updateData['start_date'] = trim($data['start_date']);
+            }
+
+            $newStartDate = $updateData['start_date'] ?? $existing['start_date'];
+            $newDuration = $updateData['duration_days'] ?? $existing['duration_days'];
+            $updateData['end_date'] = date('Y-m-d', strtotime($newStartDate . " + $newDuration days"));
+
+            if (isset($data['recommendations'])) {
+                if (is_array($data['recommendations'])) {
+                    $updateData['recommendations'] = json_encode($data['recommendations']);
+                } else {
+                    json_decode($data['recommendations']);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        http_response_code(400);
+                        return ["status" => "error", "message" => "Recommendations must be a valid JSON array or object"];
+                    }
+                    $updateData['recommendations'] = $data['recommendations'];
+                }
+            }
+
+            if (isset($data['status'])) {
+                $status = strtoupper(trim($data['status']));
+                if (!in_array($status, self::ALLOWED_STATUSES)) {
+                    http_response_code(400);
+                    return ["status" => "error", "message" => "Invalid status. Allowed statuses: " . implode(', ', self::ALLOWED_STATUSES)];
+                }
+                $updateData['status'] = $status;
+            }
+
+            // Meals validation
+            if (!isset($data['meals']) || !is_array($data['meals']) || empty($data['meals'])) {
+                http_response_code(400);
+                return ["status" => "error", "message" => "Meals must be a non-empty array"];
+            }
+
+            // If updating status to ACTIVE and it wasn't ACTIVE before, deactivate others
+            $finalStatus = $updateData['status'] ?? $existing['status'];
+            if ($finalStatus === 'ACTIVE' && $existing['status'] !== 'ACTIVE') {
+                $targetMemberId = $updateData['member_id'] ?? $existing['member_id'];
+                $this->model->deactivateMemberActivePlans($targetMemberId, $dietPlanId);
+            }
+
+            $this->model->updateDietPlanWithMeals($dietPlanId, $updateData, $data['meals']);
+
+            return ["status" => "success", "message" => "Diet plan and associated meals updated successfully"];
+
+        } catch (\Throwable $e) {
+            http_response_code($e->getCode() === 400 ? 400 : ($e->getCode() === 403 ? 403 : 401));
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
     public function deleteDietPlanByTrainer(string $accessToken, int $dietPlanId): array
     {
         try {

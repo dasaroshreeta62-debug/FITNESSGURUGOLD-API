@@ -656,7 +656,7 @@ class Model
 
     //         /* ========== USERS PROFILE ========== */
     //         $stmtProfile = $this->db->prepare("
-    //             INSERT INTO users_profile (
+    //             INSERT INTO member_profiles (
     //                 user_id, name, date_of_joining, membership_plan,
     //                 date_of_birth, gender, blood_group,
     //                 height_cm, weight_kg, fitness_level, goal_focus,
@@ -778,7 +778,7 @@ class Model
 
             /* ========== USERS PROFILE ========== */
             $stmtProfile = $this->db->prepare("
-                INSERT INTO users_profile (
+                INSERT INTO member_profiles (
                     user_id, name, date_of_joining, membership_plan,
                     date_of_birth, gender, blood_group,
                     height_cm, weight_kg, fitness_level, goal_focus,
@@ -1067,7 +1067,7 @@ class Model
                 ON gb.branch_id = u.branch_id
 
             /* ========= PROFILE ========= */
-            LEFT JOIN users_profile up 
+            LEFT JOIN member_profiles up 
                 ON up.user_id = u.user_id
 
             /* ========= LOCATION ========= */
@@ -1156,7 +1156,7 @@ class Model
             LEFT JOIN gym_branches gb
                 ON gb.branch_id = u.branch_id
 
-            LEFT JOIN users_profile up
+            LEFT JOIN member_profiles up
                 ON up.user_id = u.user_id
 
             LEFT JOIN countries c
@@ -1190,7 +1190,7 @@ class Model
         $this->db->beginTransaction();
 
         try {
-            /* ========= USERS ========= */
+            /* ========= updating the USERS table ========= */
             $userSql = "
                 UPDATE users SET
                     name = :name,
@@ -1223,9 +1223,9 @@ class Model
 
             $stmt->execute($params);
 
-            /* ========= USERS PROFILE ========= */
+            /* ========= updating the USERS PROFILE table ========= */
             $this->db->prepare("
-                UPDATE users_profile SET
+                UPDATE member_profiles SET
                     date_of_joining = :join_date,
                     membership_plan = :membership_plan,
                     date_of_birth = :dob,
@@ -1262,6 +1262,18 @@ class Model
                         'emergency' => $data['emergency_contact'],
                         'user_id' => $data['user_id']
                     ]);
+
+            // /* ========= updating the SUBSCRIPTIONS table ========= */
+            // if (!empty($data['membership_plan'])) {
+            //     $this->db->prepare("
+            //         UPDATE subscriptions SET
+            //             plan_id = :plan_id
+            //         WHERE user_id = :user_id AND status = 1
+            //     ")->execute([
+            //         'plan_id' => $data['membership_plan'],
+            //         'user_id' => $data['user_id']
+            //     ]);
+            // }
 
             $this->db->commit();
 
@@ -1587,7 +1599,7 @@ class Model
             FROM attendance_logs al
 
             JOIN users u ON u.user_id = al.user_id
-            LEFT JOIN users_profile up ON up.user_id = u.user_id
+            LEFT JOIN member_profiles up ON up.user_id = u.user_id
             LEFT JOIN gym_branches b ON b.branch_id = al.branch_id
             LEFT JOIN districts d ON d.district_id = b.district_id
             LEFT JOIN states s ON s.state_id = d.state_id
@@ -2193,7 +2205,7 @@ class Model
                 up.fitness_level,
                 up.goal_focus
             FROM member_trainer_assignments mta
-            JOIN users_profile up ON up.profile_id = mta.member_id
+            JOIN member_profiles up ON up.profile_id = mta.member_id
             JOIN users u ON u.user_id = up.user_id
             WHERE mta.trainer_id = :trainer_id AND mta.status = 1
         ");

@@ -593,6 +593,8 @@ class Controller
             'data'   => $result
         ]);
     }
+
+    //old update member API
     public function updateMember(): void
     {
         $headers = getallheaders();
@@ -621,6 +623,8 @@ class Controller
         $response = $this->workflow->updateMember($accessToken, $data);
         echo json_encode($response);
     }
+
+    
     public function listMembershipPlan(): void
     {
         $headers = getallheaders();

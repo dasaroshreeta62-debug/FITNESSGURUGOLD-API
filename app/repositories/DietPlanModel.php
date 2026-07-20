@@ -126,7 +126,7 @@ class DietPlanModel extends Model
                    u_creator.name AS creator_name,
                    t.full_name AS trainer_name
             FROM member_diet_plans dp
-            JOIN users_profile up ON up.profile_id = dp.member_id
+            JOIN member_profiles up ON up.profile_id = dp.member_id
             JOIN users u_member ON u_member.user_id = up.user_id
             JOIN users u_creator ON u_creator.user_id = dp.created_by
             JOIN trainer_profiles tp ON tp.trainer_profile_id = dp.trainer_id
@@ -157,7 +157,7 @@ class DietPlanModel extends Model
                        u_creator.name AS creator_name,
                        t.full_name AS trainer_name
                 FROM member_diet_plans dp
-                JOIN users_profile up ON up.profile_id = dp.member_id
+                JOIN member_profiles up ON up.profile_id = dp.member_id
                 JOIN users u_member ON u_member.user_id = up.user_id
                 JOIN users u_creator ON u_creator.user_id = dp.created_by
                 JOIN trainer_profiles tp ON tp.trainer_profile_id = dp.trainer_id
@@ -459,7 +459,7 @@ class DietPlanModel extends Model
                        u_creator.name AS creator_name,
                        t.full_name AS trainer_name
                 FROM member_diet_plans dp
-                JOIN users_profile up ON up.profile_id = dp.member_id
+                JOIN member_profiles up ON up.profile_id = dp.member_id
                 JOIN users u_member ON u_member.user_id = up.user_id
                 JOIN users u_creator ON u_creator.user_id = dp.created_by
                 JOIN trainer_profiles tp ON tp.trainer_profile_id = dp.trainer_id
@@ -533,6 +533,58 @@ class DietPlanModel extends Model
         }
     }
 
+    public function updateDietPlanWithMeals(int $dietPlanId, array $planData, array $meals): bool
+    {
+        try {
+            $this->db->beginTransaction();
+
+            if (!empty($planData)) {
+                $this->updateDietPlan($dietPlanId, $planData);
+            }
+
+            $stmt = $this->db->prepare("DELETE FROM member_diet_plan_meals WHERE diet_plan_id = :id");
+            $stmt->execute(['id' => $dietPlanId]);
+
+            foreach ($meals as $index => $meal) {
+                if (empty($meal['meal_title'])) {
+                    throw new Exception("Meal title is required for all meals.", 400);
+                }
+                if (!isset($meal['meal_items'])) {
+                    throw new Exception("Meal items is required for all meals.", 400);
+                }
+
+                $mealItems = null;
+                if (is_array($meal['meal_items'])) {
+                    $mealItems = json_encode($meal['meal_items']);
+                } else {
+                    json_decode($meal['meal_items']);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        throw new Exception("Meal items must be a valid JSON array or object.", 400);
+                    }
+                    $mealItems = $meal['meal_items'];
+                }
+
+                $mealData = [
+                    'meal_title' => trim($meal['meal_title']),
+                    'meal_time' => !empty($meal['meal_time']) ? trim($meal['meal_time']) : null,
+                    'meal_items' => $mealItems,
+                    'notes' => $meal['notes'] ?? null,
+                    'meal_order' => isset($meal['meal_order']) ? (int)$meal['meal_order'] : ($index + 1)
+                ];
+
+                $this->createMeal($dietPlanId, $mealData);
+            }
+
+            $this->db->commit();
+            return true;
+        } catch (\Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
+    }
+
     /**
      * Check if a member has active diet plan access credits.
      */
@@ -557,7 +609,7 @@ class DietPlanModel extends Model
      */
     public function getUserIdFromProfileId(int $profileId): ?int
     {
-        $stmt = $this->db->prepare("SELECT user_id FROM users_profile WHERE profile_id = :id LIMIT 1");
+        $stmt = $this->db->prepare("SELECT user_id FROM member_profiles WHERE profile_id = :id LIMIT 1");
         $stmt->execute(['id' => $profileId]);
         $val = $stmt->fetchColumn();
         return $val !== false ? (int)$val : null;
@@ -568,7 +620,7 @@ class DietPlanModel extends Model
      */
     public function getProfileIdFromUserId(int $userId): ?int
     {
-        $stmt = $this->db->prepare("SELECT profile_id FROM users_profile WHERE user_id = :id LIMIT 1");
+        $stmt = $this->db->prepare("SELECT profile_id FROM member_profiles WHERE user_id = :id LIMIT 1");
         $stmt->execute(['id' => $userId]);
         $val = $stmt->fetchColumn();
         return $val !== false ? (int)$val : null;
