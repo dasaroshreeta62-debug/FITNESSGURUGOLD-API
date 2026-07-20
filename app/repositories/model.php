@@ -1000,6 +1000,54 @@ class Model
                 'start_date' => $startDate->format('Y-m-d'),
                 'end_date' => $endDate->format('Y-m-d')
             ]);
+            $subId = (int)$this->db->lastInsertId();
+
+            /* ========== WALLET CREDITS / ENTITLEMENTS ========== */
+            $stmtEnt = $this->db->prepare("
+                SELECT entitlement_type, quantity, valid_days 
+                FROM plan_entitlements 
+                WHERE plan_id = :id
+            ");
+            $stmtEnt->execute(['id' => $data['membership_plan']]);
+            $entitlements = $stmtEnt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (!empty($entitlements)) {
+                $stmtInsCredit = $this->db->prepare("
+                    INSERT INTO client_wallet_credits (
+                        subscription_id, user_id, entitlement_type, is_unlimited,
+                        original_quantity, remaining_quantity, expiration_date, status, created_at
+                    ) VALUES (
+                        :sub_id, :user_id, :entitlement_type, :is_unlimited,
+                        :original_quantity, :remaining_quantity, :expiration_date, 1, NOW()
+                    )
+                ");
+
+                $subStartDate = $startDate->format('Y-m-d');
+                $subEndDate   = $endDate->format('Y-m-d');
+
+                foreach ($entitlements as $item) {
+                    $qty = (int)$item['quantity'];
+                    $isUnlimited = ($qty < 0 || $qty >= 9999) ? 1 : 0;
+
+                    $expDate = $subEndDate;
+                    if (!empty($item['valid_days']) && (int)$item['valid_days'] > 0) {
+                        $calcExp = date('Y-m-d', strtotime($subStartDate . " + " . (int)$item['valid_days'] . " days"));
+                        if ($calcExp < $subEndDate) {
+                            $expDate = $calcExp;
+                        }
+                    }
+
+                    $stmtInsCredit->execute([
+                        'sub_id'             => $subId,
+                        'user_id'            => $user_id,
+                        'entitlement_type'   => $item['entitlement_type'],
+                        'is_unlimited'       => $isUnlimited,
+                        'original_quantity'  => $qty,
+                        'remaining_quantity' => $qty,
+                        'expiration_date'    => $expDate
+                    ]);
+                }
+            }
 
             $this->db->commit();
 
