@@ -817,6 +817,7 @@ class Workflow
 
                 'join_date'        => $data['join_date'] ?? date('Y-m-d'),
                 'status'           => $data['status'] ?? 1,
+                'registration_number' => $data['registration_number'] ?? null,
                 'membership_plan'  => $data['membership_plan'] ?? null,
 
                 'dob'              => $data['dob'] ?? null,
@@ -844,12 +845,12 @@ class Workflow
 
             $userId = $result['user_id'];
 
-            // 🔥 Fetch full member details
+            //  Fetch full member details
             $fullData = $this->model->fetchMemberDetails($userId);
 
             $now = time();
 
-            // 🔥 Generate JWT tokens (same as register)
+            //  Generate JWT tokens (same as register)
             $accessToken = JWT::encode([
                 "iss"  => "fitness-guru",
                 "sub"  => $userId,

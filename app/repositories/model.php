@@ -777,9 +777,9 @@ class Model
             $user_id = $this->db->lastInsertId();
 
             /* ========== USERS PROFILE ========== */
-            $regNo = (isset($data['registration_number']) && $data['registration_number'] !== '')
+            $regNo = (isset($data['registration_number']) && $data['registration_number'] !== '' && $data['registration_number'] !== null)
                 ? (int)$data['registration_number']
-                : null;
+                : (int)$user_id;
 
             $stmtProfile = $this->db->prepare("
                 INSERT INTO member_profiles (
