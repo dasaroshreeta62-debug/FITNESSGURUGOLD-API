@@ -1315,11 +1315,11 @@ class Model
             /* ========= updating the USERS table ========= */
             $userSql = "
                 UPDATE users SET
-                    name = :name,
-                    email = :email,
-                    phone = :phone,
-                    branch_id = :branch_id,
-                    status = :status
+                    name = COALESCE(:name, name),
+                    email = COALESCE(:email, email),
+                    phone = COALESCE(:phone, phone),
+                    branch_id = COALESCE(:branch_id, branch_id),
+                    status = COALESCE(:status, status)
             ";
 
             if (!empty($data['hashed_password'])) {
@@ -1331,11 +1331,11 @@ class Model
             $stmt = $this->db->prepare($userSql);
 
             $params = [
-                'name' => $data['name'],
-                'email' => $data['email'],
-                'phone' => $data['phone'],
-                'branch_id' => $data['branch_id'],
-                'status' => $data['status'],
+                'name' => $data['name'] ?? null,
+                'email' => $data['email'] ?? null,
+                'phone' => $data['phone'] ?? null,
+                'branch_id' => $data['branch_id'] ?? null,
+                'status' => $data['status'] ?? null,
                 'user_id' => $data['user_id']
             ];
 
@@ -1353,41 +1353,41 @@ class Model
             $this->db->prepare("
                 UPDATE member_profiles SET
                     registration_number = COALESCE(:registration_number, registration_number),
-                    date_of_joining = :join_date,
-                    date_of_birth = :dob,
-                    gender = :gender,
-                    blood_group = :blood_group,
-                    height_cm = :height,
-                    weight_kg = :weight,
-                    fitness_level = :fitness_level,
-                    goal_focus = :goal_focus,
-                    country_id = :country,
-                    state_id = :state,
-                    district_id = :district,
-                    city_id = :city,
-                    address_line1 = :address1,
-                    address_line2 = :address2,
-                    emergency_contact = :emergency
+                    date_of_joining = COALESCE(:join_date, date_of_joining),
+                    date_of_birth = COALESCE(:dob, date_of_birth),
+                    gender = COALESCE(:gender, gender),
+                    blood_group = COALESCE(:blood_group, blood_group),
+                    height_cm = COALESCE(:height, height_cm),
+                    weight_kg = COALESCE(:weight, weight_kg),
+                    fitness_level = COALESCE(:fitness_level, fitness_level),
+                    goal_focus = COALESCE(:goal_focus, goal_focus),
+                    country_id = COALESCE(:country, country_id),
+                    state_id = COALESCE(:state, state_id),
+                    district_id = COALESCE(:district, district_id),
+                    city_id = COALESCE(:city, city_id),
+                    address_line1 = COALESCE(:address1, address_line1),
+                    address_line2 = COALESCE(:address2, address_line2),
+                    emergency_contact = COALESCE(:emergency, emergency_contact)
                 WHERE user_id = :user_id
             ")->execute([
-                        'registration_number' => $regNo,
-                        'join_date' => $data['join_date'],
-                        'dob' => $data['dob'],
-                        'gender' => $data['gender'],
-                        'blood_group' => $data['blood_group'],
-                        'height' => $data['height'],
-                        'weight' => $data['weight'],
-                        'fitness_level' => $data['fitness_level'],
-                        'goal_focus' => $data['goal_focus'],
-                        'country' => $data['country'],
-                        'state' => $data['state'],
-                        'district' => $data['district'],
-                        'city' => $data['city'],
-                        'address1' => $data['address_line1'],
-                        'address2' => $data['address_line2'],
-                        'emergency' => $data['emergency_contact'],
-                        'user_id' => $data['user_id']
-                    ]);
+                'registration_number' => $regNo,
+                'join_date' => $data['join_date'] ?? null,
+                'dob' => $data['dob'] ?? null,
+                'gender' => $data['gender'] ?? null,
+                'blood_group' => $data['blood_group'] ?? null,
+                'height' => $data['height'] ?? null,
+                'weight' => $data['weight'] ?? null,
+                'fitness_level' => $data['fitness_level'] ?? null,
+                'goal_focus' => $data['goal_focus'] ?? null,
+                'country' => $data['country'] ?? null,
+                'state' => $data['state'] ?? null,
+                'district' => $data['district'] ?? null,
+                'city' => $data['city'] ?? null,
+                'address1' => $data['address_line1'] ?? null,
+                'address2' => $data['address_line2'] ?? null,
+                'emergency' => $data['emergency_contact'] ?? null,
+                'user_id' => $data['user_id']
+            ]);
 
             // /* ========= updating the SUBSCRIPTIONS table ========= */
             // if (!empty($data['membership_plan'])) {
