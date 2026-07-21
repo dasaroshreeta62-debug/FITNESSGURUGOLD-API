@@ -1145,8 +1145,14 @@ class Model
 
             /* ========= SUBSCRIPTION ========= */
             LEFT JOIN subscriptions s 
-                ON s.user_id = u.user_id 
-                AND s.status = 1
+                ON s.subscription_id = (
+                    SELECT sub.subscription_id 
+                    FROM subscriptions sub
+                    WHERE sub.user_id = u.user_id 
+                      AND sub.status = 1
+                    ORDER BY sub.subscription_id DESC 
+                    LIMIT 1
+                )
 
             LEFT JOIN membership_plans mp 
                 ON mp.plan_id = s.plan_id
@@ -1268,8 +1274,14 @@ class Model
                 ON ct.city_id = up.city_id
 
             LEFT JOIN subscriptions s
-                ON s.user_id = u.user_id
-            AND s.status = 1
+                ON s.subscription_id = (
+                    SELECT sub.subscription_id 
+                    FROM subscriptions sub
+                    WHERE sub.user_id = u.user_id 
+                      AND sub.status = 1
+                    ORDER BY sub.subscription_id DESC 
+                    LIMIT 1
+                )
 
             LEFT JOIN membership_plans mp
                 ON mp.plan_id = s.plan_id
