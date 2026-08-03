@@ -822,6 +822,15 @@ class MembershipModel
             throw new Exception("Invalid or inactive membership plan", 404);
         }
 
+        // Gatekeeper check: PT_UPGRADE and ADD_ON require an active Base Membership
+        $planType = strtoupper(trim($plan['plan_type'] ?? 'BASE_MEMBERSHIP'));
+        if (in_array($planType, ['PT_UPGRADE', 'ADD_ON'])) {
+            $activeBase = $this->getUserActiveBaseMembership($userId);
+            if (!$activeBase) {
+                throw new Exception("Action Blocked: Member does not have an active Base Membership required to purchase a " . str_replace('_', ' ', $planType) . " plan", 403);
+            }
+        }
+
         $gymBranch = $this->getUserGymBranch($userId);
         $gymId = (int)($data['gym_id'] ?? ($gymBranch ? $gymBranch['gym_id'] : ($plan['gym_id'] ?: 1)));
         $branchId = (int)($data['branch_id'] ?? ($gymBranch ? $gymBranch['branch_id'] : ($plan['branch_id'] ?: 1)));
@@ -967,5 +976,25 @@ class MembershipModel
             $this->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Get user active base membership subscription if present.
+     */
+    public function getUserActiveBaseMembership(int $userId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT s.* 
+            FROM subscriptions s
+            JOIN membership_plans mp ON s.plan_id = mp.plan_id
+            WHERE s.user_id = :user_id 
+              AND s.status = 1 
+              AND mp.plan_type IN ('BASE_MEMBERSHIP', 'MEMBERSHIP')
+              AND s.end_date >= CURDATE()
+            LIMIT 1
+        ");
+        $stmt->execute(['user_id' => $userId]);
+        $sub = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $sub ?: null;
     }
 }
