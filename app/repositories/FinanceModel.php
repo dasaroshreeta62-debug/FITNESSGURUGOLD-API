@@ -183,7 +183,7 @@ class FinanceModel
     {
         $stmt = $this->db->prepare("
             SELECT 
-                ii.invoice_item_id,
+                ii.item_id AS invoice_item_id,
                 ii.invoice_id,
                 ii.item_name,
                 ii.quantity,
@@ -201,7 +201,7 @@ class FinanceModel
             JOIN invoices i ON i.invoice_id = ii.invoice_id
             WHERE i.user_id = :user_id 
               AND ii.item_type = 'PRODUCT'
-            ORDER BY i.invoice_id DESC, ii.invoice_item_id DESC
+            ORDER BY i.invoice_id DESC, ii.item_id DESC
         ");
         $stmt->execute(['user_id' => $userId]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
