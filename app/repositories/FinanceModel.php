@@ -194,6 +194,7 @@ class FinanceModel
                 i.invoice_number,
                 i.total_amount AS invoice_subtotal,
                 i.tax_amount AS invoice_tax,
+                i.tax_breakdown AS invoice_tax_breakdown,
                 i.final_amount AS invoice_total,
                 i.status AS invoice_status,
                 i.issued_at AS invoice_date
@@ -205,6 +206,7 @@ class FinanceModel
         ");
         $stmt->execute(['user_id' => $userId]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
         foreach ($rows as &$row) {
             $row['invoice_item_id'] = (int)$row['invoice_item_id'];
             $row['invoice_id'] = (int)$row['invoice_id'];
@@ -216,6 +218,49 @@ class FinanceModel
             $row['invoice_subtotal'] = (float)$row['invoice_subtotal'];
             $row['invoice_tax'] = (float)$row['invoice_tax'];
             $row['invoice_total'] = (float)$row['invoice_total'];
+
+            // Parse tax breakdown
+            $taxBreakdown = [];
+            if (!empty($row['invoice_tax_breakdown'])) {
+                $decoded = json_decode($row['invoice_tax_breakdown'], true);
+                $taxBreakdown = is_array($decoded) ? $decoded : $row['invoice_tax_breakdown'];
+            }
+
+            // Fetch payment transaction info
+            $stmtPay = $this->db->prepare("
+                SELECT transaction_id, payment_mode, payment_status, transaction_ref, amount, created_at 
+                FROM payment_transactions 
+                WHERE invoice_id = :id
+            ");
+            $stmtPay->execute(['id' => $row['invoice_id']]);
+            $payments = $stmtPay->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($payments as &$p) {
+                $p['transaction_id'] = (int)$p['transaction_id'];
+                $p['amount'] = (float)$p['amount'];
+            }
+
+            $paymentMode = !empty($payments) ? $payments[0]['payment_mode'] : 'Cash';
+            $transactionRef = !empty($payments) ? $payments[0]['transaction_ref'] : null;
+
+            $row['payment_mode'] = $paymentMode;
+            $row['transaction_ref'] = $transactionRef;
+
+            // Attach nested complete invoice object
+            $row['invoice'] = [
+                'invoice_id'      => $row['invoice_id'],
+                'invoice_number'  => $row['invoice_number'],
+                'subtotal'        => $row['invoice_subtotal'],
+                'tax_amount'      => $row['invoice_tax'],
+                'tax_breakdown'   => $taxBreakdown,
+                'final_amount'    => $row['invoice_total'],
+                'status'          => $row['invoice_status'],
+                'issued_at'       => $row['invoice_date'],
+                'payment_mode'    => $paymentMode,
+                'transaction_ref' => $transactionRef,
+                'payments'        => $payments
+            ];
+
+            unset($row['invoice_tax_breakdown']);
         }
         return $rows;
     }

@@ -309,6 +309,7 @@ class MembershipModel
             $sub['status'] = (int)$sub['status'];
             $sub['wallet_credits'] = $this->getSubscriptionWalletCredits($sub['subscription_id']);
             $sub['invoices'] = $this->getSubscriptionInvoices($sub['user_id'], $sub['plan_id'], $sub['start_date']);
+            $sub['invoice'] = !empty($sub['invoices']) ? $sub['invoices'][0] : null;
         }
 
         return $subs;
@@ -485,7 +486,15 @@ class MembershipModel
     public function getSubscriptionInvoices(int $userId, int $planId, string $startDate): array
     {
         $stmt = $this->db->prepare("
-            SELECT i.invoice_id, i.invoice_number, i.final_amount, i.issued_at, i.status
+            SELECT 
+                i.invoice_id, 
+                i.invoice_number, 
+                i.total_amount AS subtotal,
+                i.tax_amount,
+                i.tax_breakdown,
+                i.final_amount, 
+                i.issued_at, 
+                i.status
             FROM invoices i
             JOIN invoice_items ii ON ii.invoice_id = i.invoice_id
             WHERE i.user_id = :user_id
@@ -499,9 +508,56 @@ class MembershipModel
             'start_date' => $startDate
         ]);
         $invoices = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
         foreach ($invoices as &$inv) {
-            $inv['invoice_id'] = (int)$inv['invoice_id'];
+            $invId = (int)$inv['invoice_id'];
+            $inv['invoice_id'] = $invId;
+            $inv['subtotal'] = (float)$inv['subtotal'];
+            $inv['tax_amount'] = (float)$inv['tax_amount'];
             $inv['final_amount'] = (float)$inv['final_amount'];
+
+            // Parse tax breakdown
+            if (!empty($inv['tax_breakdown'])) {
+                $decoded = json_decode($inv['tax_breakdown'], true);
+                $inv['tax_breakdown'] = is_array($decoded) ? $decoded : $inv['tax_breakdown'];
+            } else {
+                $inv['tax_breakdown'] = [];
+            }
+
+            // Fetch payment transactions
+            $stmtPay = $this->db->prepare("
+                SELECT transaction_id, payment_mode, payment_status, transaction_ref, amount, created_at 
+                FROM payment_transactions 
+                WHERE invoice_id = :id
+            ");
+            $stmtPay->execute(['id' => $invId]);
+            $payments = $stmtPay->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($payments as &$p) {
+                $p['transaction_id'] = (int)$p['transaction_id'];
+                $p['amount'] = (float)$p['amount'];
+            }
+            $inv['payments'] = $payments;
+            $inv['payment_mode'] = !empty($payments) ? $payments[0]['payment_mode'] : 'Cash';
+            $inv['transaction_ref'] = !empty($payments) ? $payments[0]['transaction_ref'] : null;
+
+            // Fetch items
+            $stmtItems = $this->db->prepare("
+                SELECT item_id, item_type, reference_id, item_name, quantity, unit_price, tax_percentage, tax_amount, total_price 
+                FROM invoice_items 
+                WHERE invoice_id = :id
+            ");
+            $stmtItems->execute(['id' => $invId]);
+            $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($items as &$it) {
+                $it['item_id'] = (int)$it['item_id'];
+                $it['reference_id'] = (int)$it['reference_id'];
+                $it['quantity'] = (int)$it['quantity'];
+                $it['unit_price'] = (float)$it['unit_price'];
+                $it['tax_percentage'] = (float)$it['tax_percentage'];
+                $it['tax_amount'] = (float)$it['tax_amount'];
+                $it['total_price'] = (float)$it['total_price'];
+            }
+            $inv['items'] = $items;
         }
         return $invoices;
     }
