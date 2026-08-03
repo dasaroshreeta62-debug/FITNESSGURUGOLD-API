@@ -352,68 +352,26 @@ class MembershipWorkflow
     }
 
     /**
-     * Create a new subscription for a member and provision wallet credits. Admin only.
+     * Purchase a subscription for a member, generates invoice, payment, financial ledger, and provisions wallet credits. Admin only.
      */
-    public function createSubscription(string $accessToken, array $data): array
+    public function purchaseSubscription(string $accessToken, array $data): array
     {
         try {
-            $decoded = $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
-            $adminUserId = (int)$decoded->sub;
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN']);
 
             if (empty($data['user_id']) || empty($data['plan_id'])) {
                 throw new Exception("user_id and plan_id are required", 400);
             }
 
-            $userId = (int)$data['user_id'];
-            $planId = (int)$data['plan_id'];
-
-            if (!$this->model->userExists($userId)) {
-                throw new Exception("User with ID $userId does not exist", 404);
-            }
-
-            $plan = $this->model->getPlanById($planId);
-            if (!$plan || $plan['status'] !== 1) {
-                throw new Exception("Invalid or inactive membership plan", 404);
-            }
-
-            // Resolve gym & branch ID
-            $gymBranch = $this->model->getUserGymBranch($userId);
-            $gymId = $data['gym_id'] ?? ($gymBranch ? $gymBranch['gym_id'] : 1);
-            $branchId = $data['branch_id'] ?? ($gymBranch ? $gymBranch['branch_id'] : 1);
-
-            // Calculate start and end dates
-            $startDate = !empty($data['start_date']) ? trim($data['start_date']) : date('Y-m-d');
-            $durationMonths = (int)($plan['duration_months'] ?: 1);
-
-            if (!empty($data['end_date'])) {
-                $endDate = trim($data['end_date']);
-            } else {
-                $endDate = date('Y-m-d', strtotime($startDate . " + $durationMonths months"));
-            }
-
-            $this->model->beginTransaction();
-
-            $subData = [
-                'gym_id'     => $gymId,
-                'branch_id'  => $branchId,
-                'user_id'    => $userId,
-                'plan_id'    => $planId,
-                'start_date' => $startDate,
-                'end_date'   => $endDate,
-                'status'     => isset($data['status']) ? (int)$data['status'] : 1
-            ];
-
-            $subId = $this->model->createSubscription($subData);
-
-            // Provision wallet credits based on plan entitlements
-            $this->model->provisionWalletCredits($subId, $userId, $planId, $startDate, $endDate);
-
-            $this->model->commit();
+            $result = $this->model->purchaseSubscriptionWithInvoice($data);
 
             return [
                 "status"          => "success",
-                "message"         => "Subscription created and wallet credits provisioned successfully",
-                "subscription_id" => $subId
+                "message"         => "Subscription purchased and invoice generated successfully",
+                "subscription_id" => $result['subscription_id'],
+                "invoice_id"      => $result['invoice_id'],
+                "invoice_number"  => $result['invoice_number'],
+                "data"            => $result
             ];
 
         } catch (\Throwable $e) {
@@ -421,6 +379,14 @@ class MembershipWorkflow
             $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
             return ["status" => "error", "message" => $e->getMessage()];
         }
+    }
+
+    /**
+     * Create a new subscription for a member (alias to purchaseSubscription). Admin only.
+     */
+    public function createSubscription(string $accessToken, array $data): array
+    {
+        return $this->purchaseSubscription($accessToken, $data);
     }
 
     /**

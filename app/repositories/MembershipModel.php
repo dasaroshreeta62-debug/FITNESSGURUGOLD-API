@@ -602,4 +602,370 @@ class MembershipModel
             $this->db->rollBack();
         }
     }
+
+    /**
+     * Create invoice record.
+     */
+    public function createInvoice(array $data): int
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO invoices (
+                user_id,
+                invoice_number,
+                total_amount,
+                tax_amount,
+                tax_breakdown,
+                final_amount,
+                status,
+                issued_at,
+                due_date
+            ) VALUES (
+                :user_id,
+                :invoice_number,
+                :total_amount,
+                :tax_amount,
+                :tax_breakdown,
+                :final_amount,
+                :status,
+                NOW(),
+                CURDATE()
+            )
+        ");
+
+        $stmt->execute([
+            'user_id'        => (int)($data['user_id'] ?? 0),
+            'invoice_number' => $data['invoice_number'],
+            'total_amount'   => (float)$data['total_amount'],
+            'tax_amount'     => (float)($data['tax_amount'] ?? 0.0),
+            'tax_breakdown'  => isset($data['tax_breakdown']) ? (is_array($data['tax_breakdown']) ? json_encode($data['tax_breakdown']) : $data['tax_breakdown']) : null,
+            'final_amount'   => (float)$data['final_amount'],
+            'status'         => $data['status'] ?? 'UNPAID'
+        ]);
+
+        return (int)$this->db->lastInsertId();
+    }
+
+    /**
+     * Create invoice item record.
+     */
+    public function createInvoiceItem(array $data): int
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO invoice_items (
+                invoice_id,
+                item_type,
+                reference_id,
+                item_name,
+                quantity,
+                unit_price,
+                tax_percentage,
+                tax_amount,
+                tax_breakdown,
+                total_price
+            ) VALUES (
+                :invoice_id,
+                :item_type,
+                :reference_id,
+                :item_name,
+                :quantity,
+                :unit_price,
+                :tax_percentage,
+                :tax_amount,
+                :tax_breakdown,
+                :total_price
+            )
+        ");
+
+        $stmt->execute([
+            'invoice_id'     => (int)$data['invoice_id'],
+            'item_type'      => $data['item_type'],
+            'reference_id'   => (int)$data['reference_id'],
+            'item_name'      => trim($data['item_name']),
+            'quantity'       => (int)($data['quantity'] ?? 1),
+            'unit_price'     => (float)$data['unit_price'],
+            'tax_percentage' => (float)($data['tax_percentage'] ?? 0.0),
+            'tax_amount'     => (float)($data['tax_amount'] ?? 0.0),
+            'tax_breakdown'  => isset($data['tax_breakdown']) ? (is_array($data['tax_breakdown']) ? json_encode($data['tax_breakdown']) : $data['tax_breakdown']) : null,
+            'total_price'    => (float)$data['total_price']
+        ]);
+
+        return (int)$this->db->lastInsertId();
+    }
+
+    /**
+     * Create payment transaction record.
+     */
+    public function createPaymentTransaction(array $data): int
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO payment_transactions (
+                gym_id,
+                branch_id,
+                invoice_id,
+                paid_by_user_id,
+                amount,
+                payment_mode,
+                payment_status,
+                transaction_ref,
+                payment_date,
+                status,
+                createdDate,
+                createdTime
+            ) VALUES (
+                :gym_id,
+                :branch_id,
+                :invoice_id,
+                :paid_by_user_id,
+                :amount,
+                :payment_mode,
+                :payment_status,
+                :transaction_ref,
+                CURDATE(),
+                1,
+                CURDATE(),
+                CURTIME()
+            )
+        ");
+
+        $stmt->execute([
+            'gym_id'          => (int)$data['gym_id'],
+            'branch_id'       => (int)$data['branch_id'],
+            'invoice_id'      => (int)$data['invoice_id'],
+            'paid_by_user_id' => isset($data['paid_by_user_id']) && (int)$data['paid_by_user_id'] > 0 ? (int)$data['paid_by_user_id'] : null,
+            'amount'          => (float)$data['amount'],
+            'payment_mode'    => trim($data['payment_mode']),
+            'payment_status'  => $data['payment_status'] ?? 'PENDING',
+            'transaction_ref' => isset($data['transaction_ref']) ? trim($data['transaction_ref']) : null
+        ]);
+
+        return (int)$this->db->lastInsertId();
+    }
+
+    /**
+     * Create financial ledger entry.
+     */
+    public function createFinancialLedgerEntry(array $data): int
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO financial_ledger (
+                gym_id,
+                branch_id,
+                transaction_type,
+                category,
+                amount,
+                reference_table,
+                reference_id,
+                payment_method,
+                created_at
+            ) VALUES (
+                :gym_id,
+                :branch_id,
+                :transaction_type,
+                :category,
+                :amount,
+                :reference_table,
+                :reference_id,
+                :payment_method,
+                NOW()
+            )
+        ");
+
+        $stmt->execute([
+            'gym_id'           => (int)$data['gym_id'],
+            'branch_id'        => (int)$data['branch_id'],
+            'transaction_type' => strtoupper(trim($data['transaction_type'])),
+            'category'         => strtoupper(trim($data['category'])),
+            'amount'           => (float)$data['amount'],
+            'reference_table'  => trim($data['reference_table']),
+            'reference_id'     => (int)$data['reference_id'],
+            'payment_method'   => strtoupper(trim($data['payment_method']))
+        ]);
+
+        return (int)$this->db->lastInsertId();
+    }
+
+    /**
+     * Get tax rates for gym.
+     */
+    public function getTaxRatesForGym(int $gymId, string $appliesTo = 'SUBSCRIPTIONS'): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT tax_name, percentage 
+            FROM tax_rates 
+            WHERE gym_id = :gym_id 
+              AND applies_to IN (:applies_to, 'ALL') 
+              AND status = 1
+        ");
+        $stmt->execute([
+            'gym_id'     => $gymId,
+            'applies_to' => $appliesTo
+        ]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Complete admin subscription purchase workflow including plan validation,
+     * reverse tax calculation, invoice creation, invoice items, payment transactions,
+     * financial ledger entry, subscription record creation, and wallet credits provisioning.
+     */
+    public function purchaseSubscriptionWithInvoice(array $data): array
+    {
+        $userId = (int)($data['user_id'] ?? 0);
+        $planId = (int)($data['plan_id'] ?? 0);
+
+        if (!$userId || !$this->userExists($userId)) {
+            throw new Exception("User with ID $userId does not exist", 404);
+        }
+
+        $plan = $this->getPlanById($planId);
+        if (!$plan || (int)$plan['status'] !== 1) {
+            throw new Exception("Invalid or inactive membership plan", 404);
+        }
+
+        $gymBranch = $this->getUserGymBranch($userId);
+        $gymId = (int)($data['gym_id'] ?? ($gymBranch ? $gymBranch['gym_id'] : ($plan['gym_id'] ?: 1)));
+        $branchId = (int)($data['branch_id'] ?? ($gymBranch ? $gymBranch['branch_id'] : ($plan['branch_id'] ?: 1)));
+
+        // Tax calculation (reverse tax math if price includes tax)
+        $taxRates = $this->getTaxRatesForGym($gymId, 'SUBSCRIPTIONS');
+        if (empty($taxRates)) {
+            $taxRates = [
+                ['tax_name' => 'CGST', 'percentage' => 9.00],
+                ['tax_name' => 'SGST', 'percentage' => 9.00]
+            ];
+        }
+
+        $totalTaxRate = 0.0;
+        foreach ($taxRates as $tr) {
+            $totalTaxRate += (float)$tr['percentage'];
+        }
+
+        $inclusivePrice = (float)$plan['price'];
+        $basePrice = round($inclusivePrice / (1 + ($totalTaxRate / 100)), 2);
+        $totalTaxAmount = round($inclusivePrice - $basePrice, 2);
+
+        $taxBreakdown = [];
+        $accumulatedTax = 0.0;
+        $countRates = count($taxRates);
+        for ($i = 0; $i < $countRates; $i++) {
+            $tr = $taxRates[$i];
+            $ratePct = (float)$tr['percentage'];
+            $rateName = trim($tr['tax_name']);
+            
+            if ($i === $countRates - 1) {
+                $rateAmount = round($totalTaxAmount - $accumulatedTax, 2);
+            } else {
+                $rateAmount = round($inclusivePrice * ($ratePct / (100 + $totalTaxRate)), 2);
+                $accumulatedTax += $rateAmount;
+            }
+            
+            $key = str_replace(['.', '-'], '_', strtoupper($rateName) . '_' . (int)$ratePct);
+            $taxBreakdown[$key] = $rateAmount;
+        }
+
+        $startDate = !empty($data['start_date']) ? trim($data['start_date']) : date('Y-m-d');
+        $durationMonths = (int)($plan['duration_months'] ?: 1);
+        $endDate = !empty($data['end_date']) ? trim($data['end_date']) : date('Y-m-d', strtotime($startDate . " + {$durationMonths} months"));
+
+        $this->beginTransaction();
+
+        try {
+            // 1. Invoice
+            $invoiceNumber = 'INV-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
+            $invoiceId = $this->createInvoice([
+                'user_id'        => $userId,
+                'invoice_number' => $invoiceNumber,
+                'total_amount'   => $basePrice,
+                'tax_amount'     => $totalTaxAmount,
+                'tax_breakdown'  => $taxBreakdown,
+                'final_amount'   => $inclusivePrice,
+                'status'         => 'PAID'
+            ]);
+
+            // 2. Invoice Item
+            $this->createInvoiceItem([
+                'invoice_id'     => $invoiceId,
+                'item_type'      => 'SUBSCRIPTION',
+                'reference_id'   => $planId,
+                'item_name'      => $plan['plan_name'],
+                'quantity'       => 1,
+                'unit_price'     => $basePrice,
+                'tax_percentage' => $totalTaxRate,
+                'tax_amount'     => $totalTaxAmount,
+                'tax_breakdown'  => $taxBreakdown,
+                'total_price'    => $inclusivePrice
+            ]);
+
+            // 3. Payment Transaction
+            $rawPayMethod = strtoupper(trim($data['payment_method'] ?? 'CASH'));
+            $payMode = 'Cash';
+            if ($rawPayMethod === 'CARD') $payMode = 'Card';
+            elseif ($rawPayMethod === 'UPI') $payMode = 'UPI';
+            elseif ($rawPayMethod === 'BANK_TRANSFER' || $rawPayMethod === 'ONLINE') $payMode = 'Online';
+
+            $txnRef = !empty($data['transaction_ref']) ? trim($data['transaction_ref']) : 'TXN-' . date('YmdHis') . '-' . rand(100, 999);
+
+            $this->createPaymentTransaction([
+                'gym_id'          => $gymId,
+                'branch_id'       => $branchId,
+                'invoice_id'      => $invoiceId,
+                'paid_by_user_id' => $userId,
+                'amount'          => $inclusivePrice,
+                'payment_mode'    => $payMode,
+                'payment_status'  => 'SUCCESS',
+                'transaction_ref' => $txnRef
+            ]);
+
+            // 4. Financial Ledger
+            $flMethod = 'CASH';
+            if ($rawPayMethod === 'CARD') $flMethod = 'CARD';
+            elseif ($rawPayMethod === 'UPI') $flMethod = 'UPI';
+            elseif ($rawPayMethod === 'BANK_TRANSFER' || $rawPayMethod === 'ONLINE') $flMethod = 'BANK_TRANSFER';
+
+            $this->createFinancialLedgerEntry([
+                'gym_id'           => $gymId,
+                'branch_id'        => $branchId,
+                'transaction_type' => 'INFLOW',
+                'category'         => 'REVENUE',
+                'amount'           => $inclusivePrice,
+                'reference_table'  => 'invoices',
+                'reference_id'     => $invoiceId,
+                'payment_method'   => $flMethod
+            ]);
+
+            // 5. Subscription
+            $subId = $this->createSubscription([
+                'gym_id'     => $gymId,
+                'branch_id'  => $branchId,
+                'user_id'    => $userId,
+                'plan_id'    => $planId,
+                'start_date' => $startDate,
+                'end_date'   => $endDate,
+                'status'     => 1
+            ]);
+
+            // 6. Wallet credits provisioning
+            $this->provisionWalletCredits($subId, $userId, $planId, $startDate, $endDate);
+
+            $this->commit();
+
+            return [
+                'subscription_id' => $subId,
+                'invoice_id'      => $invoiceId,
+                'invoice_number'  => $invoiceNumber,
+                'user_id'         => $userId,
+                'plan_id'         => $planId,
+                'plan_name'       => $plan['plan_name'],
+                'start_date'      => $startDate,
+                'end_date'        => $endDate,
+                'amount_paid'     => $inclusivePrice,
+                'payment_method'  => $rawPayMethod,
+                'transaction_ref' => $txnRef
+            ];
+
+        } catch (Exception $e) {
+            $this->rollBack();
+            throw $e;
+        }
+    }
 }

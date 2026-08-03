@@ -625,128 +625,7 @@ class Model
             ];
         }, $branches);
     }
-    // public function insertMember(array $data): bool
-    // {
-    //     try {
-    //         $this->db->beginTransaction();
 
-    //         /* ========== USERS ========== */
-    //         $stmtUser = $this->db->prepare("
-    //             INSERT INTO users (
-    //                 name, email, phone, password,
-    //                 branch_id, status, role, gym_id
-    //             ) VALUES (
-    //                 :name, :email, :phone, :password,
-    //                 :branch_id, :status, :role, :gym_id
-    //             )
-    //         ");
-
-    //         $stmtUser->execute([
-    //             'name'      => $data['name'],
-    //             'email'     => $data['email'],
-    //             'phone'     => $data['phone'],
-    //             'password'  => password_hash($data['password'], PASSWORD_BCRYPT),
-    //             'branch_id' => $data['branch_id'],
-    //             'status'    => $data['status'],
-    //             'role'      => 'MEMBER',
-    //             'gym_id'    => $data['gym_id'],
-    //         ]);
-
-    //         $user_id = $this->db->lastInsertId();
-
-    //         /* ========== USERS PROFILE ========== */
-    //         $stmtProfile = $this->db->prepare("
-    //             INSERT INTO member_profiles (
-    //                 user_id, name, date_of_joining, membership_plan,
-    //                 date_of_birth, gender, blood_group,
-    //                 height_cm, weight_kg, fitness_level, goal_focus,
-    //                 country_id, state_id, district_id, city_id,
-    //                 address_line1, address_line2, emergency_contact
-    //             ) VALUES (
-    //                 :user_id, :name, :date_of_joining, :membership_plan,
-    //                 :date_of_birth, :gender, :blood_group,
-    //                 :height_cm, :weight_kg, :fitness_level, :goal_focus,
-    //                 :country_id, :state_id, :district_id, :city_id,
-    //                 :address_line1, :address_line2, :emergency_contact
-    //             )
-    //         ");
-
-    //         $stmtProfile->execute([
-    //             'user_id'           => $user_id,
-    //             'name'              => $data['name'],
-    //             'date_of_joining'   => $data['join_date'],
-    //             'membership_plan'   => $data['membership_plan'],
-    //             'date_of_birth'     => $data['dob'],
-    //             'gender'            => $data['gender'],
-    //             'blood_group'       => $data['blood_group'],
-    //             'height_cm'         => $data['height'],
-    //             'weight_kg'         => $data['weight'],
-    //             'fitness_level'     => $data['fitness_level'],
-    //             'goal_focus'        => $data['goal_focus'],
-    //             'country_id'        => $data['country'],
-    //             'state_id'          => $data['state'],
-    //             'district_id'       => $data['district'],
-    //             'city_id'           => $data['city'],
-    //             'address_line1'     => $data['address_line1'],
-    //             'address_line2'     => $data['address_line2'],
-    //             'emergency_contact' => $data['emergency_contact']
-    //         ]);
-
-    //         /* ========== GET PLAN DURATION ========== */
-    //         $stmtPlan = $this->db->prepare("
-    //             SELECT duration_months
-    //             FROM membership_plans
-    //             WHERE plan_id = :plan_id
-    //             AND gym_id = :gym_id
-    //             AND branch_id = :branch_id
-    //             AND status = 1
-    //         ");
-
-    //         $stmtPlan->execute([
-    //             'plan_id'   => $data['membership_plan'],
-    //             'gym_id'    => $data['gym_id'],
-    //             'branch_id' => $data['branch_id']
-    //         ]);
-
-    //         $plan = $stmtPlan->fetch(PDO::FETCH_ASSOC);
-
-    //         if (!$plan) {
-    //             throw new Exception('Invalid membership plan');
-    //         }
-
-    //         $startDate = new DateTime($data['join_date']);
-    //         $endDate   = (clone $startDate)->modify("+{$plan['duration_months']} months");
-
-    //         /* ========== SUBSCRIPTIONS ========== */
-    //         $stmtSub = $this->db->prepare("
-    //             INSERT INTO subscriptions (
-    //                 gym_id, branch_id, user_id, plan_id, trainer_id,
-    //                 start_date, end_date, status
-    //             ) VALUES (
-    //                 :gym_id, :branch_id, :user_id, :plan_id, :trainer_id,
-    //                 :start_date, :end_date, 1
-    //             )
-    //         ");
-
-    //         $stmtSub->execute([
-    //             'gym_id'     => $data['gym_id'],
-    //             'branch_id'  => $data['branch_id'],
-    //             'user_id'    => $user_id,
-    //             'plan_id'    => $data['membership_plan'],
-    //             'trainer_id' => $data['trainer_id'] ?? null,
-    //             'start_date' => $startDate->format('Y-m-d'),
-    //             'end_date'   => $endDate->format('Y-m-d')
-    //         ]);
-
-    //         $this->db->commit();
-    //         return true;
-
-    //     } catch (Exception $e) {
-    //         $this->db->rollBack();
-    //         error_log('Insert Member Error: ' . $e->getMessage());
-    //         return false;
-    //     }
-    // }
     public function insertMember(array $data): array|false
     {
         try {
@@ -781,6 +660,12 @@ class Model
                 ? (int)$data['registration_number']
                 : (int)$user_id;
 
+            $gender = !empty($data['gender']) ? ucfirst(strtolower($data['gender'])) : null;
+            $countryId = !empty($data['country']) ? (int)$data['country'] : 1;
+            $stateId = !empty($data['state']) ? (int)$data['state'] : 1;
+            $districtId = !empty($data['district']) ? (int)$data['district'] : 19;
+            $cityId = !empty($data['city']) ? (int)$data['city'] : 1;
+
             $stmtProfile = $this->db->prepare("
                 INSERT INTO member_profiles (
                     user_id, registration_number, name, date_of_joining,
@@ -803,257 +688,25 @@ class Model
                 'name' => $data['name'],
                 'date_of_joining' => $data['join_date'],
                 'date_of_birth' => $data['dob'],
-                'gender' => $data['gender'],
+                'gender' => $gender,
                 'blood_group' => $data['blood_group'],
                 'height_cm' => $data['height'],
                 'weight_kg' => $data['weight'],
                 'fitness_level' => $data['fitness_level'],
                 'goal_focus' => $data['goal_focus'],
-                'country_id' => $data['country'],
-                'state_id' => $data['state'],
-                'district_id' => $data['district'],
-                'city_id' => $data['city'],
+                'country_id' => $countryId,
+                'state_id' => $stateId,
+                'district_id' => $districtId,
+                'city_id' => $cityId,
                 'address_line1' => $data['address_line1'],
                 'address_line2' => $data['address_line2'],
                 'emergency_contact' => $data['emergency_contact']
             ]);
 
-            /* ========== PLAN ========== */
-            $stmtPlan = $this->db->prepare("
-                SELECT plan_name, price, duration_months
-                FROM membership_plans
-                WHERE plan_id = :plan_id
-                AND gym_id = :gym_id
-                AND branch_id = :branch_id
-                AND status = 1
-            ");
-
-            $stmtPlan->execute([
-                'plan_id' => $data['membership_plan'],
-                'gym_id' => $data['gym_id'],
-                'branch_id' => $data['branch_id']
-            ]); 
-
-            $plan = $stmtPlan->fetch(PDO::FETCH_ASSOC);
-
-            if (!$plan) {
-                throw new Exception('Invalid membership plan');
-            }
-
-            $startDate = new DateTime($data['join_date']);
-            $endDate = (clone $startDate)->modify("+{$plan['duration_months']} months");
-
-            /* ========== TAXES & REVERSE TAX MATH ========== */
-            $stmtTax = $this->db->prepare("
-                SELECT tax_name, percentage 
-                FROM tax_rates 
-                WHERE gym_id = :gym_id 
-                  AND applies_to IN ('SUBSCRIPTIONS', 'ALL') 
-                  AND status = 1
-            ");
-            $stmtTax->execute(['gym_id' => $data['gym_id']]);
-            $taxRates = $stmtTax->fetchAll(PDO::FETCH_ASSOC);
-
-            if (empty($taxRates)) {
-                $taxRates = [
-                    ['tax_name' => 'CGST', 'percentage' => 9.00],
-                    ['tax_name' => 'SGST', 'percentage' => 9.00]
-                ];
-            }
-
-            $totalTaxRate = 0.0;
-            foreach ($taxRates as $tr) {
-                $totalTaxRate += (float) $tr['percentage'];
-            }
-
-            $inclusivePrice = (float) $plan['price'];
-            $basePrice = round($inclusivePrice / (1 + ($totalTaxRate / 100)), 2);
-            $totalTaxAmount = round($inclusivePrice - $basePrice, 2);
-
-            $taxBreakdown = [];
-            $accumulatedTax = 0.0;
-            $countRates = count($taxRates);
-            for ($i = 0; $i < $countRates; $i++) {
-                $tr = $taxRates[$i];
-                $ratePct = (float) $tr['percentage'];
-                $rateName = trim($tr['tax_name']);
-
-                if ($i === $countRates - 1) {
-                    $rateAmount = round($totalTaxAmount - $accumulatedTax, 2);
-                } else {
-                    $rateAmount = round($inclusivePrice * ($ratePct / (100 + $totalTaxRate)), 2);
-                    $accumulatedTax += $rateAmount;
-                }
-
-                $key = str_replace(['.', '-'], '_', strtoupper($rateName) . '_' . (int) $ratePct);
-                $taxBreakdown[$key] = $rateAmount;
-            }
-
-            /* ========== INVOICES ========== */
-            $stmtInv = $this->db->prepare("
-                INSERT INTO invoices (
-                    user_id, invoice_number, total_amount, tax_amount, tax_breakdown, final_amount, status, issued_at, due_date
-                ) VALUES (
-                    :user_id, :invoice_number, :total_amount, :tax_amount, :tax_breakdown, :final_amount, 'PAID', NOW(), CURDATE()
-                )
-            ");
-            $invoiceNumber = 'INV-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
-            $stmtInv->execute([
-                'user_id' => $user_id,
-                'invoice_number' => $invoiceNumber,
-                'total_amount' => $basePrice,
-                'tax_amount' => $totalTaxAmount,
-                'tax_breakdown' => json_encode($taxBreakdown),
-                'final_amount' => $inclusivePrice
-            ]);
-            $invoiceId = (int) $this->db->lastInsertId();
-
-            /* ========== INVOICE ITEMS ========== */
-            $stmtItem = $this->db->prepare("
-                INSERT INTO invoice_items (
-                    invoice_id, item_type, reference_id, item_name, quantity, unit_price, tax_percentage, tax_amount, tax_breakdown, total_price
-                ) VALUES (
-                    :invoice_id, 'SUBSCRIPTION', :reference_id, :item_name, 1, :unit_price, :tax_percentage, :tax_amount, :tax_breakdown, :total_price
-                )
-            ");
-            $stmtItem->execute([
-                'invoice_id' => $invoiceId,
-                'reference_id' => $data['membership_plan'],
-                'item_name' => $plan['plan_name'],
-                'unit_price' => $basePrice,
-                'tax_percentage' => $totalTaxRate,
-                'tax_amount' => $totalTaxAmount,
-                'tax_breakdown' => json_encode($taxBreakdown),
-                'total_price' => $inclusivePrice
-            ]);
-
-            /* ========== PAYMENT TRANSACTIONS ========== */
-            $stmtPt = $this->db->prepare("
-                INSERT INTO payment_transactions (
-                    gym_id, branch_id, invoice_id, paid_by_user_id, amount, payment_mode, payment_status, transaction_ref, payment_date, status, createdDate, createdTime
-                ) VALUES (
-                    :gym_id, :branch_id, :invoice_id, :paid_by_user_id, :amount, :payment_mode, 'SUCCESS', :transaction_ref, CURDATE(), 1, CURDATE(), CURTIME()
-                )
-            ");
-            $payMode = 'Online';
-            if (isset($data['payment_method'])) {
-                $payMethod = strtoupper(trim($data['payment_method']));
-                if ($payMethod === 'CASH')
-                    $payMode = 'Cash';
-                elseif ($payMethod === 'CARD')
-                    $payMode = 'Card';
-                elseif ($payMethod === 'UPI')
-                    $payMode = 'UPI';
-            }
-            $stmtPt->execute([
-                'gym_id' => $data['gym_id'],
-                'branch_id' => $data['branch_id'],
-                'invoice_id' => $invoiceId,
-                'paid_by_user_id' => $user_id,
-                'amount' => $inclusivePrice,
-                'payment_mode' => $payMode,
-                'transaction_ref' => 'TXN-' . date('YmdHis') . '-' . rand(100, 999)
-            ]);
-
-            /* ========== FINANCIAL LEDGER ========== */
-            $stmtFl = $this->db->prepare("
-                INSERT INTO financial_ledger (
-                    gym_id, branch_id, transaction_type, category, amount, reference_table, reference_id, payment_method, created_at
-                ) VALUES (
-                    :gym_id, :branch_id, 'INFLOW', 'REVENUE', :amount, 'invoices', :reference_id, :payment_method, NOW()
-                )
-            ");
-            $flMethod = 'BANK_TRANSFER';
-            if (isset($data['payment_method'])) {
-                $payMethod = strtoupper(trim($data['payment_method']));
-                if ($payMethod === 'CASH')
-                    $flMethod = 'CASH';
-                elseif ($payMethod === 'CARD')
-                    $flMethod = 'CARD';
-                elseif ($payMethod === 'UPI')
-                    $flMethod = 'UPI';
-            }
-            $stmtFl->execute([
-                'gym_id' => $data['gym_id'],
-                'branch_id' => $data['branch_id'],
-                'amount' => $inclusivePrice,
-                'reference_id' => $invoiceId,
-                'payment_method' => $flMethod
-            ]);
-
-            /* ========== SUBSCRIPTION ========== */
-            $stmtSub = $this->db->prepare("
-                INSERT INTO subscriptions (
-                    gym_id, branch_id, user_id, plan_id,
-                    start_date, end_date, status
-                ) VALUES (
-                    :gym_id, :branch_id, :user_id, :plan_id,
-                    :start_date, :end_date, 1
-                )
-            ");
-
-            $stmtSub->execute([
-                'gym_id' => $data['gym_id'],
-                'branch_id' => $data['branch_id'],
-                'user_id' => $user_id,
-                'plan_id' => $data['membership_plan'],
-                'start_date' => $startDate->format('Y-m-d'),
-                'end_date' => $endDate->format('Y-m-d')
-            ]);
-            $subId = (int)$this->db->lastInsertId();
-
-            /* ========== WALLET CREDITS / ENTITLEMENTS ========== */
-            $stmtEnt = $this->db->prepare("
-                SELECT entitlement_type, quantity, valid_days 
-                FROM plan_entitlements 
-                WHERE plan_id = :id
-            ");
-            $stmtEnt->execute(['id' => $data['membership_plan']]);
-            $entitlements = $stmtEnt->fetchAll(PDO::FETCH_ASSOC);
-
-            if (!empty($entitlements)) {
-                $stmtInsCredit = $this->db->prepare("
-                    INSERT INTO client_wallet_credits (
-                        subscription_id, user_id, entitlement_type, is_unlimited,
-                        original_quantity, remaining_quantity, expiration_date, status, created_at
-                    ) VALUES (
-                        :sub_id, :user_id, :entitlement_type, :is_unlimited,
-                        :original_quantity, :remaining_quantity, :expiration_date, 1, NOW()
-                    )
-                ");
-
-                $subStartDate = $startDate->format('Y-m-d');
-                $subEndDate   = $endDate->format('Y-m-d');
-
-                foreach ($entitlements as $item) {
-                    $qty = (int)$item['quantity'];
-                    $isUnlimited = ($qty < 0 || $qty >= 9999) ? 1 : 0;
-
-                    $expDate = $subEndDate;
-                    if (!empty($item['valid_days']) && (int)$item['valid_days'] > 0) {
-                        $calcExp = date('Y-m-d', strtotime($subStartDate . " + " . (int)$item['valid_days'] . " days"));
-                        if ($calcExp < $subEndDate) {
-                            $expDate = $calcExp;
-                        }
-                    }
-
-                    $stmtInsCredit->execute([
-                        'sub_id'             => $subId,
-                        'user_id'            => $user_id,
-                        'entitlement_type'   => $item['entitlement_type'],
-                        'is_unlimited'       => $isUnlimited,
-                        'original_quantity'  => $qty,
-                        'remaining_quantity' => $qty,
-                        'expiration_date'    => $expDate
-                    ]);
-                }
-            }
-
             $this->db->commit();
 
             return [
-                "user_id" => $user_id,
-                "invoice_id" => $invoiceId
+                "user_id" => $user_id
             ] + $data;
 
         } catch (Exception $e) {
@@ -1346,6 +999,22 @@ class Model
             $stmt->execute($params);
 
             /* ========= updating the USERS PROFILE table ========= */
+            $checkProfile = $this->db->prepare("SELECT profile_id FROM member_profiles WHERE user_id = :user_id LIMIT 1");
+            $checkProfile->execute(['user_id' => $data['user_id']]);
+            if (!$checkProfile->fetch()) {
+                $userRec = $this->getUserProfileById($data['user_id']);
+                $userName = $userRec['name'] ?? ($data['name'] ?? 'Member');
+                $initStmt = $this->db->prepare("
+                    INSERT INTO member_profiles (user_id, registration_number, name, date_of_joining)
+                    VALUES (:user_id, :reg_no, :name, NOW())
+                ");
+                $initStmt->execute([
+                    'user_id' => $data['user_id'],
+                    'reg_no'  => (int)$data['user_id'],
+                    'name'    => $userName
+                ]);
+            }
+
             $regNo = isset($data['registration_number']) && $data['registration_number'] !== ''
                 ? (int)$data['registration_number']
                 : null;

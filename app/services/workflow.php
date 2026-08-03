@@ -195,6 +195,263 @@ class Workflow
             ]
         ];
     }
+    public function registerMember(array $data): array
+    {
+        // Email already exists check
+        if ($this->model->getUserByEmail($data['email'])) {
+            http_response_code(409);
+            return [
+                "status" => "error",
+                "message" => "Email already registered"
+            ];
+        }
+
+        // Password validation
+        if (strlen($data['password']) < 6) {
+            http_response_code(400);
+            return [
+                "status" => "error",
+                "message" => "Password must be at least 6 characters long"
+            ];
+        }
+
+        try {
+            $payload = [
+                'name'              => trim($data['name']),
+                'email'             => strtolower(trim($data['email'])),
+                'phone'             => trim($data['phone']),
+                'password'          => $data['password'],
+                'gym_id'            => (int)$data['gym_id'],
+                'branch_id'         => (int)$data['branch_id'],
+                'role'              => 'MEMBER',
+
+                'join_date'         => $data['join_date'] ?? date('Y-m-d'),
+                'status'            => 1,
+                // Do not take registration_number from member side; model auto-assigns (int)$userId
+                'registration_number' => null,
+
+                'dob'               => $data['dob'] ?? null,
+                'gender'            => $data['gender'] ?? null,
+                'blood_group'       => $data['blood_group'] ?? null,
+                'height'            => $data['height'] ?? null,
+                'weight'            => $data['weight'] ?? null,
+                'fitness_level'     => $data['fitness_level'] ?? null,
+                'goal_focus'        => $data['goal_focus'] ?? null,
+
+                'country'           => $data['country'] ?? null,
+                'state'             => $data['state'] ?? null,
+                'district'          => $data['district'] ?? null,
+                'city'              => $data['city'] ?? null,
+                'address_line1'     => $data['address_line1'] ?? null,
+                'address_line2'     => $data['address_line2'] ?? null,
+                'emergency_contact' => $data['emergency_contact'] ?? null
+            ];
+
+            $result = $this->model->insertMember($payload);
+
+            if ($result === false) {
+                http_response_code(500);
+                return [
+                    "status"  => "error",
+                    "message" => "Failed to create member record"
+                ];
+            }
+
+            $userId = $result['user_id'];
+
+            // Fetch full member details including generated profile
+            $memberDetails = $this->model->fetchMemberDetails($userId);
+
+            $now = time();
+
+            // Generate JWT tokens
+            $accessToken = JWT::encode([
+                "iss"  => "fitness-guru",
+                "sub"  => $userId,
+                "role" => "MEMBER",
+                "iat"  => $now,
+                "exp"  => $now + self::ACCESS_EXP
+            ], self::JWT_SECRET, 'HS256');
+
+            $refreshToken = JWT::encode([
+                "sub" => $userId,
+                "iat" => $now,
+                "exp" => $now + self::REFRESH_EXP
+            ], self::JWT_SECRET, 'HS256');
+
+            $this->model->updateLogin($userId, $refreshToken);
+
+            http_response_code(201);
+
+            return [
+                "status"  => "success",
+                "message" => "Member registered successfully",
+                "data"    => [
+                    "user_id"       => $userId,
+                    "access_token"  => $accessToken,
+                    "refresh_token" => $refreshToken,
+                    "expires_in"    => self::ACCESS_EXP,
+                    "member"        => $memberDetails ?: $result
+                ]
+            ];
+        } catch (Exception $e) {
+            http_response_code(500);
+            return [
+                "status"  => "error",
+                "message" => "Registration error: " . $e->getMessage()
+            ];
+        }
+    }
+
+    public function calculateProfileCompletion(array $details): array
+    {
+        $fields = [
+            'name'              => 'Name',
+            'email'             => 'Email',
+            'phone'             => 'Phone',
+            'date_of_birth'     => 'Date of Birth',
+            'gender'            => 'Gender',
+            'blood_group'       => 'Blood Group',
+            'height_cm'         => 'Height',
+            'weight_kg'         => 'Weight',
+            'fitness_level'     => 'Fitness Level',
+            'goal_focus'        => 'Goal Focus',
+            'city_name'         => 'City',
+            'address_line1'     => 'Address',
+            'emergency_contact' => 'Emergency Contact'
+        ];
+
+        $completed = [];
+        $missing = [];
+
+        foreach ($fields as $key => $label) {
+            $val = $details[$key] ?? null;
+            if ($val !== null && trim((string)$val) !== '') {
+                $completed[] = $key;
+            } else {
+                $missing[] = $key;
+            }
+        }
+
+        $total = count($fields);
+        $filled = count($completed);
+        $percentage = (int)round(($filled / $total) * 100);
+
+        return [
+            "completion_percentage"  => $percentage,
+            "completed_fields_count" => $filled,
+            "total_fields_count"     => $total,
+            "completed_fields"       => $completed,
+            "missing_fields"         => $missing
+        ];
+    }
+
+    public function getMyMemberProfile(string $accessToken): array
+    {
+        try {
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            $userId = (int)$decoded->sub;
+
+            $details = $this->model->fetchMemberDetails($userId);
+
+            if (!$details) {
+                http_response_code(404);
+                return [
+                    "status"  => "error",
+                    "message" => "Member profile not found"
+                ];
+            }
+
+            $completion = $this->calculateProfileCompletion($details);
+
+            http_response_code(200);
+
+            return [
+                "status" => "success",
+                "data"   => [
+                    "completion" => $completion,
+                    "profile"    => $details
+                ]
+            ];
+        } catch (Exception $e) {
+            http_response_code(401);
+            return [
+                "status"  => "error",
+                "message" => "Invalid or expired token: " . $e->getMessage()
+            ];
+        }
+    }
+
+    public function updateMyMemberProfile(string $accessToken, array $data): array
+    {
+        try {
+            $decoded = JWT::decode(
+                $accessToken,
+                new Key(self::JWT_SECRET, 'HS256')
+            );
+
+            $userId = (int)$decoded->sub;
+
+            $payload = [
+                'user_id'           => $userId,
+                'name'              => isset($data['name']) ? trim((string)$data['name']) : null,
+                'phone'             => isset($data['phone']) ? trim((string)$data['phone']) : null,
+                'dob'               => $data['dob'] ?? $data['date_of_birth'] ?? null,
+                'gender'            => $data['gender'] ?? null,
+                'blood_group'       => $data['blood_group'] ?? null,
+                'height'            => $data['height'] ?? $data['height_cm'] ?? null,
+                'weight'            => $data['weight'] ?? $data['weight_kg'] ?? null,
+                'fitness_level'     => $data['fitness_level'] ?? null,
+                'goal_focus'        => $data['goal_focus'] ?? null,
+                'country'           => $data['country'] ?? $data['country_id'] ?? null,
+                'state'             => $data['state'] ?? $data['state_id'] ?? null,
+                'district'          => $data['district'] ?? $data['district_id'] ?? null,
+                'city'              => $data['city'] ?? $data['city_id'] ?? null,
+                'address_line1'     => $data['address_line1'] ?? $data['address1'] ?? null,
+                'address_line2'     => $data['address_line2'] ?? $data['address2'] ?? null,
+                'emergency_contact' => $data['emergency_contact'] ?? $data['emergency'] ?? null
+            ];
+
+            if (!empty($data['password'])) {
+                if (strlen((string)$data['password']) < 6) {
+                    http_response_code(400);
+                    return [
+                        "status"  => "error",
+                        "message" => "Password must be at least 6 characters long"
+                    ];
+                }
+                $payload['hashed_password'] = password_hash($data['password'], PASSWORD_BCRYPT);
+            }
+
+            $this->model->updateMember($payload);
+
+            $updatedDetails = $this->model->fetchMemberDetails($userId);
+
+            $completion = $this->calculateProfileCompletion($updatedDetails ?: []);
+
+            http_response_code(200);
+
+            return [
+                "status"  => "success",
+                "message" => "Profile updated successfully",
+                "data"    => [
+                    "completion" => $completion,
+                    "profile"    => $updatedDetails
+                ]
+            ];
+        } catch (Exception $e) {
+            http_response_code(401);
+            return [
+                "status"  => "error",
+                "message" => "Invalid or expired token: " . $e->getMessage()
+            ];
+        }
+    }
+
     public function getProfile(string $accessToken): array
     {
         // 🔍 DEBUG: log received token
@@ -769,40 +1026,7 @@ class Workflow
             ];
         }
     }
-    // public function addMember(array $data): bool
-    // {
-    //     $payload = [
-    //         'name'             => $data['name'],
-    //         'email'            => $data['email'],
-    //         'phone'            => $data['phone'],
-    //         'password'         => password_hash($data['password'], PASSWORD_BCRYPT),
 
-    //         'gym_id'           => $data['gym_id'],
-    //         'branch_id'        => $data['branch_id'],
-
-    //         'join_date'        => $data['join_date'] ?? date('Y-m-d'),
-    //         'status'           => $data['status'] ?? 1,
-    //         'membership_plan'  => $data['membership_plan'] ?? null,
-
-    //         'dob'              => $data['dob'] ?? null,
-    //         'gender'           => $data['gender'] ?? null,
-    //         'blood_group'      => $data['blood_group'] ?? null,
-    //         'height'           => $data['height'] ?? null,
-    //         'weight'           => $data['weight'] ?? null,
-    //         'fitness_level'    => $data['fitness_level'] ?? null,
-    //         'goal_focus'       => $data['goal_focus'] ?? null,
-
-    //         'country'          => $data['country'] ?? null,
-    //         'state'            => $data['state'] ?? null,
-    //         'district'         => $data['district'] ?? null,
-    //         'city'             => $data['city'] ?? null,
-    //         'address_line1'    => $data['address_line1'] ?? null,
-    //         'address_line2'    => $data['address_line2'] ?? null,
-    //         'emergency_contact'  => $data['emergency_contact'] ?? null
-    //     ];
-
-    //     return $this->model->insertMember($payload);
-    // }
     public function addMember(array $data): array
     {
         try {
@@ -818,7 +1042,6 @@ class Workflow
                 'join_date'        => $data['join_date'] ?? date('Y-m-d'),
                 'status'           => $data['status'] ?? 1,
                 'registration_number' => $data['registration_number'] ?? null,
-                'membership_plan'  => $data['membership_plan'] ?? null,
 
                 'dob'              => $data['dob'] ?? null,
                 'gender'           => $data['gender'] ?? null,
@@ -876,8 +1099,7 @@ class Workflow
                     "access_token"  => $accessToken,
                     "refresh_token" => $refreshToken,
                     "expires_in"    => self::ACCESS_EXP
-                ],
-                "invoice_id" => (int)$result['invoice_id']
+                ]
             ];
 
         } catch (Exception $e) {

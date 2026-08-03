@@ -44,6 +44,18 @@ function route(string $method, string $path): void
         case $method === 'POST' && $path === '/api/auth/register':
             $controller->register();
             return;
+
+        case $method === 'POST' && ($path === '/api/member/register' || $path === '/api/auth/register-member'):
+            $controller->registerMember();
+            return;
+
+        case $method === 'GET' && $path === '/api/member/me':
+            $controller->getMyProfile();
+            return;
+
+        case $method === 'PUT' && $path === '/api/member/update-profile':
+            $controller->updateMyProfile();
+            return;
         
         case $method === 'GET' && $path === '/api/users/profile':
             $controller->profile();
@@ -356,7 +368,7 @@ function route(string $method, string $path): void
         case $method === 'POST' && preg_match('#^/api/admin/membership-plans/(\d+)/entitlements$#', $path, $matches):
             $membershipController->managePlanEntitlements((int)$matches[1]);
             return;
-
+ 
         case $method === 'DELETE' && preg_match('#^/api/admin/membership-plans/(\d+)/entitlements/([A-Z0-9_]+)$#', $path, $matches):
             $membershipController->deleteSingleEntitlement((int)$matches[1], $matches[2]);
             return;
@@ -367,6 +379,10 @@ function route(string $method, string $path): void
 
         case $method === 'GET' && preg_match('#^/api/admin/subscriptions/(\d+)$#', $path, $matches):
             $membershipController->getSubscriptionDetails((int)$matches[1]);
+            return;
+
+        case $method === 'POST' && $path === '/api/admin/subscriptions/purchase':
+            $membershipController->purchaseSubscription();
             return;
 
         case $method === 'POST' && $path === '/api/admin/subscriptions':

@@ -176,6 +176,19 @@ class MembershipController
     }
 
     /**
+     * POST /api/admin/subscriptions/purchase
+     */
+    public function purchaseSubscription(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+
+        $input = $this->getRequestInput();
+        $response = $this->workflow->purchaseSubscription($token, $input);
+        echo json_encode($response);
+    }
+
+    /**
      * PUT /api/admin/subscriptions/(\d+)
      */
     public function updateSubscription(int $subId): void

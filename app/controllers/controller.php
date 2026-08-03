@@ -107,6 +107,82 @@ class Controller
         $response = $this->workflow->register($input);
         echo json_encode($response);
     }
+    public function registerMember(): void
+    {
+        $input = json_decode(file_get_contents("php://input"), true);
+
+        if (empty($input)) {
+            $input = $_POST;
+        }
+
+        if (empty($input)) {
+            http_response_code(400);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Invalid request body"
+            ]);
+            return;
+        }
+
+        $required = ['gym_id', 'branch_id', 'name', 'email', 'phone', 'password'];
+
+        foreach ($required as $field) {
+            if (!isset($input[$field]) || trim((string)$input[$field]) === '') {
+                http_response_code(400);
+                echo json_encode([
+                    "status" => "error",
+                    "message" => ucfirst(str_replace('_', ' ', $field)) . " is required"
+                ]);
+                return;
+            }
+        }
+
+        $response = $this->workflow->registerMember($input);
+        echo json_encode($response);
+    }
+
+    public function getMyProfile(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+        $response = $this->workflow->getMyMemberProfile($accessToken);
+        echo json_encode($response);
+    }
+
+    public function updateMyProfile(): void
+    {
+        $headers = getallheaders();
+
+        if (empty($headers['Authorization'])) {
+            http_response_code(401);
+            echo json_encode([
+                "status" => "error",
+                "message" => "Authorization token missing"
+            ]);
+            return;
+        }
+
+        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+
+        $input = json_decode(file_get_contents("php://input"), true);
+        if (empty($input)) {
+            $input = $_POST;
+        }
+
+        $response = $this->workflow->updateMyMemberProfile($accessToken, $input ?: []);
+        echo json_encode($response);
+    }
+
     public function profile(): void
     {
         // 🔍 DEBUG: log all incoming headers
@@ -460,45 +536,7 @@ class Controller
         $response = $this->workflow->listCities($accessToken, $filters);
         echo json_encode($response);
     }
-    // public function addMember()
-    // {
-    //     $data = $_POST;
 
-    //     if (empty($data)) {
-    //         $data = json_decode(file_get_contents("php://input"), true);
-    //     }
-
-    //     if (
-    //         empty($data['name']) ||
-    //         empty($data['email']) ||
-    //         empty($data['phone']) ||
-    //         empty($data['password']) ||
-    //         empty($data['branch_id']) ||
-    //         empty($data['gym_id'])
-    //     ) {
-    //         http_response_code(400);
-    //         echo json_encode([
-    //             "status" => "error",
-    //             "message" => "Required fields missing"
-    //         ]);
-    //         return;
-    //     }
-
-    //     $success = $this->workflow->addMember($data);
-
-    //     if ($success) {
-    //         echo json_encode([
-    //             "status" => "success",
-    //             "message" => "Member added successfully"
-    //         ]);
-    //     } else {
-    //         http_response_code(500);
-    //         echo json_encode([
-    //             "status" => "error",
-    //             "message" => "Failed to add member"
-    //         ]);
-    //     }
-    // }
     public function addMember()
     {
         $data = $_POST;
