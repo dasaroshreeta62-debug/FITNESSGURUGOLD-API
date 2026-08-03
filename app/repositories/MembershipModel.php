@@ -526,7 +526,7 @@ class MembershipModel
 
             // Fetch payment transactions
             $stmtPay = $this->db->prepare("
-                SELECT transaction_id, payment_mode, payment_status, transaction_ref, amount, created_at 
+                SELECT payment_id AS transaction_id, payment_id, payment_mode, payment_status, transaction_ref, amount, COALESCE(updated_at, createdDate) AS created_at 
                 FROM payment_transactions 
                 WHERE invoice_id = :id
             ");
@@ -534,6 +534,7 @@ class MembershipModel
             $payments = $stmtPay->fetchAll(PDO::FETCH_ASSOC);
             foreach ($payments as &$p) {
                 $p['transaction_id'] = (int)$p['transaction_id'];
+                $p['payment_id'] = (int)$p['payment_id'];
                 $p['amount'] = (float)$p['amount'];
             }
             $inv['payments'] = $payments;
