@@ -390,12 +390,13 @@ class FinanceModel
         $membershipPtSales = 0.0;
         $storeProductSales = 0.0;
         try {
-            $invWhere = " WHERE i.status = 'PAID' AND i.issued_at >= :start_dt AND i.issued_at <= :end_dt";
+            $invWhere = " WHERE i.status IN ('PAID', 'SUCCESS', 'COMPLETED') AND i.issued_at >= :start_dt AND i.issued_at <= :end_dt";
             $invParams = ['start_dt' => $startDateTime, 'end_dt' => $endDateTime];
             if ($branchId) {
-                $invWhere .= " AND u.branch_id = :branch_id";
+                $invWhere .= " AND (u.branch_id = :branch_id OR u.branch_id IS NULL OR u.branch_id = 0)";
                 $invParams['branch_id'] = $branchId;
             }
+
 
             $stmtInv = $this->db->prepare("
                 SELECT 
@@ -653,6 +654,17 @@ class FinanceModel
     {
         $this->ensureTablesExist();
 
+        $title         = !empty($data['title']) ? trim((string)$data['title']) : 'Operational Expense';
+        $categoryTag   = !empty($data['category_tag']) ? strtoupper(trim((string)$data['category_tag'])) : 'OPERATING';
+        $amount        = isset($data['amount']) ? (float)$data['amount'] : 0.0;
+        $paymentMethod = !empty($data['payment_method']) ? strtoupper(trim((string)$data['payment_method'])) : 'UPI';
+        $vendorName    = !empty($data['vendor_name']) ? trim((string)$data['vendor_name']) : null;
+        $receiptRef    = !empty($data['receipt_ref']) ? trim((string)$data['receipt_ref']) : null;
+        $receiptUrl    = !empty($data['receipt_url']) ? trim((string)$data['receipt_url']) : null;
+        $expenseDate   = !empty($data['expense_date']) ? (string)$data['expense_date'] : date('Y-m-d');
+        $gymId         = isset($data['gym_id']) ? (int)$data['gym_id'] : 1;
+        $branchId      = isset($data['branch_id']) ? (int)$data['branch_id'] : 1;
+
         $stmt = $this->db->prepare("
             INSERT INTO operating_expenses (
                 gym_id, branch_id, title, category_tag, amount, payment_method, 
@@ -664,39 +676,47 @@ class FinanceModel
         ");
 
         $stmt->execute([
-            'gym_id'         => (int)($data['gym_id'] ?? 1),
-            'branch_id'      => (int)($data['branch_id'] ?? 1),
-            'title'          => trim($data['title']),
-            'category_tag'   => strtoupper(trim($data['category_tag'] ?? 'OPERATING')),
-            'amount'         => (float)$data['amount'],
-            'payment_method' => strtoupper(trim($data['payment_method'] ?? 'UPI')),
-            'vendor_name'    => !empty($data['vendor_name']) ? trim($data['vendor_name']) : null,
-            'receipt_ref'    => !empty($data['receipt_ref']) ? trim($data['receipt_ref']) : null,
-            'receipt_url'    => !empty($data['receipt_url']) ? trim($data['receipt_url']) : null,
-            'expense_date'   => !empty($data['expense_date']) ? $data['expense_date'] : date('Y-m-d')
+            'gym_id'         => $gymId,
+            'branch_id'      => $branchId,
+            'title'          => $title,
+            'category_tag'   => $categoryTag,
+            'amount'         => $amount,
+            'payment_method' => $paymentMethod,
+            'vendor_name'    => $vendorName,
+            'receipt_ref'    => $receiptRef,
+            'receipt_url'    => $receiptUrl,
+            'expense_date'   => $expenseDate
         ]);
 
         $opexId = (int)$this->db->lastInsertId();
 
-        // Also record in financial_ledger
-        $stmtFl = $this->db->prepare("
-            INSERT INTO financial_ledger (
-                gym_id, branch_id, transaction_type, category, amount, reference_table, reference_id, payment_method, description, created_at
-            ) VALUES (
-                :gym_id, :branch_id, 'OUTFLOW', 'OPEX', :amount, 'operating_expenses', :reference_id, :payment_method, :description, NOW()
-            )
-        ");
-        $stmtFl->execute([
-            'gym_id'         => (int)($data['gym_id'] ?? 1),
-            'branch_id'      => (int)($data['branch_id'] ?? 1),
-            'amount'         => (float)$data['amount'],
-            'reference_id'   => $opexId,
-            'payment_method' => strtoupper(trim($data['payment_method'] ?? 'UPI')),
-            'description'    => "OpEx: " . trim($data['title'])
-        ]);
+        // Also record in financial_ledger if ledger table is ready
+        try {
+            $ledgerCreatedAt = $expenseDate . ' ' . date('H:i:s');
+            $stmtFl = $this->db->prepare("
+                INSERT INTO financial_ledger (
+                    gym_id, branch_id, transaction_type, category, amount, reference_table, reference_id, payment_method, description, created_at
+                ) VALUES (
+                    :gym_id, :branch_id, 'OUTFLOW', 'OPEX', :amount, 'operating_expenses', :reference_id, :payment_method, :description, :created_at
+                )
+            ");
+            $stmtFl->execute([
+                'gym_id'         => $gymId,
+                'branch_id'      => $branchId,
+                'amount'         => $amount,
+                'reference_id'   => $opexId,
+                'payment_method' => $paymentMethod,
+                'description'    => "OpEx: " . $title,
+                'created_at'     => $ledgerCreatedAt
+            ]);
+        } catch (\Throwable $t) {
+            // Ignore financial_ledger insert error if ledger table is missing
+        }
+
 
         return $opexId;
     }
+
 
     /**
      * Cancel/Void an operational expense.
@@ -835,6 +855,13 @@ class FinanceModel
     {
         $this->ensureTablesExist();
 
+        $transactionType = !empty($data['transaction_type']) ? strtoupper(trim((string)$data['transaction_type'])) : 'OUTFLOW';
+        $paymentMethod   = !empty($data['payment_method']) ? strtoupper(trim((string)$data['payment_method'])) : 'CASH';
+        $description     = !empty($data['description']) ? trim((string)$data['description']) : 'Manual adjustment';
+        $amount          = isset($data['amount']) ? (float)$data['amount'] : 0.0;
+        $gymId           = isset($data['gym_id']) ? (int)$data['gym_id'] : 1;
+        $branchId        = isset($data['branch_id']) ? (int)$data['branch_id'] : 1;
+
         $stmt = $this->db->prepare("
             INSERT INTO financial_ledger (
                 gym_id, branch_id, transaction_type, category, amount, payment_method, description, created_at
@@ -844,13 +871,14 @@ class FinanceModel
         ");
 
         return $stmt->execute([
-            'gym_id'           => (int)($data['gym_id'] ?? 1),
-            'branch_id'        => (int)($data['branch_id'] ?? 1),
-            'transaction_type' => strtoupper(trim($data['transaction_type'] ?? 'OUTFLOW')),
-            'amount'           => (float)$data['amount'],
-            'payment_method'   => strtoupper(trim($data['payment_method'] ?? 'CASH')),
-            'description'      => trim($data['description'] ?? 'Manual adjustment')
+            'gym_id'           => $gymId,
+            'branch_id'        => $branchId,
+            'transaction_type' => $transactionType,
+            'amount'           => $amount,
+            'payment_method'   => $paymentMethod,
+            'description'      => $description
         ]);
     }
+
 }
 
