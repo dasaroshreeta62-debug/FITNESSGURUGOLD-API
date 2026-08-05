@@ -331,6 +331,28 @@ class MembershipWorkflow
     }
 
     /**
+     * Get aggregate statistics for subscription management. Admin & Staff allowed.
+     */
+    public function getSubscriptionStats(string $accessToken, array $filters = []): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN', 'GYM_ADMIN', 'STAFF']);
+
+            $stats = $this->model->getSubscriptionStats($filters);
+            return [
+                "status"  => "success",
+                "message" => "Subscription statistics fetched successfully",
+                "data"    => $stats
+            ];
+
+        } catch (\Throwable $e) {
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+
+    /**
      * Get single subscription details. Admin only.
      */
     public function getSubscriptionDetails(string $accessToken, int $subId): array
@@ -449,7 +471,7 @@ class MembershipWorkflow
     }
 
     /**
-     * Member self-service: Fetch member's active subscription and credits.
+     * Member self-service: Fetch all member's active subscriptions with their types and credits.
      */
     public function getMyActiveSubscription(string $accessToken): array
     {
@@ -457,8 +479,24 @@ class MembershipWorkflow
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
             $memberUserId = (int)$decoded->sub;
 
-            $subscription = $this->model->getMemberActiveSubscription($memberUserId);
-            return ["status" => "success", "data" => $subscription];
+            $subscriptions = $this->model->getMemberActiveSubscriptions($memberUserId);
+
+            // Group active subscriptions by plan_type (BASE_MEMBERSHIP, PT_UPGRADE, ADD_ON, etc.)
+            $subscriptionsByType = [];
+            foreach ($subscriptions as $sub) {
+                $type = strtoupper($sub['plan_type'] ?? 'BASE_MEMBERSHIP');
+                if (!isset($subscriptionsByType[$type])) {
+                    $subscriptionsByType[$type] = [];
+                }
+                $subscriptionsByType[$type][] = $sub;
+            }
+
+            return [
+                "status"                => "success",
+                "total_active"          => count($subscriptions),
+                "data"                  => $subscriptions,
+                "subscriptions_by_type" => $subscriptionsByType
+            ];
 
         } catch (\Throwable $e) {
             $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);

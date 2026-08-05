@@ -316,6 +316,84 @@ class MembershipModel
     }
 
     /**
+     * Get aggregate statistics for subscriptions management.
+     */
+    public function getSubscriptionStats(array $filters = []): array
+    {
+        $whereSql = " WHERE 1=1";
+        $params = [];
+
+        if (!empty($filters['gym_id'])) {
+            $whereSql .= " AND s.gym_id = :gym_id";
+            $params['gym_id'] = (int)$filters['gym_id'];
+        }
+
+        if (!empty($filters['branch_id'])) {
+            $whereSql .= " AND s.branch_id = :branch_id";
+            $params['branch_id'] = (int)$filters['branch_id'];
+        }
+
+        // 1. Overall counts & status breakdown
+        $stmt = $this->db->prepare("
+            SELECT 
+                COUNT(*) AS total_subscriptions,
+                SUM(CASE WHEN s.status = 1 AND s.end_date >= CURDATE() THEN 1 ELSE 0 END) AS active_subscriptions,
+                SUM(CASE WHEN s.status = 1 AND s.end_date >= CURDATE() AND s.end_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS expiring_soon_subscriptions,
+                SUM(CASE WHEN s.status = 0 OR s.end_date < CURDATE() THEN 1 ELSE 0 END) AS expired_subscriptions,
+                SUM(CASE WHEN s.status = 2 THEN 1 ELSE 0 END) AS frozen_subscriptions,
+                SUM(CASE WHEN s.createdDate >= DATE_FORMAT(CURDATE(), '%Y-%m-01') THEN 1 ELSE 0 END) AS new_subscriptions_this_month,
+                COALESCE(SUM(mp.price), 0.0) AS total_subscription_revenue
+            FROM subscriptions s
+            JOIN membership_plans mp ON mp.plan_id = s.plan_id
+            {$whereSql}
+        ");
+        $stmt->execute($params);
+        $totals = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // 2. Breakdown per plan
+        $stmtPlan = $this->db->prepare("
+            SELECT 
+                mp.plan_id,
+                mp.plan_name,
+                mp.plan_type,
+                mp.price AS plan_price,
+                COUNT(s.subscription_id) AS total_count,
+                SUM(CASE WHEN s.status = 1 AND s.end_date >= CURDATE() THEN 1 ELSE 0 END) AS active_count,
+                COALESCE(SUM(mp.price), 0.0) AS total_revenue
+            FROM membership_plans mp
+            LEFT JOIN subscriptions s ON s.plan_id = mp.plan_id
+            WHERE mp.status = 1
+            " . (!empty($filters['gym_id']) ? " AND mp.gym_id = " . (int)$filters['gym_id'] : "") . "
+            " . (!empty($filters['branch_id']) ? " AND mp.branch_id = " . (int)$filters['branch_id'] : "") . "
+            GROUP BY mp.plan_id, mp.plan_name, mp.plan_type, mp.price
+            ORDER BY total_count DESC, mp.plan_id ASC
+        ");
+        $stmtPlan->execute();
+        $planBreakdown = $stmtPlan->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($planBreakdown as &$p) {
+            $p['plan_id'] = (int)$p['plan_id'];
+            $p['plan_price'] = (float)$p['plan_price'];
+            $p['total_count'] = (int)$p['total_count'];
+            $p['active_count'] = (int)$p['active_count'];
+            $p['total_revenue'] = (float)$p['total_revenue'];
+        }
+
+        return [
+            'total_subscriptions'         => (int)($totals['total_subscriptions'] ?? 0),
+            'active_subscriptions'        => (int)($totals['active_subscriptions'] ?? 0),
+            'expiring_soon_subscriptions' => (int)($totals['expiring_soon_subscriptions'] ?? 0),
+            'expired_subscriptions'       => (int)($totals['expired_subscriptions'] ?? 0),
+            'frozen_subscriptions'        => (int)($totals['frozen_subscriptions'] ?? 0),
+            'new_subscriptions_this_month'=> (int)($totals['new_subscriptions_this_month'] ?? 0),
+            'total_subscription_revenue'  => (float)($totals['total_subscription_revenue'] ?? 0.0),
+            'total_revenue'               => (float)($totals['total_subscription_revenue'] ?? 0.0),
+            'plan_breakdown'              => $planBreakdown
+        ];
+    }
+
+
+    /**
      * Fetch single subscription details by ID.
      */
     public function getSubscriptionById(int $subId): ?array
@@ -357,11 +435,19 @@ class MembershipModel
     }
 
     /**
-     * Get active subscription for a member user ID.
+     * Get all active subscriptions for a member user ID with their plan types.
+     */
+    public function getMemberActiveSubscriptions(int $userId): array
+    {
+        return $this->getAllSubscriptions(['user_id' => $userId, 'status' => 1]);
+    }
+
+    /**
+     * Get primary active subscription for a member user ID.
      */
     public function getMemberActiveSubscription(int $userId): ?array
     {
-        $subs = $this->getAllSubscriptions(['user_id' => $userId, 'status' => 1]);
+        $subs = $this->getMemberActiveSubscriptions($userId);
         return !empty($subs) ? $subs[0] : null;
     }
 

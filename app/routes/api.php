@@ -373,9 +373,14 @@ function route(string $method, string $path): void
             $membershipController->deleteSingleEntitlement((int)$matches[1], $matches[2]);
             return;
 
+        case $method === 'GET' && ($path === '/api/admin/subscriptions/stats' || $path === '/api/admin/subscription-stats'):
+            $membershipController->getSubscriptionStats();
+            return;
+
         case $method === 'GET' && $path === '/api/admin/subscriptions':
             $membershipController->listSubscriptions();
             return;
+
 
         case $method === 'GET' && preg_match('#^/api/admin/subscriptions/(\d+)$#', $path, $matches):
             $membershipController->getSubscriptionDetails((int)$matches[1]);

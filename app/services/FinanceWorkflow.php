@@ -379,7 +379,7 @@ class FinanceWorkflow
 
             $now = new DateTime();
             $now->setTime(0,0,0);
-            $expLimit = (clone $now)->modify('+30 days');
+            $expLimit = (clone $now)->modify('+7 days');
 
             foreach ($membersData as $m) {
                 $userStatus = (int)$m['user_status'];

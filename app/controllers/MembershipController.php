@@ -151,6 +151,19 @@ class MembershipController
     }
 
     /**
+     * GET /api/admin/subscriptions/stats
+     */
+    public function getSubscriptionStats(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+
+        $response = $this->workflow->getSubscriptionStats($token, $_GET);
+        echo json_encode($response);
+    }
+
+
+    /**
      * GET /api/admin/subscriptions/(\d+)
      */
     public function getSubscriptionDetails(int $subId): void
