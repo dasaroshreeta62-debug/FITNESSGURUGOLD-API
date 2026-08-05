@@ -330,42 +330,47 @@ class FinanceModel
      */
     public function ensureTablesExist(): void
     {
-        $this->db->exec("
-            CREATE TABLE IF NOT EXISTS operating_expenses (
-                opex_id INT AUTO_INCREMENT PRIMARY KEY,
-                gym_id INT DEFAULT 1,
-                branch_id INT DEFAULT 1,
-                title VARCHAR(255) NOT NULL,
-                category_tag VARCHAR(100) DEFAULT 'OPERATING',
-                amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-                payment_method VARCHAR(50) DEFAULT 'CASH',
-                vendor_name VARCHAR(255) NULL,
-                receipt_ref VARCHAR(100) NULL,
-                receipt_url TEXT NULL,
-                expense_date DATE NOT NULL,
-                status VARCHAR(50) DEFAULT 'APPROVED',
-                cancellation_reason TEXT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        ");
+        try {
+            $this->db->exec("
+                CREATE TABLE IF NOT EXISTS operating_expenses (
+                    opex_id INT AUTO_INCREMENT PRIMARY KEY,
+                    gym_id INT DEFAULT 1,
+                    branch_id INT DEFAULT 1,
+                    title VARCHAR(255) NOT NULL,
+                    category_tag VARCHAR(100) DEFAULT 'OPERATING',
+                    amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    payment_method VARCHAR(50) DEFAULT 'CASH',
+                    vendor_name VARCHAR(255) NULL,
+                    receipt_ref VARCHAR(100) NULL,
+                    receipt_url TEXT NULL,
+                    expense_date DATE NOT NULL,
+                    status VARCHAR(50) DEFAULT 'APPROVED',
+                    cancellation_reason TEXT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            ");
 
-        $this->db->exec("
-            CREATE TABLE IF NOT EXISTS financial_ledger (
-                ledger_id INT AUTO_INCREMENT PRIMARY KEY,
-                gym_id INT DEFAULT 1,
-                branch_id INT DEFAULT 1,
-                transaction_type VARCHAR(20) NOT NULL,
-                category VARCHAR(50) NOT NULL,
-                amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-                reference_table VARCHAR(100) NULL,
-                reference_id INT NULL,
-                payment_method VARCHAR(50) DEFAULT 'CASH',
-                description TEXT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        ");
+            $this->db->exec("
+                CREATE TABLE IF NOT EXISTS financial_ledger (
+                    ledger_id INT AUTO_INCREMENT PRIMARY KEY,
+                    gym_id INT DEFAULT 1,
+                    branch_id INT DEFAULT 1,
+                    transaction_type VARCHAR(20) NOT NULL,
+                    category VARCHAR(50) NOT NULL,
+                    amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                    reference_table VARCHAR(100) NULL,
+                    reference_id INT NULL,
+                    payment_method VARCHAR(50) DEFAULT 'CASH',
+                    description TEXT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            ");
+        } catch (\Throwable $e) {
+            // Ignore if tables exist or user lacks DDL permissions
+        }
     }
+
 
     /**
      * Get Executive Profit & Loss (P&L) Summary.
@@ -382,42 +387,47 @@ class FinanceModel
         $endDateTime   = $endDate . ' 23:59:59';
 
         // 1. Revenue Breakdown from paid invoices
-        $invWhere = " WHERE i.status = 'PAID' AND i.issued_at >= :start_dt AND i.issued_at <= :end_dt";
-        $invParams = ['start_dt' => $startDateTime, 'end_dt' => $endDateTime];
-        if ($branchId) {
-            $invWhere .= " AND u.branch_id = :branch_id";
-            $invParams['branch_id'] = $branchId;
-        }
-
-        $stmtInv = $this->db->prepare("
-            SELECT 
-                ii.item_type,
-                SUM(ii.total_price) AS total_amount
-            FROM invoices i
-            JOIN invoice_items ii ON ii.invoice_id = i.invoice_id
-            JOIN users u ON u.user_id = i.user_id
-            {$invWhere}
-            GROUP BY ii.item_type
-        ");
-        $stmtInv->execute($invParams);
-        $revRows = $stmtInv->fetchAll(PDO::FETCH_ASSOC);
-
         $membershipPtSales = 0.0;
         $storeProductSales = 0.0;
-
-        foreach ($revRows as $r) {
-            $type = strtoupper($r['item_type']);
-            $val  = (float)$r['total_amount'];
-            if ($type === 'SUBSCRIPTION' || $type === 'PT_PACKAGE') {
-                $membershipPtSales += $val;
-            } elseif ($type === 'PRODUCT') {
-                $storeProductSales += $val;
-            } else {
-                $membershipPtSales += $val;
+        try {
+            $invWhere = " WHERE i.status = 'PAID' AND i.issued_at >= :start_dt AND i.issued_at <= :end_dt";
+            $invParams = ['start_dt' => $startDateTime, 'end_dt' => $endDateTime];
+            if ($branchId) {
+                $invWhere .= " AND u.branch_id = :branch_id";
+                $invParams['branch_id'] = $branchId;
             }
+
+            $stmtInv = $this->db->prepare("
+                SELECT 
+                    ii.item_type,
+                    SUM(ii.total_price) AS total_amount
+                FROM invoices i
+                JOIN invoice_items ii ON ii.invoice_id = i.invoice_id
+                JOIN users u ON u.user_id = i.user_id
+                {$invWhere}
+                GROUP BY ii.item_type
+            ");
+            $stmtInv->execute($invParams);
+            $revRows = $stmtInv->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($revRows as $r) {
+                $type = strtoupper($r['item_type']);
+                $val  = (float)$r['total_amount'];
+                if ($type === 'SUBSCRIPTION' || $type === 'PT_PACKAGE') {
+                    $membershipPtSales += $val;
+                } elseif ($type === 'PRODUCT') {
+                    $storeProductSales += $val;
+                } else {
+                    $membershipPtSales += $val;
+                }
+            }
+        } catch (\Throwable $t) {
+            $membershipPtSales = 0.0;
+            $storeProductSales = 0.0;
         }
 
         // Adjustments Inflow from financial_ledger
+        $adjustmentsInflow = 0.0;
         $flWhere = " WHERE created_at >= :start_dt AND created_at <= :end_dt";
         $flParams = ['start_dt' => $startDateTime, 'end_dt' => $endDateTime];
         if ($branchId) {
@@ -425,70 +435,100 @@ class FinanceModel
             $flParams['branch_id'] = $branchId;
         }
 
-        $stmtInflowAdj = $this->db->prepare("
-            SELECT COALESCE(SUM(amount), 0.0) 
-            FROM financial_ledger 
-            {$flWhere} AND transaction_type = 'INFLOW' AND category = 'ADJUSTMENT'
-        ");
-        $stmtInflowAdj->execute($flParams);
-        $adjustmentsInflow = (float)$stmtInflowAdj->fetchColumn();
+        try {
+            $stmtInflowAdj = $this->db->prepare("
+                SELECT COALESCE(SUM(amount), 0.0) 
+                FROM financial_ledger 
+                {$flWhere} AND transaction_type = 'INFLOW' AND category = 'ADJUSTMENT'
+            ");
+            $stmtInflowAdj->execute($flParams);
+            $adjustmentsInflow = (float)$stmtInflowAdj->fetchColumn();
+        } catch (\Throwable $t) {
+            $adjustmentsInflow = 0.0;
+        }
 
         $grossRevenue = $membershipPtSales + $storeProductSales + $adjustmentsInflow;
 
         // 2. Expense Breakdown
         // COGS
-        $stmtCogs = $this->db->prepare("
-            SELECT COALESCE(SUM(amount), 0.0) 
-            FROM financial_ledger 
-            {$flWhere} AND category = 'COGS'
-        ");
-        $stmtCogs->execute($flParams);
-        $cogs = (float)$stmtCogs->fetchColumn();
+        $cogs = 0.0;
+        try {
+            $stmtCogs = $this->db->prepare("
+                SELECT COALESCE(SUM(amount), 0.0) 
+                FROM financial_ledger 
+                {$flWhere} AND category = 'COGS'
+            ");
+            $stmtCogs->execute($flParams);
+            $cogs = (float)$stmtCogs->fetchColumn();
+        } catch (\Throwable $t) {
+            $cogs = 0.0;
+        }
 
         // Staff & Trainer Payroll
-        $payrollWhere = " WHERE createdDate >= :start_d AND createdDate <= :end_d";
-        $payrollParams = ['start_d' => $startDate, 'end_d' => $endDate];
-        if ($branchId) {
-            $payrollWhere .= " AND branch_id = :branch_id";
-            $payrollParams['branch_id'] = $branchId;
-        }
+        $payroll = 0.0;
+        try {
+            $payrollWhere = " WHERE created_at >= :start_dt AND created_at <= :end_dt";
+            $payrollParams = ['start_dt' => $startDateTime, 'end_dt' => $endDateTime];
+            if ($branchId) {
+                $payrollWhere .= " AND branch_id = :branch_id";
+                $payrollParams['branch_id'] = $branchId;
+            }
 
-        $stmtPay = $this->db->prepare("
-            SELECT COALESCE(SUM(net_pay), 0.0) 
-            FROM payrolls 
-            {$payrollWhere} AND status IN ('PAID', 'DISBURSED')
-        ");
-        $stmtPay->execute($payrollParams);
-        $payroll = (float)$stmtPay->fetchColumn();
+            $stmtPay = $this->db->prepare("
+                SELECT COALESCE(SUM(net_payable), 0.0) 
+                FROM payroll_runs 
+                {$payrollWhere} AND status IN ('PAID', 'DISBURSED')
+            ");
+            $stmtPay->execute($payrollParams);
+            $payroll = (float)$stmtPay->fetchColumn();
+        } catch (\Throwable $t) {
+            $payroll = 0.0;
+        }
 
         // Operating Expenses (OpEx)
-        $opexWhere = " WHERE status != 'CANCELLED' AND expense_date >= :start_d AND expense_date <= :end_d";
-        $opexParams = ['start_d' => $startDate, 'end_d' => $endDate];
-        if ($branchId) {
-            $opexWhere .= " AND branch_id = :branch_id";
-            $opexParams['branch_id'] = $branchId;
+        $opex = 0.0;
+        try {
+            $opexWhere = " WHERE status != 'CANCELLED' AND expense_date >= :start_d AND expense_date <= :end_d";
+            $opexParams = ['start_d' => $startDate, 'end_d' => $endDate];
+            if ($branchId) {
+                $opexWhere .= " AND branch_id = :branch_id";
+                $opexParams['branch_id'] = $branchId;
+            }
+            $stmtOpex = $this->db->prepare("SELECT COALESCE(SUM(amount), 0.0) FROM operating_expenses {$opexWhere}");
+            $stmtOpex->execute($opexParams);
+            $opex = (float)$stmtOpex->fetchColumn();
+        } catch (\Throwable $t) {
+            $opex = 0.0;
         }
-        $stmtOpex = $this->db->prepare("SELECT COALESCE(SUM(amount), 0.0) FROM operating_expenses {$opexWhere}");
-        $stmtOpex->execute($opexParams);
-        $opex = (float)$stmtOpex->fetchColumn();
 
         // Refunds Issued
-        $stmtRefund = $this->db->prepare("
-            SELECT COALESCE(SUM(amount), 0.0) 
-            FROM financial_ledger 
-            {$flWhere} AND category = 'REFUND'
-        ");
-        $stmtRefund->execute($flParams);
-        $refunds = (float)$stmtRefund->fetchColumn();
+        $refunds = 0.0;
+        try {
+            $stmtRefund = $this->db->prepare("
+                SELECT COALESCE(SUM(amount), 0.0) 
+                FROM financial_ledger 
+                {$flWhere} AND category = 'REFUND'
+            ");
+            $stmtRefund->execute($flParams);
+            $refunds = (float)$stmtRefund->fetchColumn();
+        } catch (\Throwable $t) {
+            $refunds = 0.0;
+        }
 
         // Adjustments Outflow
-        $stmtOutflowAdj = $this->db->prepare("
-            SELECT COALESCE(SUM(amount), 0.0) 
-            FROM financial_ledger 
-            {$flWhere} AND transaction_type = 'OUTFLOW' AND category = 'ADJUSTMENT'
-        ");
-        $stmtOutflowAdj->execute($flParams);
-        $adjustmentsOutflow = (float)$stmtOutflowAdj->fetchColumn();
+        $adjustmentsOutflow = 0.0;
+        try {
+            $stmtOutflowAdj = $this->db->prepare("
+                SELECT COALESCE(SUM(amount), 0.0) 
+                FROM financial_ledger 
+                {$flWhere} AND transaction_type = 'OUTFLOW' AND category = 'ADJUSTMENT'
+            ");
+            $stmtOutflowAdj->execute($flParams);
+            $adjustmentsOutflow = (float)$stmtOutflowAdj->fetchColumn();
+        } catch (\Throwable $t) {
+            $adjustmentsOutflow = 0.0;
+        }
+
 
         $totalExpenses = $cogs + $payroll + $opex + $refunds + $adjustmentsOutflow;
 
