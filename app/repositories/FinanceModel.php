@@ -366,10 +366,176 @@ class FinanceModel
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             ");
+
+            // Ensure columns exist and nullability on financial_ledger if table existed prior
+            try { $this->db->exec("ALTER TABLE financial_ledger ADD description TEXT NULL"); } catch (\Throwable $t) {}
+            try { $this->db->exec("ALTER TABLE financial_ledger MODIFY reference_table VARCHAR(100) NULL"); } catch (\Throwable $t) {}
+            try { $this->db->exec("ALTER TABLE financial_ledger MODIFY reference_id INT NULL"); } catch (\Throwable $t) {}
+            try { $this->db->exec("ALTER TABLE financial_ledger MODIFY category VARCHAR(50) NOT NULL"); } catch (\Throwable $t) {}
+            try { $this->db->exec("ALTER TABLE financial_ledger MODIFY payment_method VARCHAR(50) DEFAULT 'CASH'"); } catch (\Throwable $t) {}
+
+            $hasDesc = $this->hasLedgerDescriptionColumn();
+
+            // Auto-sync unrecorded OpEx entries into financial_ledger
+            try {
+                $descSelect = $hasDesc ? "CONCAT('OpEx: ', oe.title)," : "";
+                $descCol = $hasDesc ? "description," : "";
+                $this->db->exec("
+                    INSERT INTO financial_ledger (gym_id, branch_id, transaction_type, category, amount, reference_table, reference_id, payment_method, {$descCol} created_at)
+                    SELECT 
+                        oe.gym_id, 
+                        oe.branch_id, 
+                        'OUTFLOW', 
+                        'OPEX', 
+                        oe.amount, 
+                        'operating_expenses', 
+                        oe.opex_id, 
+                        oe.payment_method, 
+                        {$descSelect}
+                        CONCAT(oe.expense_date, ' 12:00:00')
+                    FROM operating_expenses oe
+                    WHERE oe.status != 'CANCELLED'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM financial_ledger fl 
+                          WHERE fl.reference_table = 'operating_expenses' 
+                            AND fl.reference_id = oe.opex_id
+                      )
+                ");
+            } catch (\Throwable $t) {}
+
+            // Auto-sync unrecorded Payroll Disbursed entries into financial_ledger
+            try {
+                $descSelect = $hasDesc ? "CONCAT('Payroll Disbursed #', pr.payroll_id)," : "";
+                $descCol = $hasDesc ? "description," : "";
+                $this->db->exec("
+                    INSERT INTO financial_ledger (gym_id, branch_id, transaction_type, category, amount, reference_table, reference_id, payment_method, {$descCol} created_at)
+                    SELECT 
+                        pr.gym_id, 
+                        pr.branch_id, 
+                        'OUTFLOW', 
+                        'PAYROLL', 
+                        pr.net_payable, 
+                        'payroll_runs', 
+                        pr.payroll_id, 
+                        'BANK_TRANSFER', 
+                        {$descSelect}
+                        COALESCE(pr.paid_at, pr.created_at)
+                    FROM payroll_runs pr
+                    WHERE pr.status IN ('PAID', 'DISBURSED')
+                      AND NOT EXISTS (
+                          SELECT 1 FROM financial_ledger fl 
+                          WHERE fl.reference_table = 'payroll_runs' 
+                            AND fl.reference_id = pr.payroll_id
+                      )
+                ");
+            } catch (\Throwable $t) {}
+
+            // Auto-sync unrecorded COGS (Purchase Orders) entries into financial_ledger
+            try {
+                $descSelect = $hasDesc ? "CONCAT('COGS/Inventory: ', COALESCE(po.supplier_name, 'Supplier Restock'))," : "";
+                $descCol = $hasDesc ? "description," : "";
+                $this->db->exec("
+                    INSERT INTO financial_ledger (gym_id, branch_id, transaction_type, category, amount, reference_table, reference_id, payment_method, {$descCol} created_at)
+                    SELECT 
+                        po.gym_id, 
+                        po.branch_id, 
+                        'OUTFLOW', 
+                        'COGS', 
+                        po.total_amount, 
+                        'purchase_orders', 
+                        po.po_id, 
+                        'BANK_TRANSFER', 
+                        {$descSelect}
+                        po.created_at
+                    FROM purchase_orders po
+                    WHERE po.status IN ('COMPLETED', 'RECEIVED', 'PAID', 'APPROVED')
+                      AND NOT EXISTS (
+                          SELECT 1 FROM financial_ledger fl 
+                          WHERE fl.reference_table = 'purchase_orders' 
+                            AND fl.reference_id = po.po_id
+                      )
+                ");
+            } catch (\Throwable $t) {}
         } catch (\Throwable $e) {
-            // Ignore if tables exist or user lacks DDL permissions
+            // Ignore DDL errors
         }
     }
+
+    /**
+     * Check if financial_ledger table has 'description' column.
+     */
+    private function hasLedgerDescriptionColumn(): bool
+    {
+        try {
+            $stmt = $this->db->query("SHOW COLUMNS FROM financial_ledger LIKE 'description'");
+            return $stmt && $stmt->rowCount() > 0;
+        } catch (\Throwable $t) {
+            return false;
+        }
+    }
+
+    /**
+     * Insert a record into financial_ledger in a schema-safe manner.
+     */
+    public function insertLedgerRecord(array $data): bool
+    {
+        $hasDesc = $this->hasLedgerDescriptionColumn();
+
+        $gymId           = (int)($data['gym_id'] ?? 1);
+        $branchId        = (int)($data['branch_id'] ?? 1);
+        $txnType         = strtoupper(trim($data['transaction_type'] ?? 'OUTFLOW'));
+        $category        = strtoupper(trim($data['category'] ?? 'OPEX'));
+        $amount          = (float)($data['amount'] ?? 0.0);
+        $refTable        = !empty($data['reference_table']) ? trim($data['reference_table']) : 'manual_adjustment';
+        $refId           = isset($data['reference_id']) && $data['reference_id'] !== null ? (int)$data['reference_id'] : 0;
+        $payMethod       = !empty($data['payment_method']) ? strtoupper(trim($data['payment_method'])) : 'CASH';
+        $description     = !empty($data['description']) ? trim($data['description']) : '';
+        $createdAt       = !empty($data['created_at']) ? $data['created_at'] : date('Y-m-d H:i:s');
+
+        if ($hasDesc) {
+            $stmt = $this->db->prepare("
+                INSERT INTO financial_ledger (
+                    gym_id, branch_id, transaction_type, category, amount, reference_table, reference_id, payment_method, description, created_at
+                ) VALUES (
+                    :gym_id, :branch_id, :transaction_type, :category, :amount, :reference_table, :reference_id, :payment_method, :description, :created_at
+                )
+            ");
+            return $stmt->execute([
+                'gym_id'           => $gymId,
+                'branch_id'        => $branchId,
+                'transaction_type' => $txnType,
+                'category'         => $category,
+                'amount'           => $amount,
+                'reference_table'  => $refTable,
+                'reference_id'     => $refId,
+                'payment_method'   => $payMethod,
+                'description'      => $description,
+                'created_at'       => $createdAt
+            ]);
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO financial_ledger (
+                    gym_id, branch_id, transaction_type, category, amount, reference_table, reference_id, payment_method, created_at
+                ) VALUES (
+                    :gym_id, :branch_id, :transaction_type, :category, :amount, :reference_table, :reference_id, :payment_method, :created_at
+                )
+            ");
+            return $stmt->execute([
+                'gym_id'           => $gymId,
+                'branch_id'        => $branchId,
+                'transaction_type' => $txnType,
+                'category'         => $category,
+                'amount'           => $amount,
+                'reference_table'  => $refTable,
+                'reference_id'     => $refId,
+                'payment_method'   => $payMethod,
+                'created_at'       => $createdAt
+            ]);
+        }
+    }
+
+
+
 
 
     /**
@@ -693,26 +859,21 @@ class FinanceModel
         // Also record in financial_ledger if ledger table is ready
         try {
             $ledgerCreatedAt = $expenseDate . ' ' . date('H:i:s');
-            $stmtFl = $this->db->prepare("
-                INSERT INTO financial_ledger (
-                    gym_id, branch_id, transaction_type, category, amount, reference_table, reference_id, payment_method, description, created_at
-                ) VALUES (
-                    :gym_id, :branch_id, 'OUTFLOW', 'OPEX', :amount, 'operating_expenses', :reference_id, :payment_method, :description, :created_at
-                )
-            ");
-            $stmtFl->execute([
-                'gym_id'         => $gymId,
-                'branch_id'      => $branchId,
-                'amount'         => $amount,
-                'reference_id'   => $opexId,
-                'payment_method' => $paymentMethod,
-                'description'    => "OpEx: " . $title,
-                'created_at'     => $ledgerCreatedAt
+            $this->insertLedgerRecord([
+                'gym_id'           => $gymId,
+                'branch_id'        => $branchId,
+                'transaction_type' => 'OUTFLOW',
+                'category'         => 'OPEX',
+                'amount'           => $amount,
+                'reference_table'  => 'operating_expenses',
+                'reference_id'     => $opexId,
+                'payment_method'   => $paymentMethod,
+                'description'      => "OpEx: " . $title,
+                'created_at'       => $ledgerCreatedAt
             ]);
         } catch (\Throwable $t) {
             // Ignore financial_ledger insert error if ledger table is missing
         }
-
 
         return $opexId;
     }
@@ -737,20 +898,16 @@ class FinanceModel
         $stmt->execute(['id' => $opexId, 'reason' => trim($reason)]);
 
         // Record offsetting INFLOW in financial_ledger
-        $stmtFl = $this->db->prepare("
-            INSERT INTO financial_ledger (
-                gym_id, branch_id, transaction_type, category, amount, reference_table, reference_id, payment_method, description, created_at
-            ) VALUES (
-                :gym_id, :branch_id, 'INFLOW', 'ADJUSTMENT', :amount, 'operating_expenses', :reference_id, :payment_method, :description, NOW()
-            )
-        ");
-        $stmtFl->execute([
-            'gym_id'         => (int)$exp['gym_id'],
-            'branch_id'      => (int)$exp['branch_id'],
-            'amount'         => (float)$exp['amount'],
-            'reference_id'   => $opexId,
-            'payment_method' => $exp['payment_method'],
-            'description'    => "Voided OpEx #{$opexId}: " . trim($reason)
+        $this->insertLedgerRecord([
+            'gym_id'           => (int)$exp['gym_id'],
+            'branch_id'        => (int)$exp['branch_id'],
+            'transaction_type' => 'INFLOW',
+            'category'         => 'ADJUSTMENT',
+            'amount'           => (float)$exp['amount'],
+            'reference_table'  => 'operating_expenses',
+            'reference_id'     => $opexId,
+            'payment_method'   => $exp['payment_method'],
+            'description'      => "Voided OpEx #{$opexId}: " . trim($reason)
         ]);
 
         return true;
@@ -830,6 +987,9 @@ class FinanceModel
             $entry['branch_id']    = (int)$entry['branch_id'];
             $entry['reference_id'] = $entry['reference_id'] !== null ? (int)$entry['reference_id'] : null;
             $entry['amount']       = number_format((float)$entry['amount'], 2, '.', '');
+            if (!isset($entry['description'])) {
+                $entry['description'] = $entry['category'] . ' Transaction';
+            }
         }
 
         return [
@@ -862,23 +1022,19 @@ class FinanceModel
         $gymId           = isset($data['gym_id']) ? (int)$data['gym_id'] : 1;
         $branchId        = isset($data['branch_id']) ? (int)$data['branch_id'] : 1;
 
-        $stmt = $this->db->prepare("
-            INSERT INTO financial_ledger (
-                gym_id, branch_id, transaction_type, category, amount, payment_method, description, created_at
-            ) VALUES (
-                :gym_id, :branch_id, :transaction_type, 'ADJUSTMENT', :amount, :payment_method, :description, NOW()
-            )
-        ");
-
-        return $stmt->execute([
+        return $this->insertLedgerRecord([
             'gym_id'           => $gymId,
             'branch_id'        => $branchId,
             'transaction_type' => $transactionType,
+            'category'         => 'ADJUSTMENT',
             'amount'           => $amount,
+            'reference_table'  => 'manual_adjustment',
+            'reference_id'     => 0,
             'payment_method'   => $paymentMethod,
             'description'      => $description
         ]);
     }
+
 
 }
 
