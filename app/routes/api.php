@@ -696,6 +696,35 @@ function route(string $method, string $path): void
             $financeController->getDashboardKpis();
             return;
 
+        case $method === 'GET' && $path === '/api/admin/finance/summary':
+            $financeController->getExecutiveSummary();
+            return;
+
+        case $method === 'GET' && $path === '/api/admin/opex':
+            $financeController->getOpexLogs();
+            return;
+
+        case $method === 'POST' && $path === '/api/admin/opex/log':
+            $financeController->logOpex();
+            return;
+
+        case $method === 'POST' && preg_match('#^/api/admin/opex/(\d+)/cancel$#', $path, $matches):
+            $financeController->cancelOpex((int)$matches[1]);
+            return;
+
+        case $method === 'GET' && $path === '/api/admin/finance/ledger':
+            $financeController->getLedgerLogs();
+            return;
+
+        case $method === 'POST' && $path === '/api/admin/finance/ledger/adjust':
+            $financeController->logLedgerAdjustment();
+            return;
+
+        case $method === 'GET' && ($path === '/api/admin/gym-branches' || $path === '/api/gymBranchList'):
+            $controller->listGymBranches();
+            return;
+
+
         // ================= PAYROLL & COMMISSIONS =================
         case $method === 'POST' && $path === '/api/jobs/pt/process-completed-durations':
             $personalTrainingController->processCompletedDurations();

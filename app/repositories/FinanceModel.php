@@ -324,4 +324,493 @@ class FinanceModel
         ]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    /**
+     * Ensure operating_expenses and financial_ledger tables exist.
+     */
+    public function ensureTablesExist(): void
+    {
+        $this->db->exec("
+            CREATE TABLE IF NOT EXISTS operating_expenses (
+                opex_id INT AUTO_INCREMENT PRIMARY KEY,
+                gym_id INT DEFAULT 1,
+                branch_id INT DEFAULT 1,
+                title VARCHAR(255) NOT NULL,
+                category_tag VARCHAR(100) DEFAULT 'OPERATING',
+                amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                payment_method VARCHAR(50) DEFAULT 'CASH',
+                vendor_name VARCHAR(255) NULL,
+                receipt_ref VARCHAR(100) NULL,
+                receipt_url TEXT NULL,
+                expense_date DATE NOT NULL,
+                status VARCHAR(50) DEFAULT 'APPROVED',
+                cancellation_reason TEXT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+
+        $this->db->exec("
+            CREATE TABLE IF NOT EXISTS financial_ledger (
+                ledger_id INT AUTO_INCREMENT PRIMARY KEY,
+                gym_id INT DEFAULT 1,
+                branch_id INT DEFAULT 1,
+                transaction_type VARCHAR(20) NOT NULL,
+                category VARCHAR(50) NOT NULL,
+                amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                reference_table VARCHAR(100) NULL,
+                reference_id INT NULL,
+                payment_method VARCHAR(50) DEFAULT 'CASH',
+                description TEXT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+    }
+
+    /**
+     * Get Executive Profit & Loss (P&L) Summary.
+     */
+    public function getExecutiveSummary(array $filters): array
+    {
+        $this->ensureTablesExist();
+
+        $startDate = !empty($filters['start_date']) ? $filters['start_date'] : date('Y-m-01');
+        $endDate   = !empty($filters['end_date']) ? $filters['end_date'] : date('Y-m-t');
+        $branchId  = !empty($filters['branch_id']) ? (int)$filters['branch_id'] : null;
+
+        $startDateTime = $startDate . ' 00:00:00';
+        $endDateTime   = $endDate . ' 23:59:59';
+
+        // 1. Revenue Breakdown from paid invoices
+        $invWhere = " WHERE i.status = 'PAID' AND i.issued_at >= :start_dt AND i.issued_at <= :end_dt";
+        $invParams = ['start_dt' => $startDateTime, 'end_dt' => $endDateTime];
+        if ($branchId) {
+            $invWhere .= " AND u.branch_id = :branch_id";
+            $invParams['branch_id'] = $branchId;
+        }
+
+        $stmtInv = $this->db->prepare("
+            SELECT 
+                ii.item_type,
+                SUM(ii.total_price) AS total_amount
+            FROM invoices i
+            JOIN invoice_items ii ON ii.invoice_id = i.invoice_id
+            JOIN users u ON u.user_id = i.user_id
+            {$invWhere}
+            GROUP BY ii.item_type
+        ");
+        $stmtInv->execute($invParams);
+        $revRows = $stmtInv->fetchAll(PDO::FETCH_ASSOC);
+
+        $membershipPtSales = 0.0;
+        $storeProductSales = 0.0;
+
+        foreach ($revRows as $r) {
+            $type = strtoupper($r['item_type']);
+            $val  = (float)$r['total_amount'];
+            if ($type === 'SUBSCRIPTION' || $type === 'PT_PACKAGE') {
+                $membershipPtSales += $val;
+            } elseif ($type === 'PRODUCT') {
+                $storeProductSales += $val;
+            } else {
+                $membershipPtSales += $val;
+            }
+        }
+
+        // Adjustments Inflow from financial_ledger
+        $flWhere = " WHERE created_at >= :start_dt AND created_at <= :end_dt";
+        $flParams = ['start_dt' => $startDateTime, 'end_dt' => $endDateTime];
+        if ($branchId) {
+            $flWhere .= " AND branch_id = :branch_id";
+            $flParams['branch_id'] = $branchId;
+        }
+
+        $stmtInflowAdj = $this->db->prepare("
+            SELECT COALESCE(SUM(amount), 0.0) 
+            FROM financial_ledger 
+            {$flWhere} AND transaction_type = 'INFLOW' AND category = 'ADJUSTMENT'
+        ");
+        $stmtInflowAdj->execute($flParams);
+        $adjustmentsInflow = (float)$stmtInflowAdj->fetchColumn();
+
+        $grossRevenue = $membershipPtSales + $storeProductSales + $adjustmentsInflow;
+
+        // 2. Expense Breakdown
+        // COGS
+        $stmtCogs = $this->db->prepare("
+            SELECT COALESCE(SUM(amount), 0.0) 
+            FROM financial_ledger 
+            {$flWhere} AND category = 'COGS'
+        ");
+        $stmtCogs->execute($flParams);
+        $cogs = (float)$stmtCogs->fetchColumn();
+
+        // Staff & Trainer Payroll
+        $payrollWhere = " WHERE createdDate >= :start_d AND createdDate <= :end_d";
+        $payrollParams = ['start_d' => $startDate, 'end_d' => $endDate];
+        if ($branchId) {
+            $payrollWhere .= " AND branch_id = :branch_id";
+            $payrollParams['branch_id'] = $branchId;
+        }
+
+        $stmtPay = $this->db->prepare("
+            SELECT COALESCE(SUM(net_pay), 0.0) 
+            FROM payrolls 
+            {$payrollWhere} AND status IN ('PAID', 'DISBURSED')
+        ");
+        $stmtPay->execute($payrollParams);
+        $payroll = (float)$stmtPay->fetchColumn();
+
+        // Operating Expenses (OpEx)
+        $opexWhere = " WHERE status != 'CANCELLED' AND expense_date >= :start_d AND expense_date <= :end_d";
+        $opexParams = ['start_d' => $startDate, 'end_d' => $endDate];
+        if ($branchId) {
+            $opexWhere .= " AND branch_id = :branch_id";
+            $opexParams['branch_id'] = $branchId;
+        }
+        $stmtOpex = $this->db->prepare("SELECT COALESCE(SUM(amount), 0.0) FROM operating_expenses {$opexWhere}");
+        $stmtOpex->execute($opexParams);
+        $opex = (float)$stmtOpex->fetchColumn();
+
+        // Refunds Issued
+        $stmtRefund = $this->db->prepare("
+            SELECT COALESCE(SUM(amount), 0.0) 
+            FROM financial_ledger 
+            {$flWhere} AND category = 'REFUND'
+        ");
+        $stmtRefund->execute($flParams);
+        $refunds = (float)$stmtRefund->fetchColumn();
+
+        // Adjustments Outflow
+        $stmtOutflowAdj = $this->db->prepare("
+            SELECT COALESCE(SUM(amount), 0.0) 
+            FROM financial_ledger 
+            {$flWhere} AND transaction_type = 'OUTFLOW' AND category = 'ADJUSTMENT'
+        ");
+        $stmtOutflowAdj->execute($flParams);
+        $adjustmentsOutflow = (float)$stmtOutflowAdj->fetchColumn();
+
+        $totalExpenses = $cogs + $payroll + $opex + $refunds + $adjustmentsOutflow;
+
+        // 3. Net Position
+        $netOperatingProfit = $grossRevenue - $totalExpenses;
+        $marginPct = $grossRevenue > 0 ? round(($netOperatingProfit / $grossRevenue) * 100, 2) : 0.0;
+
+        return [
+            "period" => [
+                "start_date" => $startDate,
+                "end_date"   => $endDate,
+                "branch_id"  => $branchId
+            ],
+            "revenue_breakdown" => [
+                "membership_and_pt_sales" => number_format($membershipPtSales, 2, '.', ''),
+                "store_product_sales"     => number_format($storeProductSales, 2, '.', ''),
+                "adjustments_inflow"      => number_format($adjustmentsInflow, 2, '.', ''),
+                "gross_revenue"           => number_format($grossRevenue, 2, '.', '')
+            ],
+            "expense_breakdown" => [
+                "cogs_inventory_procurement" => number_format($cogs, 2, '.', ''),
+                "staff_and_trainer_payroll"  => number_format($payroll, 2, '.', ''),
+                "operating_expenses_opex"    => number_format($opex, 2, '.', ''),
+                "refunds_issued"             => number_format($refunds, 2, '.', ''),
+                "adjustments_outflow"        => number_format($adjustmentsOutflow, 2, '.', ''),
+                "total_expenses"             => number_format($totalExpenses, 2, '.', '')
+            ],
+            "net_position" => [
+                "net_operating_profit"     => number_format($netOperatingProfit, 2, '.', ''),
+                "profit_margin_percentage" => number_format($marginPct, 2, '.', '')
+            ]
+        ];
+    }
+
+    /**
+     * Get paginated operational expenses.
+     */
+    public function getOpexLogs(array $filters): array
+    {
+        $this->ensureTablesExist();
+
+        $where = ["1=1"];
+        $params = [];
+
+        if (!empty($filters['category_tag'])) {
+            $where[] = "category_tag = :category_tag";
+            $params['category_tag'] = trim($filters['category_tag']);
+        }
+        if (!empty($filters['vendor_name'])) {
+            $where[] = "vendor_name LIKE :vendor_name";
+            $params['vendor_name'] = '%' . trim($filters['vendor_name']) . '%';
+        }
+        if (!empty($filters['branch_id'])) {
+            $where[] = "branch_id = :branch_id";
+            $params['branch_id'] = (int)$filters['branch_id'];
+        }
+        if (!empty($filters['start_date'])) {
+            $where[] = "expense_date >= :start_date";
+            $params['start_date'] = $filters['start_date'];
+        }
+        if (!empty($filters['end_date'])) {
+            $where[] = "expense_date <= :end_date";
+            $params['end_date'] = $filters['end_date'];
+        }
+        if (!empty($filters['time_frame']) && empty($filters['start_date'])) {
+            if ($filters['time_frame'] === 'current_month') {
+                $where[] = "expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')";
+            } elseif ($filters['time_frame'] === 'previous_month') {
+                $where[] = "expense_date >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH) AND expense_date < DATE_FORMAT(CURDATE(), '%Y-%m-01')";
+            }
+        }
+
+        $whereClause = implode(' AND ', $where);
+
+        // Count & Total amount
+        $stmtCount = $this->db->prepare("SELECT COUNT(*) AS total_cnt, COALESCE(SUM(amount), 0.0) AS total_amt FROM operating_expenses WHERE {$whereClause}");
+        $stmtCount->execute($params);
+        $countRow = $stmtCount->fetch(PDO::FETCH_ASSOC);
+
+        $totalRecords = (int)($countRow['total_cnt'] ?? 0);
+        $totalAmount  = (float)($countRow['total_amt'] ?? 0.0);
+
+        $page  = max(1, (int)($filters['page'] ?? 1));
+        $limit = max(1, min(100, (int)($filters['limit'] ?? 20)));
+        $offset = ($page - 1) * $limit;
+        $totalPages = ceil($totalRecords / $limit) ?: 1;
+
+        $stmtList = $this->db->prepare("
+            SELECT * FROM operating_expenses 
+            WHERE {$whereClause} 
+            ORDER BY expense_date DESC, opex_id DESC 
+            LIMIT {$limit} OFFSET {$offset}
+        ");
+        $stmtList->execute($params);
+        $expenses = $stmtList->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($expenses as &$exp) {
+            $exp['opex_id']   = (int)$exp['opex_id'];
+            $exp['gym_id']    = (int)$exp['gym_id'];
+            $exp['branch_id'] = (int)$exp['branch_id'];
+            $exp['amount']    = number_format((float)$exp['amount'], 2, '.', '');
+        }
+
+        return [
+            "expenses" => $expenses,
+            "pagination" => [
+                "current_page"  => $page,
+                "limit"         => $limit,
+                "total_records" => $totalRecords,
+                "total_pages"   => $totalPages
+            ],
+            "summary_metrics" => [
+                "filtered_total_opex_amount" => number_format($totalAmount, 2, '.', '')
+            ]
+        ];
+    }
+
+    /**
+     * Log a new operational expense.
+     */
+    public function logOpex(array $data): int
+    {
+        $this->ensureTablesExist();
+
+        $stmt = $this->db->prepare("
+            INSERT INTO operating_expenses (
+                gym_id, branch_id, title, category_tag, amount, payment_method, 
+                vendor_name, receipt_ref, receipt_url, expense_date, status
+            ) VALUES (
+                :gym_id, :branch_id, :title, :category_tag, :amount, :payment_method, 
+                :vendor_name, :receipt_ref, :receipt_url, :expense_date, 'APPROVED'
+            )
+        ");
+
+        $stmt->execute([
+            'gym_id'         => (int)($data['gym_id'] ?? 1),
+            'branch_id'      => (int)($data['branch_id'] ?? 1),
+            'title'          => trim($data['title']),
+            'category_tag'   => strtoupper(trim($data['category_tag'] ?? 'OPERATING')),
+            'amount'         => (float)$data['amount'],
+            'payment_method' => strtoupper(trim($data['payment_method'] ?? 'UPI')),
+            'vendor_name'    => !empty($data['vendor_name']) ? trim($data['vendor_name']) : null,
+            'receipt_ref'    => !empty($data['receipt_ref']) ? trim($data['receipt_ref']) : null,
+            'receipt_url'    => !empty($data['receipt_url']) ? trim($data['receipt_url']) : null,
+            'expense_date'   => !empty($data['expense_date']) ? $data['expense_date'] : date('Y-m-d')
+        ]);
+
+        $opexId = (int)$this->db->lastInsertId();
+
+        // Also record in financial_ledger
+        $stmtFl = $this->db->prepare("
+            INSERT INTO financial_ledger (
+                gym_id, branch_id, transaction_type, category, amount, reference_table, reference_id, payment_method, description, created_at
+            ) VALUES (
+                :gym_id, :branch_id, 'OUTFLOW', 'OPEX', :amount, 'operating_expenses', :reference_id, :payment_method, :description, NOW()
+            )
+        ");
+        $stmtFl->execute([
+            'gym_id'         => (int)($data['gym_id'] ?? 1),
+            'branch_id'      => (int)($data['branch_id'] ?? 1),
+            'amount'         => (float)$data['amount'],
+            'reference_id'   => $opexId,
+            'payment_method' => strtoupper(trim($data['payment_method'] ?? 'UPI')),
+            'description'    => "OpEx: " . trim($data['title'])
+        ]);
+
+        return $opexId;
+    }
+
+    /**
+     * Cancel/Void an operational expense.
+     */
+    public function cancelOpex(int $opexId, string $reason): bool
+    {
+        $this->ensureTablesExist();
+
+        $stmtCheck = $this->db->prepare("SELECT * FROM operating_expenses WHERE opex_id = :id LIMIT 1");
+        $stmtCheck->execute(['id' => $opexId]);
+        $exp = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+
+        if (!$exp) {
+            throw new Exception("Operating expense not found", 404);
+        }
+
+        $stmt = $this->db->prepare("UPDATE operating_expenses SET status = 'CANCELLED', cancellation_reason = :reason WHERE opex_id = :id");
+        $stmt->execute(['id' => $opexId, 'reason' => trim($reason)]);
+
+        // Record offsetting INFLOW in financial_ledger
+        $stmtFl = $this->db->prepare("
+            INSERT INTO financial_ledger (
+                gym_id, branch_id, transaction_type, category, amount, reference_table, reference_id, payment_method, description, created_at
+            ) VALUES (
+                :gym_id, :branch_id, 'INFLOW', 'ADJUSTMENT', :amount, 'operating_expenses', :reference_id, :payment_method, :description, NOW()
+            )
+        ");
+        $stmtFl->execute([
+            'gym_id'         => (int)$exp['gym_id'],
+            'branch_id'      => (int)$exp['branch_id'],
+            'amount'         => (float)$exp['amount'],
+            'reference_id'   => $opexId,
+            'payment_method' => $exp['payment_method'],
+            'description'    => "Voided OpEx #{$opexId}: " . trim($reason)
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Get paginated financial ledger logs.
+     */
+    public function getLedgerLogs(array $filters): array
+    {
+        $this->ensureTablesExist();
+
+        $where = ["1=1"];
+        $params = [];
+
+        if (!empty($filters['transaction_type'])) {
+            $where[] = "transaction_type = :transaction_type";
+            $params['transaction_type'] = strtoupper(trim($filters['transaction_type']));
+        }
+        if (!empty($filters['category'])) {
+            $where[] = "category = :category";
+            $params['category'] = strtoupper(trim($filters['category']));
+        }
+        if (!empty($filters['payment_method'])) {
+            $where[] = "payment_method = :payment_method";
+            $params['payment_method'] = strtoupper(trim($filters['payment_method']));
+        }
+        if (!empty($filters['branch_id'])) {
+            $where[] = "branch_id = :branch_id";
+            $params['branch_id'] = (int)$filters['branch_id'];
+        }
+        if (!empty($filters['start_date'])) {
+            $where[] = "created_at >= :start_date";
+            $params['start_date'] = $filters['start_date'] . ' 00:00:00';
+        }
+        if (!empty($filters['end_date'])) {
+            $where[] = "created_at <= :end_date";
+            $params['end_date'] = $filters['end_date'] . ' 23:59:59';
+        }
+
+        $whereClause = implode(' AND ', $where);
+
+        // Calculate totals
+        $stmtTotals = $this->db->prepare("
+            SELECT 
+                COUNT(*) AS total_cnt,
+                SUM(CASE WHEN transaction_type = 'INFLOW' THEN amount ELSE 0 END) AS total_inflow,
+                SUM(CASE WHEN transaction_type = 'OUTFLOW' THEN amount ELSE 0 END) AS total_outflow
+            FROM financial_ledger 
+            WHERE {$whereClause}
+        ");
+        $stmtTotals->execute($params);
+        $totalsRow = $stmtTotals->fetch(PDO::FETCH_ASSOC);
+
+        $totalRecords = (int)($totalsRow['total_cnt'] ?? 0);
+        $totalInflow  = (float)($totalsRow['total_inflow'] ?? 0.0);
+        $totalOutflow = (float)($totalsRow['total_outflow'] ?? 0.0);
+        $netCashflow  = $totalInflow - $totalOutflow;
+
+        $page  = max(1, (int)($filters['page'] ?? 1));
+        $limit = max(1, min(100, (int)($filters['limit'] ?? 50)));
+        $offset = ($page - 1) * $limit;
+        $totalPages = ceil($totalRecords / $limit) ?: 1;
+
+        $stmtList = $this->db->prepare("
+            SELECT * FROM financial_ledger 
+            WHERE {$whereClause} 
+            ORDER BY ledger_id DESC 
+            LIMIT {$limit} OFFSET {$offset}
+        ");
+        $stmtList->execute($params);
+        $entries = $stmtList->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($entries as &$entry) {
+            $entry['ledger_id']    = (int)$entry['ledger_id'];
+            $entry['gym_id']       = (int)$entry['gym_id'];
+            $entry['branch_id']    = (int)$entry['branch_id'];
+            $entry['reference_id'] = $entry['reference_id'] !== null ? (int)$entry['reference_id'] : null;
+            $entry['amount']       = number_format((float)$entry['amount'], 2, '.', '');
+        }
+
+        return [
+            "ledger_entries" => $entries,
+            "pagination" => [
+                "current_page"  => $page,
+                "limit"         => $limit,
+                "total_records" => $totalRecords,
+                "total_pages"   => $totalPages
+            ],
+            "summary_metrics" => [
+                "period_total_inflow"  => number_format($totalInflow, 2, '.', ''),
+                "period_total_outflow" => number_format($totalOutflow, 2, '.', ''),
+                "period_net_cashflow"  => number_format($netCashflow, 2, '.', '')
+            ]
+        ];
+    }
+
+    /**
+     * Log manual financial adjustment.
+     */
+    public function logLedgerAdjustment(array $data): bool
+    {
+        $this->ensureTablesExist();
+
+        $stmt = $this->db->prepare("
+            INSERT INTO financial_ledger (
+                gym_id, branch_id, transaction_type, category, amount, payment_method, description, created_at
+            ) VALUES (
+                :gym_id, :branch_id, :transaction_type, 'ADJUSTMENT', :amount, :payment_method, :description, NOW()
+            )
+        ");
+
+        return $stmt->execute([
+            'gym_id'           => (int)($data['gym_id'] ?? 1),
+            'branch_id'        => (int)($data['branch_id'] ?? 1),
+            'transaction_type' => strtoupper(trim($data['transaction_type'] ?? 'OUTFLOW')),
+            'amount'           => (float)$data['amount'],
+            'payment_method'   => strtoupper(trim($data['payment_method'] ?? 'CASH')),
+            'description'      => trim($data['description'] ?? 'Manual adjustment')
+        ]);
+    }
 }
+

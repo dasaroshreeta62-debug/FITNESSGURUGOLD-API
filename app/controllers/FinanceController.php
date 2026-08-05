@@ -93,4 +93,74 @@ class FinanceController
         $response = $this->workflow->getDashboardKpis($token);
         echo json_encode($response);
     }
+
+    /**
+     * GET /api/admin/finance/summary
+     */
+    public function getExecutiveSummary(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $response = $this->workflow->getExecutiveSummary($token, $_GET);
+        echo json_encode($response);
+    }
+
+    /**
+     * GET /api/admin/opex
+     */
+    public function getOpexLogs(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $response = $this->workflow->getOpexLogs($token, $_GET);
+        echo json_encode($response);
+    }
+
+    /**
+     * POST /api/admin/opex/log
+     */
+    public function logOpex(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->logOpex($token, $input);
+        echo json_encode($response);
+    }
+
+    /**
+     * POST /api/admin/opex/{id}/cancel
+     */
+    public function cancelOpex(int $opexId): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->cancelOpex($token, $opexId, $input);
+        echo json_encode($response);
+    }
+
+    /**
+     * GET /api/admin/finance/ledger
+     */
+    public function getLedgerLogs(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $response = $this->workflow->getLedgerLogs($token, $_GET);
+        echo json_encode($response);
+    }
+
+    /**
+     * POST /api/admin/finance/ledger/adjust
+     */
+    public function logLedgerAdjustment(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->logLedgerAdjustment($token, $input);
+        echo json_encode($response);
+    }
 }
+

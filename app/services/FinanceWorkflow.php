@@ -448,4 +448,137 @@ class FinanceWorkflow
             ];
         }
     }
+
+    /**
+     * Get Executive Profit & Loss Summary. Admin & Staff only.
+     */
+    public function getExecutiveSummary(string $accessToken, array $filters = []): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN', 'GYM_ADMIN', 'STAFF']);
+
+            $data = $this->model->getExecutiveSummary($filters);
+            return [
+                "status" => "success",
+                "data"   => $data
+            ];
+        } catch (\Throwable $e) {
+            $code = in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500;
+            $this->setResponseCode($code);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get Operational Expenses logs. Admin & Staff only.
+     */
+    public function getOpexLogs(string $accessToken, array $filters = []): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN', 'GYM_ADMIN', 'STAFF']);
+
+            $data = $this->model->getOpexLogs($filters);
+            return [
+                "status" => "success",
+                "data"   => $data
+            ];
+        } catch (\Throwable $e) {
+            $code = in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500;
+            $this->setResponseCode($code);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Log a new Operational Expense. Admin & Staff only.
+     */
+    public function logOpex(string $accessToken, array $data): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN', 'GYM_ADMIN', 'STAFF']);
+
+            if (empty($data['title']) || empty($data['amount'])) {
+                throw new Exception("Title and amount are required", 400);
+            }
+
+            $opexId = $this->model->logOpex($data);
+            return [
+                "status"  => "success",
+                "message" => "Operating expense logged successfully",
+                "opex_id" => $opexId
+            ];
+        } catch (\Throwable $e) {
+            $code = in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500;
+            $this->setResponseCode($code);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Cancel/Void an Operational Expense. Admin only.
+     */
+    public function cancelOpex(string $accessToken, int $opexId, array $data): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN', 'GYM_ADMIN']);
+
+            $reason = !empty($data['cancellation_reason']) ? $data['cancellation_reason'] : 'Cancelled by Admin';
+            $this->model->cancelOpex($opexId, $reason);
+
+            return [
+                "status"  => "success",
+                "message" => "Operating expense cancelled successfully"
+            ];
+        } catch (\Throwable $e) {
+            $code = in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500;
+            $this->setResponseCode($code);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get Master Financial Ledger logs. Admin & Staff only.
+     */
+    public function getLedgerLogs(string $accessToken, array $filters = []): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN', 'GYM_ADMIN', 'STAFF']);
+
+            $data = $this->model->getLedgerLogs($filters);
+            return [
+                "status" => "success",
+                "data"   => $data
+            ];
+        } catch (\Throwable $e) {
+            $code = in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500;
+            $this->setResponseCode($code);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Log manual financial adjustment. Admin & Staff only.
+     */
+    public function logLedgerAdjustment(string $accessToken, array $data): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN', 'GYM_ADMIN', 'STAFF']);
+
+            if (empty($data['amount'])) {
+                throw new Exception("Amount is required", 400);
+            }
+
+            $this->model->logLedgerAdjustment($data);
+
+            return [
+                "status"  => "success",
+                "message" => "Financial adjustment logged successfully"
+            ];
+        } catch (\Throwable $e) {
+            $code = in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500;
+            $this->setResponseCode($code);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
 }
+
