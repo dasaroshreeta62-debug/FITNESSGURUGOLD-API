@@ -262,14 +262,16 @@ class FinanceWorkflow
      * GET /api/admin/dashboard-kpis
      * Retrieve system KPIs for Admin dashboard: Revenue Overview and Membership Status.
      */
-    public function getDashboardKpis(string $accessToken): array
+    /**
+     * GET /api/admin/dashboard/revenue-overview
+     * Retrieve Revenue Overview KPI (filtered by this_week or this_month).
+     */
+    public function getRevenueOverview(string $accessToken, array $filters = []): array
     {
         try {
-            // Verify roles allowed to view dashboard statistics
             $decoded = $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN', 'GYM_ADMIN', 'STAFF']);
             $callerUserId = (int)$decoded->sub;
 
-            // Get caller's gym and branch details
             $callerProfile = $this->baseModel->getUserProfileById($callerUserId);
             if (!$callerProfile) {
                 throw new Exception("Caller profile not found", 404);
@@ -278,98 +280,228 @@ class FinanceWorkflow
             $gymId = (int)$callerProfile['gym_id'];
             $branchId = (int)$callerProfile['branch_id'];
 
-            // -----------------------------------------------------------------
-            // 1. REVENUE OVERVIEW: DATES BOUNDARIES & CALCULATIONS
-            // -----------------------------------------------------------------
-            // Find most recent Saturday (or today if today is Saturday)
-            $today = new DateTime();
-            $dayOfWeek = (int)$today->format('N'); // 1 (Mon) to 7 (Sun)
-            if ($dayOfWeek === 6) { // Saturday
-                $startThisWeek = clone $today;
+            $period = strtolower($filters['period'] ?? $filters['filter'] ?? 'this_week');
+            if (in_array($period, ['this_month', 'month'])) {
+                $periodKey = 'this_month';
             } else {
-                $startThisWeek = new DateTime('last Saturday');
-            }
-            $startThisWeek->setTime(0, 0, 0);
-
-            // Construct arrays of days with their corresponding Dates for matching
-            // Sat, Sun, Mon, Tue, Wed, Thu, Fri
-            $daysOfWeek = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-            
-            $thisWeekDates = [];
-            $lastWeekDates = [];
-            
-            for ($i = 0; $i < 7; $i++) {
-                $dateThis = (clone $startThisWeek)->modify("+$i days");
-                $dateLast = (clone $startThisWeek)->modify("-" . (7 - $i) . " days");
-                
-                $thisWeekDates[$daysOfWeek[$i]] = $dateThis->format('Y-m-d');
-                $lastWeekDates[$daysOfWeek[$i]] = $dateLast->format('Y-m-d');
+                $periodKey = 'this_week';
             }
 
-            // Boundary variables for database querying
-            $startLastWeekStr = (clone $startThisWeek)->modify('-7 days')->format('Y-m-d 00:00:00');
-            $endThisWeekStr   = (clone $startThisWeek)->modify('+6 days')->format('Y-m-d 23:59:59');
-
-            // Query database for all paid revenues in the double-week span
-            $revenues = $this->model->getRevenueBetweenDates($gymId, $branchId, $startLastWeekStr, $endThisWeekStr);
-
-            // Structure revenue maps by Date & Item Type
-            $revenueMap = [];
-            foreach ($revenues as $r) {
-                $date = $r['invoice_date'];
-                $type = strtoupper($r['item_type']);
-                $val  = (float)$r['total_revenue'];
-                
-                if (!isset($revenueMap[$date])) {
-                    $revenueMap[$date] = [
-                        'TOTAL'        => 0.0,
-                        'SUBSCRIPTION' => 0.0,
-                        'PT_PACKAGE'   => 0.0,
-                        'OTHER'        => 0.0
-                    ];
-                }
-                
-                $revenueMap[$date]['TOTAL'] += $val;
-                if ($type === 'SUBSCRIPTION') {
-                    $revenueMap[$date]['SUBSCRIPTION'] += $val;
-                } elseif ($type === 'PT_PACKAGE') {
-                    $revenueMap[$date]['PT_PACKAGE'] += $val;
-                } else {
-                    // Storing PRODUCT or FEE as OTHER
-                    $revenueMap[$date]['OTHER'] += $val;
-                }
-            }
-
-            // Fill comparison chart daily values
-            $thisWeekChart = [];
-            $lastWeekChart = [];
-            
-            // Running sums for current week totals
             $totalMembershipRev = 0.0;
             $totalPtRev         = 0.0;
             $totalOtherRev      = 0.0;
             $totalRevenue       = 0.0;
 
-            foreach ($daysOfWeek as $day) {
-                $tDate = $thisWeekDates[$day];
-                $lDate = $lastWeekDates[$day];
+            $thisPeriodChart = [];
+            $lastPeriodChart = [];
 
-                $tWeekData = $revenueMap[$tDate] ?? ['TOTAL' => 0.0, 'SUBSCRIPTION' => 0.0, 'PT_PACKAGE' => 0.0, 'OTHER' => 0.0];
-                $lWeekData = $revenueMap[$lDate] ?? ['TOTAL' => 0.0, 'SUBSCRIPTION' => 0.0, 'PT_PACKAGE' => 0.0, 'OTHER' => 0.0];
+            if ($periodKey === 'this_month') {
+                $startThisMonth = new DateTime('first day of this month');
+                $startThisMonth->setTime(0, 0, 0);
 
-                $thisWeekChart[] = round($tWeekData['TOTAL'], 2);
-                $lastWeekChart[] = round($lWeekData['TOTAL'], 2);
+                $endThisMonth = new DateTime('last day of this month');
+                $endThisMonth->setTime(23, 59, 59);
 
-                // Add to current week category sums
-                $totalMembershipRev += $tWeekData['SUBSCRIPTION'];
-                $totalPtRev         += $tWeekData['PT_PACKAGE'];
-                $totalOtherRev      += $tWeekData['OTHER'];
-                $totalRevenue       += $tWeekData['TOTAL'];
+                $startLastMonth = new DateTime('first day of last month');
+                $startLastMonth->setTime(0, 0, 0);
+
+                $endLastMonth = new DateTime('last day of last month');
+                $endLastMonth->setTime(23, 59, 59);
+
+                $startLastMonthStr = $startLastMonth->format('Y-m-d 00:00:00');
+                $endThisMonthStr   = $endThisMonth->format('Y-m-d 23:59:59');
+
+                $revenues = $this->model->getRevenueBetweenDates($gymId, $branchId, $startLastMonthStr, $endThisMonthStr);
+
+                $revenueMap = [];
+                foreach ($revenues as $r) {
+                    $date = $r['invoice_date'];
+                    $type = strtoupper($r['item_type']);
+                    $val  = (float)$r['total_revenue'];
+
+                    if (!isset($revenueMap[$date])) {
+                        $revenueMap[$date] = [
+                            'TOTAL'        => 0.0,
+                            'SUBSCRIPTION' => 0.0,
+                            'PT_PACKAGE'   => 0.0,
+                            'OTHER'        => 0.0
+                        ];
+                    }
+
+                    $revenueMap[$date]['TOTAL'] += $val;
+                    if ($type === 'SUBSCRIPTION') {
+                        $revenueMap[$date]['SUBSCRIPTION'] += $val;
+                    } elseif ($type === 'PT_PACKAGE') {
+                        $revenueMap[$date]['PT_PACKAGE'] += $val;
+                    } else {
+                        $revenueMap[$date]['OTHER'] += $val;
+                    }
+                }
+
+                $thisMonthDays = (int)$endThisMonth->format('d');
+                $lastMonthDays = (int)$endLastMonth->format('d');
+
+                for ($d = 1; $d <= $thisMonthDays; $d++) {
+                    $dateStr = $startThisMonth->format('Y-m-') . str_pad($d, 2, '0', STR_PAD_LEFT);
+                    if (isset($revenueMap[$dateStr])) {
+                        $totalMembershipRev += $revenueMap[$dateStr]['SUBSCRIPTION'];
+                        $totalPtRev         += $revenueMap[$dateStr]['PT_PACKAGE'];
+                        $totalOtherRev      += $revenueMap[$dateStr]['OTHER'];
+                        $totalRevenue       += $revenueMap[$dateStr]['TOTAL'];
+                    }
+                }
+
+                $weeks = [
+                    'Week 1' => [1, 7],
+                    'Week 2' => [8, 14],
+                    'Week 3' => [15, 21],
+                    'Week 4' => [22, 28],
+                ];
+                if ($thisMonthDays >= 29 || $lastMonthDays >= 29) {
+                    $weeks['Week 5'] = [29, 31];
+                }
+
+                $labels = array_keys($weeks);
+
+                foreach ($weeks as $wName => $range) {
+                    $tSum = 0.0;
+                    for ($d = $range[0]; $d <= min($range[1], $thisMonthDays); $d++) {
+                        $dStr = $startThisMonth->format('Y-m-') . str_pad($d, 2, '0', STR_PAD_LEFT);
+                        $tSum += $revenueMap[$dStr]['TOTAL'] ?? 0.0;
+                    }
+                    $thisPeriodChart[] = round($tSum, 2);
+
+                    $lSum = 0.0;
+                    for ($d = $range[0]; $d <= min($range[1], $lastMonthDays); $d++) {
+                        $dStr = $startLastMonth->format('Y-m-') . str_pad($d, 2, '0', STR_PAD_LEFT);
+                        $lSum += $revenueMap[$dStr]['TOTAL'] ?? 0.0;
+                    }
+                    $lastPeriodChart[] = round($lSum, 2);
+                }
+
+                $thisPeriodLabel = 'This Month';
+                $lastPeriodLabel = 'Last Month';
+
+            } else {
+                $today = new DateTime();
+                $dayOfWeek = (int)$today->format('N');
+                if ($dayOfWeek === 6) {
+                    $startThisWeek = clone $today;
+                } else {
+                    $startThisWeek = new DateTime('last Saturday');
+                }
+                $startThisWeek->setTime(0, 0, 0);
+
+                $daysOfWeek = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+                $labels = $daysOfWeek;
+
+                $thisWeekDates = [];
+                $lastWeekDates = [];
+
+                for ($i = 0; $i < 7; $i++) {
+                    $dateThis = (clone $startThisWeek)->modify("+$i days");
+                    $dateLast = (clone $startThisWeek)->modify("-" . (7 - $i) . " days");
+
+                    $thisWeekDates[$daysOfWeek[$i]] = $dateThis->format('Y-m-d');
+                    $lastWeekDates[$daysOfWeek[$i]] = $dateLast->format('Y-m-d');
+                }
+
+                $startLastWeekStr = (clone $startThisWeek)->modify('-7 days')->format('Y-m-d 00:00:00');
+                $endThisWeekStr   = (clone $startThisWeek)->modify('+6 days')->format('Y-m-d 23:59:59');
+
+                $revenues = $this->model->getRevenueBetweenDates($gymId, $branchId, $startLastWeekStr, $endThisWeekStr);
+
+                $revenueMap = [];
+                foreach ($revenues as $r) {
+                    $date = $r['invoice_date'];
+                    $type = strtoupper($r['item_type']);
+                    $val  = (float)$r['total_revenue'];
+
+                    if (!isset($revenueMap[$date])) {
+                        $revenueMap[$date] = [
+                            'TOTAL'        => 0.0,
+                            'SUBSCRIPTION' => 0.0,
+                            'PT_PACKAGE'   => 0.0,
+                            'OTHER'        => 0.0
+                        ];
+                    }
+
+                    $revenueMap[$date]['TOTAL'] += $val;
+                    if ($type === 'SUBSCRIPTION') {
+                        $revenueMap[$date]['SUBSCRIPTION'] += $val;
+                    } elseif ($type === 'PT_PACKAGE') {
+                        $revenueMap[$date]['PT_PACKAGE'] += $val;
+                    } else {
+                        $revenueMap[$date]['OTHER'] += $val;
+                    }
+                }
+
+                foreach ($daysOfWeek as $day) {
+                    $tDate = $thisWeekDates[$day];
+                    $lDate = $lastWeekDates[$day];
+
+                    $tWeekData = $revenueMap[$tDate] ?? ['TOTAL' => 0.0, 'SUBSCRIPTION' => 0.0, 'PT_PACKAGE' => 0.0, 'OTHER' => 0.0];
+                    $lWeekData = $revenueMap[$lDate] ?? ['TOTAL' => 0.0, 'SUBSCRIPTION' => 0.0, 'PT_PACKAGE' => 0.0, 'OTHER' => 0.0];
+
+                    $thisPeriodChart[] = round($tWeekData['TOTAL'], 2);
+                    $lastPeriodChart[] = round($lWeekData['TOTAL'], 2);
+
+                    $totalMembershipRev += $tWeekData['SUBSCRIPTION'];
+                    $totalPtRev         += $tWeekData['PT_PACKAGE'];
+                    $totalOtherRev      += $tWeekData['OTHER'];
+                    $totalRevenue       += $tWeekData['TOTAL'];
+                }
+
+                $thisPeriodLabel = 'This Week';
+                $lastPeriodLabel = 'Last Week';
             }
 
-            // -----------------------------------------------------------------
-            // 2. MEMBERSHIP STATUS OVERVIEW
-            // -----------------------------------------------------------------
+            return [
+                "status" => "success",
+                "data"   => [
+                    "period"             => $periodKey,
+                    "total_revenue"      => round($totalRevenue, 2),
+                    "membership_revenue" => round($totalMembershipRev, 2),
+                    "pt_revenue"         => round($totalPtRev, 2),
+                    "other_revenue"      => round($totalOtherRev, 2),
+                    "chart_data"         => [
+                        "days"       => $labels,
+                        "this_week"  => $thisPeriodChart,
+                        "last_week"  => $lastPeriodChart,
+                        "this_label" => $thisPeriodLabel,
+                        "last_label" => $lastPeriodLabel
+                    ]
+                ]
+            ];
+
+        } catch (\Throwable $e) {
+            $code = in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500;
+            $this->setResponseCode($code);
+            return [
+                "status"  => "error",
+                "message" => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * GET /api/admin/dashboard/membership-status
+     * Retrieve Membership Status KPI statistics.
+     */
+    public function getMembershipStatus(string $accessToken): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN', 'GYM_ADMIN', 'STAFF']);
+            $callerUserId = (int)$decoded->sub;
+
+            $callerProfile = $this->baseModel->getUserProfileById($callerUserId);
+            if (!$callerProfile) {
+                throw new Exception("Caller profile not found", 404);
+            }
+
+            $gymId = (int)$callerProfile['gym_id'];
+            $branchId = (int)$callerProfile['branch_id'];
+
             $membersData = $this->model->getMembersStatusData($gymId, $branchId);
 
             $activeCount   = 0;
@@ -391,7 +523,6 @@ class FinanceWorkflow
                 } elseif ($userStatus === 0) {
                     $expiredCount++;
                 } elseif (empty($endDateStr) || $subStatus !== 1) {
-                    // No active subscription record
                     $expiredCount++;
                 } else {
                     $endDate = new DateTime($endDateStr);
@@ -409,7 +540,6 @@ class FinanceWorkflow
 
             $totalMembers = count($membersData);
 
-            // Compute percentages safely
             $activePct   = $totalMembers > 0 ? round(($activeCount / $totalMembers) * 100, 1) : 0.0;
             $expiringPct = $totalMembers > 0 ? round(($expiringCount / $totalMembers) * 100, 1) : 0.0;
             $expiredPct  = $totalMembers > 0 ? round(($expiredCount / $totalMembers) * 100, 1) : 0.0;
@@ -418,24 +548,11 @@ class FinanceWorkflow
             return [
                 "status" => "success",
                 "data"   => [
-                    "revenue_overview" => [
-                        "total_revenue"      => round($totalRevenue, 2),
-                        "membership_revenue" => round($totalMembershipRev, 2),
-                        "pt_revenue"         => round($totalPtRev, 2),
-                        "other_revenue"      => round($totalOtherRev, 2),
-                        "chart_data"         => [
-                            "days"      => $daysOfWeek,
-                            "this_week" => $thisWeekChart,
-                            "last_week" => $lastWeekChart
-                        ]
-                    ],
-                    "membership_status" => [
-                        "total_members" => $totalMembers,
-                        "active"        => ["count" => $activeCount, "percentage" => $activePct],
-                        "expiring_soon" => ["count" => $expiringCount, "percentage" => $expiringPct],
-                        "expired"       => ["count" => $expiredCount, "percentage" => $expiredPct],
-                        "frozen"        => ["count" => $frozenCount, "percentage" => $frozenPct]
-                    ]
+                    "total_members" => $totalMembers,
+                    "active"        => ["count" => $activeCount, "percentage" => $activePct],
+                    "expiring_soon" => ["count" => $expiringCount, "percentage" => $expiringPct],
+                    "expired"       => ["count" => $expiredCount, "percentage" => $expiredPct],
+                    "frozen"        => ["count" => $frozenCount, "percentage" => $frozenPct]
                 ]
             ];
 
@@ -447,6 +564,41 @@ class FinanceWorkflow
                 "message" => $e->getMessage()
             ];
         }
+    }
+
+    /**
+     * GET /api/admin/dashboard-kpis
+     * Retrieve system KPI metrics summary for Admin dashboard.
+     */
+    public function getDashboardKpis(string $accessToken, array $filters = []): array
+    {
+        $revRes = $this->getRevenueOverview($accessToken, $filters);
+        if (($revRes['status'] ?? '') === 'error') {
+            return $revRes;
+        }
+
+        $memRes = $this->getMembershipStatus($accessToken);
+        if (($memRes['status'] ?? '') === 'error') {
+            return $memRes;
+        }
+
+        $revData = $revRes['data'] ?? [];
+        $memData = $memRes['data'] ?? [];
+
+        return [
+            "status" => "success",
+            "data"   => [
+                "total_members"        => $memData['total_members'] ?? 0,
+                "active_memberships"   => $memData['active']['count'] ?? 0,
+                "expiring_memberships" => $memData['expiring_soon']['count'] ?? 0,
+                "expired_memberships"  => $memData['expired']['count'] ?? 0,
+                "frozen_memberships"   => $memData['frozen']['count'] ?? 0,
+                "total_revenue"        => $revData['total_revenue'] ?? 0.0,
+                "membership_revenue"   => $revData['membership_revenue'] ?? 0.0,
+                "pt_revenue"           => $revData['pt_revenue'] ?? 0.0,
+                "other_revenue"        => $revData['other_revenue'] ?? 0.0
+            ]
+        ];
     }
 
     /**

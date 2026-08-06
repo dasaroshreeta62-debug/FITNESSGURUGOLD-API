@@ -90,7 +90,31 @@ class FinanceController
     {
         $token = $this->getBearerToken();
         if ($token === false) return;
-        $response = $this->workflow->getDashboardKpis($token);
+        $response = $this->workflow->getDashboardKpis($token, $_GET);
+        echo json_encode($response);
+    }
+
+    /**
+     * GET /api/admin/dashboard/revenue-overview
+     * GET /api/admin/revenue-overview
+     */
+    public function getRevenueOverview(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $response = $this->workflow->getRevenueOverview($token, $_GET);
+        echo json_encode($response);
+    }
+
+    /**
+     * GET /api/admin/dashboard/membership-status
+     * GET /api/admin/membership-status
+     */
+    public function getMembershipStatus(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $response = $this->workflow->getMembershipStatus($token);
         echo json_encode($response);
     }
 

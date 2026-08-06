@@ -696,6 +696,14 @@ function route(string $method, string $path): void
             $financeController->getDashboardKpis();
             return;
 
+        case $method === 'GET' && ($path === '/api/admin/dashboard/revenue-overview' || $path === '/api/admin/revenue-overview'):
+            $financeController->getRevenueOverview();
+            return;
+
+        case $method === 'GET' && ($path === '/api/admin/dashboard/membership-status' || $path === '/api/admin/membership-status'):
+            $financeController->getMembershipStatus();
+            return;
+
         case $method === 'GET' && $path === '/api/admin/finance/summary':
             $financeController->getExecutiveSummary();
             return;
