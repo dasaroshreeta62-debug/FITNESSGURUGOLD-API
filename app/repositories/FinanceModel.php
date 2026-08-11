@@ -39,10 +39,13 @@ class FinanceModel
         // 1. Fetch parent invoice with member profile details
         $stmt = $this->db->prepare("
             SELECT i.*, 
-                   COALESCE(u.name, CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS user_name,
+                   COALESCE(NULLIF(TRIM(u.name), ''), NULLIF(TRIM(mp.name), ''), CONCAT('Member #', u.user_id)) AS user_name,
+                   COALESCE(NULLIF(TRIM(u.name), ''), NULLIF(TRIM(mp.name), ''), CONCAT('Member #', u.user_id)) AS full_name,
+                   COALESCE(NULLIF(TRIM(u.name), ''), NULLIF(TRIM(mp.name), ''), CONCAT('Member #', u.user_id)) AS member_name,
+                   COALESCE(NULLIF(TRIM(u.name), ''), NULLIF(TRIM(mp.name), '')) AS name,
                    u.email, 
                    u.phone,
-                   COALESCE(mp.registration_number, CONCAT('FG-REG-', LPAD(u.user_id, 4, '0'))) AS reg_no
+                   mp.registration_number AS raw_reg_no
             FROM invoices i
             LEFT JOIN users u ON i.user_id = u.user_id
             LEFT JOIN member_profiles mp ON mp.user_id = u.user_id
@@ -55,6 +58,24 @@ class FinanceModel
         if (!$invoice) {
             return null;
         }
+
+        // Format first_name and last_name
+        $fullName = trim($invoice['user_name'] ?? '');
+        $nameParts = explode(' ', $fullName, 2);
+        $invoice['first_name'] = $nameParts[0] ?? '';
+        $invoice['last_name'] = $nameParts[1] ?? '';
+
+        // Format registration number consistently as FG-REG-XXXX
+        $rawReg = $invoice['raw_reg_no'] ?? null;
+        if (!empty($rawReg)) {
+            $formattedReg = (strpos((string)$rawReg, 'FG-') === 0) ? (string)$rawReg : 'FG-REG-' . str_pad((string)$rawReg, 4, '0', STR_PAD_LEFT);
+        } else {
+            $formattedReg = 'FG-REG-' . str_pad((string)$invoice['user_id'], 4, '0', STR_PAD_LEFT);
+        }
+        $invoice['reg_no'] = $formattedReg;
+        $invoice['registration_no'] = $formattedReg;
+        $invoice['registration_number'] = $formattedReg;
+        unset($invoice['raw_reg_no']);
 
         // 2. Fetch invoice line items
         $stmtItems = $this->db->prepare("SELECT * FROM invoice_items WHERE invoice_id = :id");
