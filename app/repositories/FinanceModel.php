@@ -36,8 +36,19 @@ class FinanceModel
      */
     public function getInvoiceDetails(int $invoiceId): ?array
     {
-        // 1. Fetch parent invoice
-        $stmt = $this->db->prepare("SELECT * FROM invoices WHERE invoice_id = :id LIMIT 1");
+        // 1. Fetch parent invoice with member profile details
+        $stmt = $this->db->prepare("
+            SELECT i.*, 
+                   COALESCE(u.name, CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS user_name,
+                   u.email, 
+                   u.phone,
+                   COALESCE(mp.registration_number, CONCAT('FG-REG-', LPAD(u.user_id, 4, '0'))) AS reg_no
+            FROM invoices i
+            LEFT JOIN users u ON i.user_id = u.user_id
+            LEFT JOIN member_profiles mp ON mp.user_id = u.user_id
+            WHERE i.invoice_id = :id 
+            LIMIT 1
+        ");
         $stmt->execute(['id' => $invoiceId]);
         $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
 
