@@ -225,6 +225,51 @@ class FinanceWorkflow
     }
 
     /**
+     * POST /api/admin/finance/revert-subscription-24h
+     */
+    public function revertSubscription24hr(string $accessToken, array $data): array
+    {
+        try {
+            $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN', 'GYM_ADMIN']);
+
+            if (empty($data['invoice_id'])) {
+                throw new Exception("invoice_id is required", 400);
+            }
+
+            $invoiceId = (int)$data['invoice_id'];
+            $reason = trim($data['reason'] ?? 'Accidental subscription purchase within 24 hours');
+
+            // Verify 24-hour window eligibility
+            $check = $this->model->getInvoice24HourRevertEligibility($invoiceId);
+            if (!$check['eligible']) {
+                throw new Exception("Subscription purchase reversal denied: " . $check['reason'], 400);
+            }
+
+            $this->model->beginTransaction();
+
+            $this->model->refundInvoiceTransaction($invoiceId, $reason);
+
+            $this->model->commit();
+
+            return [
+                "status"  => "success",
+                "message" => "Subscription purchase successfully reverted within 24-hour window. Payment marked REFUNDED, invoice CANCELLED, trainer commission voided, ledger OUTFLOW logged, and subscription deactivated."
+            ];
+
+        } catch (\Throwable $e) {
+            if ($this->model->inTransaction()) {
+                $this->model->rollBack();
+            }
+            $code = in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500;
+            $this->setResponseCode($code);
+            return [
+                "status"  => "error",
+                "message" => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
      * GET /api/member/purchase-history
      */
     public function getMemberPurchaseHistory(string $accessToken): array

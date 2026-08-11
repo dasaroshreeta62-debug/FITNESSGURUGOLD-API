@@ -692,6 +692,10 @@ function route(string $method, string $path): void
             $financeController->refundInvoice();
             return;
 
+        case $method === 'POST' && ($path === '/api/admin/finance/revert-subscription-24h' || $path === '/api/admin/finance/revert-subscription'):
+            $financeController->revertSubscription24hr();
+            return;
+
         case $method === 'GET' && $path === '/api/admin/dashboard-kpis':
             $financeController->getDashboardKpis();
             return;

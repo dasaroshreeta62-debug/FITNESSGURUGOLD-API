@@ -90,6 +90,33 @@ class FinanceModel
     }
 
     /**
+     * Check if an invoice is eligible for 24-hour purchase reversal.
+     */
+    public function getInvoice24HourRevertEligibility(int $invoiceId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT invoice_id, user_id, status, created_at, final_amount,
+                   TIMESTAMPDIFF(HOUR, created_at, NOW()) AS hours_elapsed
+            FROM invoices
+            WHERE invoice_id = :id
+        ");
+        $stmt->execute(['id' => $invoiceId]);
+        $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$invoice) {
+            return ['eligible' => false, 'reason' => 'Invoice not found'];
+        }
+        if (!in_array(strtoupper($invoice['status']), ['PAID', 'COMPLETED'])) {
+            return ['eligible' => false, 'reason' => 'Invoice is not in a paid/completed status (Current status: ' . $invoice['status'] . ')'];
+        }
+        if ((int)$invoice['hours_elapsed'] > 24) {
+            return ['eligible' => false, 'reason' => 'Subscription purchase is older than 24 hours (' . $invoice['hours_elapsed'] . ' hours elapsed)'];
+        }
+
+        return ['eligible' => true, 'invoice' => $invoice];
+    }
+
+    /**
      * Execute full refund and cancellation logic.
      */
     public function refundInvoiceTransaction(int $invoiceId, string $reason): bool
@@ -122,20 +149,17 @@ class FinanceModel
         $stmtPt = $this->db->prepare("UPDATE payment_transactions SET payment_status = 'REFUNDED' WHERE invoice_id = :id");
         $stmtPt->execute(['id' => $invoiceId]);
 
-        // 3. Write OUTFLOW row in financial_ledger
-        $stmtFl = $this->db->prepare("
-            INSERT INTO financial_ledger (
-                gym_id, branch_id, transaction_type, category, amount, reference_table, reference_id, payment_method, created_at
-            ) VALUES (
-                :gym_id, :branch_id, 'OUTFLOW', 'REFUND', :amount, 'invoices', :reference_id, :payment_method, NOW()
-            )
-        ");
-        $stmtFl->execute([
-            'gym_id'          => $gymId,
-            'branch_id'       => $branchId,
-            'amount'          => (float)$invoice['final_amount'],
-            'reference_id'    => $invoiceId,
-            'payment_method'  => $payMethod
+        // 3. Write OUTFLOW row in financial_ledger safely
+        $this->insertLedgerRecord([
+            'gym_id'           => $gymId,
+            'branch_id'        => $branchId,
+            'transaction_type' => 'OUTFLOW',
+            'category'         => 'REFUND',
+            'amount'           => (float)$invoice['final_amount'],
+            'reference_table'  => 'invoices',
+            'reference_id'     => $invoiceId,
+            'payment_method'   => $payMethod,
+            'description'      => "24hr Subscription Reversal - Accidental Purchase (Invoice #{$invoiceId}): {$reason}"
         ]);
 
         // 4. Void unpaid trainer commissions

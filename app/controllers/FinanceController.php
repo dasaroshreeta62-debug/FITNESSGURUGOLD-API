@@ -73,6 +73,18 @@ class FinanceController
     }
 
     /**
+     * POST /api/admin/finance/revert-subscription-24h
+     */
+    public function revertSubscription24hr(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+        $input = $this->getRequestInput();
+        $response = $this->workflow->revertSubscription24hr($token, $input);
+        echo json_encode($response);
+    }
+
+    /**
      * GET /api/member/purchase-history
      */
     public function getMemberPurchaseHistory(): void
