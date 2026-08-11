@@ -198,33 +198,127 @@ class FinanceModel
         $stmtComm = $this->db->prepare("UPDATE trainer_commissions SET status = 'VOIDED' WHERE invoice_id = :id AND status = 'UNPAID'");
         $stmtComm->execute(['id' => $invoiceId]);
 
-        // 5. Deactivate associated subscriptions and revoke credits
+        // 5. Deactivate associated subscriptions, collapse future stacked renewals, and handle dependent PT/Add-Ons
+        $userId = (int)$invoice['user_id'];
+        $today = date('Y-m-d');
+
         foreach ($items as $item) {
             if (in_array($item['item_type'], ['SUBSCRIPTION', 'PT_PACKAGE'])) {
-                // Find sub ID linking this user and plan
+                $planId = (int)$item['reference_id'];
+
+                // Find active subscription linking this user and plan
                 $stmtFindSub = $this->db->prepare("
-                    SELECT subscription_id 
-                    FROM subscriptions 
-                    WHERE user_id = :user_id 
-                      AND plan_id = :plan_id 
-                      AND status = 1 
-                    ORDER BY subscription_id DESC 
+                    SELECT s.subscription_id, s.start_date, s.end_date, mp.plan_type 
+                    FROM subscriptions s
+                    JOIN membership_plans mp ON s.plan_id = mp.plan_id
+                    WHERE s.user_id = :user_id 
+                      AND s.plan_id = :plan_id 
+                      AND s.status = 1 
+                    ORDER BY s.subscription_id DESC 
                     LIMIT 1
                 ");
                 $stmtFindSub->execute([
-                    'user_id' => (int)$invoice['user_id'],
-                    'plan_id' => (int)$item['reference_id']
+                    'user_id' => $userId,
+                    'plan_id' => $planId
                 ]);
-                $subId = $stmtFindSub->fetchColumn();
+                $sub = $stmtFindSub->fetch(PDO::FETCH_ASSOC);
 
-                if ($subId) {
+                if ($sub) {
+                    $subId = (int)$sub['subscription_id'];
+                    $planType = strtoupper(trim($sub['plan_type'] ?? 'BASE_MEMBERSHIP'));
+
                     // Deactivate subscription
                     $stmtDeactSub = $this->db->prepare("UPDATE subscriptions SET status = 0 WHERE subscription_id = :sub_id");
-                    $stmtDeactSub->execute(['sub_id' => (int)$subId]);
+                    $stmtDeactSub->execute(['sub_id' => $subId]);
 
                     // Revoke client wallet credits
                     $stmtDeactCredits = $this->db->prepare("UPDATE client_wallet_credits SET status = 0 WHERE subscription_id = :sub_id");
-                    $stmtDeactCredits->execute(['sub_id' => (int)$subId]);
+                    $stmtDeactCredits->execute(['sub_id' => $subId]);
+
+                    // PROBLEM 2 RESOLUTION:
+                    // If the reverted subscription was active TODAY, shift the earliest future stacked subscription to start TODAY
+                    if ($sub['start_date'] <= $today && $sub['end_date'] >= $today && in_array($planType, ['BASE_MEMBERSHIP', 'MEMBERSHIP'])) {
+                        $stmtNextSub = $this->db->prepare("
+                            SELECT s.subscription_id, s.plan_id, mp.duration_months
+                            FROM subscriptions s
+                            JOIN membership_plans mp ON s.plan_id = mp.plan_id
+                            WHERE s.user_id = :user_id 
+                              AND s.status = 1 
+                              AND s.start_date > :today
+                              AND mp.plan_type IN ('BASE_MEMBERSHIP', 'MEMBERSHIP')
+                            ORDER BY s.start_date ASC 
+                            LIMIT 1
+                        ");
+                        $stmtNextSub->execute(['user_id' => $userId, 'today' => $today]);
+                        $nextSub = $stmtNextSub->fetch(PDO::FETCH_ASSOC);
+
+                        if ($nextSub) {
+                            $nextSubId = (int)$nextSub['subscription_id'];
+                            $durMonths = (int)($nextSub['duration_months'] ?: 1);
+                            $newStartDate = $today;
+                            $newEndDate = date('Y-m-d', strtotime($newStartDate . " + {$durMonths} months"));
+
+                            // Update start_date and end_date of stacked sub
+                            $stmtShiftSub = $this->db->prepare("
+                                UPDATE subscriptions 
+                                SET start_date = :start_date, end_date = :end_date 
+                                WHERE subscription_id = :sub_id
+                            ");
+                            $stmtShiftSub->execute([
+                                'start_date' => $newStartDate,
+                                'end_date'   => $newEndDate,
+                                'sub_id'     => $nextSubId
+                            ]);
+
+                            // Update expiration_date of associated wallet credits
+                            $stmtShiftCredits = $this->db->prepare("
+                                UPDATE client_wallet_credits 
+                                SET expiration_date = :end_date 
+                                WHERE subscription_id = :sub_id AND status = 1
+                            ");
+                            $stmtShiftCredits->execute([
+                                'end_date' => $newEndDate,
+                                'sub_id'   => $nextSubId
+                            ]);
+                        }
+                    }
+
+                    // PROBLEM 1 RESOLUTION:
+                    // If a Base Membership is reverted and NO active Base Membership remains, cascade-deactivate dependent PT/Add-On plans
+                    if (in_array($planType, ['BASE_MEMBERSHIP', 'MEMBERSHIP'])) {
+                        $stmtCheckBase = $this->db->prepare("
+                            SELECT COUNT(*) 
+                            FROM subscriptions s
+                            JOIN membership_plans mp ON s.plan_id = mp.plan_id
+                            WHERE s.user_id = :user_id 
+                              AND s.status = 1 
+                              AND mp.plan_type IN ('BASE_MEMBERSHIP', 'MEMBERSHIP')
+                              AND s.end_date >= CURDATE()
+                        ");
+                        $stmtCheckBase->execute(['user_id' => $userId]);
+                        $remainingBaseCount = (int)$stmtCheckBase->fetchColumn();
+
+                        if ($remainingBaseCount === 0) {
+                            $stmtFindAddons = $this->db->prepare("
+                                SELECT s.subscription_id 
+                                FROM subscriptions s
+                                JOIN membership_plans mp ON s.plan_id = mp.plan_id
+                                WHERE s.user_id = :user_id 
+                                  AND s.status = 1 
+                                  AND mp.plan_type IN ('PT_UPGRADE', 'ADD_ON')
+                            ");
+                            $stmtFindAddons->execute(['user_id' => $userId]);
+                            $addonSubIds = $stmtFindAddons->fetchAll(PDO::FETCH_COLUMN);
+
+                            foreach ($addonSubIds as $addonSubId) {
+                                $stmtDeactAddon = $this->db->prepare("UPDATE subscriptions SET status = 0 WHERE subscription_id = :sub_id");
+                                $stmtDeactAddon->execute(['sub_id' => (int)$addonSubId]);
+
+                                $stmtDeactAddonCredits = $this->db->prepare("UPDATE client_wallet_credits SET status = 0 WHERE subscription_id = :sub_id");
+                                $stmtDeactAddonCredits->execute(['sub_id' => (int)$addonSubId]);
+                            }
+                        }
+                    }
                 }
             }
         }
