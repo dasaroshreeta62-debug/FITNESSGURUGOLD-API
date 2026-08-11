@@ -1129,19 +1129,15 @@ class Workflow
                 $accessToken,
                 new Key(self::JWT_SECRET, 'HS256')
             );
+        } catch (\Throwable $e) {
+            http_response_code(401);
+            return [
+                "status" => "error",
+                "message" => "Invalid or expired token: " . $e->getMessage()
+            ];
+        }
 
-            /* ========= OPTIONAL ROLE CHECK ========= */
-            $role = strtoupper($decoded->role ?? '');
-
-            // Optional (enable if needed)
-            // if (!in_array($role, ['ADMIN', 'STAFF'])) {
-            //     http_response_code(403);
-            //     return [
-            //         "status" => "error",
-            //         "message" => "Unauthorized access"
-            //     ];
-            // }
-
+        try {
             /* ========= PASSWORD VALIDATION ========= */
             if (!empty($data['new_password'])) {
 
@@ -1170,11 +1166,20 @@ class Workflow
         } catch (\Throwable $e) {
 
             error_log('UPDATE MEMBER ERROR: ' . $e->getMessage());
+            $msg = $e->getMessage();
 
-            http_response_code(401);
+            if (str_contains($msg, 'Duplicate entry') || str_contains($msg, '1062')) {
+                http_response_code(400);
+                return [
+                    "status" => "error",
+                    "message" => "Registration number or email is already in use by another member."
+                ];
+            }
+
+            http_response_code(400);
             return [
                 "status" => "error",
-                "message" => "Invalid or expired token"
+                "message" => "Failed to update member: " . $msg
             ];
         }
     }

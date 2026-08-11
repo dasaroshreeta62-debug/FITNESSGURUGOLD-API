@@ -636,9 +636,10 @@ class Controller
     //old update member API
     public function updateMember(): void
     {
-        $headers = getallheaders();
+        $headers = function_exists('getallheaders') ? array_change_key_case(getallheaders(), CASE_LOWER) : [];
+        $authHeader = $headers['authorization'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? null;
 
-        if (empty($headers['Authorization'])) {
+        if (empty($authHeader)) {
             http_response_code(401);
             echo json_encode([
                 "status" => "error",
@@ -647,7 +648,7 @@ class Controller
             return;
         }
 
-        $accessToken = str_replace('Bearer ', '', $headers['Authorization']);
+        $accessToken = trim(preg_replace('/^Bearer\s+/i', '', $authHeader));
         $data = json_decode(file_get_contents("php://input"), true);
 
         if (empty($data['user_id'])) {
