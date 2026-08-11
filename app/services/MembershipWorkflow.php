@@ -412,6 +412,71 @@ class MembershipWorkflow
     }
 
     /**
+     * Preview renewal dates (stacked extension vs fresh reactivation).
+     */
+    public function getRenewalPreview(string $accessToken, array $params): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN', 'GYM_ADMIN', 'MEMBER']);
+            $userId = !empty($params['user_id']) ? (int)$params['user_id'] : (int)$decoded->sub;
+            $planId = !empty($params['plan_id']) ? (int)$params['plan_id'] : 0;
+
+            if (!$userId || !$planId) {
+                throw new Exception("user_id and plan_id parameters are required", 400);
+            }
+
+            $preview = $this->model->getSubscriptionRenewalPreview($userId, $planId);
+
+            return [
+                "status" => "success",
+                "data"   => $preview
+            ];
+
+        } catch (\Throwable $e) {
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Execute subscription renewal with auto-calculated start_date and end_date.
+     */
+    public function renewSubscription(string $accessToken, array $data): array
+    {
+        try {
+            $decoded = $this->verifyRole($accessToken, ['ADMIN', 'SUPER-ADMIN', 'GYM_ADMIN', 'MEMBER']);
+            
+            // If caller is member, force user_id to their sub ID
+            $callerRole = str_replace(['_', '-'], '', strtoupper($decoded->role ?? ''));
+            if ($callerRole === 'MEMBER') {
+                $data['user_id'] = (int)$decoded->sub;
+            }
+
+            if (empty($data['user_id']) || empty($data['plan_id'])) {
+                throw new Exception("user_id and plan_id are required", 400);
+            }
+
+            $result = $this->model->renewSubscriptionWithInvoice($data);
+
+            return [
+                "status"          => "success",
+                "message"         => "Subscription successfully renewed (" . $result['renewal_type'] . ")",
+                "subscription_id" => $result['subscription_id'],
+                "invoice_id"      => $result['invoice_id'],
+                "invoice_number"  => $result['invoice_number'],
+                "data"            => $result
+            ];
+
+        } catch (\Throwable $e) {
+            if ($this->model->inTransaction()) {
+                $this->model->rollBack();
+            }
+            $this->setResponseCode(in_array($e->getCode(), [400, 401, 403, 404]) ? $e->getCode() : 500);
+            return ["status" => "error", "message" => $e->getMessage()];
+        }
+    }
+
+    /**
      * Update an existing subscription. Admin only.
      */
     public function updateSubscription(string $accessToken, int $subId, array $data): array

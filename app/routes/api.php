@@ -390,6 +390,14 @@ function route(string $method, string $path): void
             $membershipController->purchaseSubscription();
             return;
 
+        case $method === 'GET' && $path === '/api/subscriptions/renewal-preview':
+            $membershipController->getRenewalPreview();
+            return;
+
+        case $method === 'POST' && ($path === '/api/admin/subscriptions/renew' || $path === '/api/member/subscriptions/renew' || $path === '/api/subscriptions/renew'):
+            $membershipController->renewSubscription();
+            return;
+
         case $method === 'POST' && $path === '/api/admin/subscriptions':
             $membershipController->createSubscription();
             return;

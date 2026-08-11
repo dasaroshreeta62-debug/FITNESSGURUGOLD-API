@@ -202,6 +202,32 @@ class MembershipController
     }
 
     /**
+     * GET /api/subscriptions/renewal-preview
+     */
+    public function getRenewalPreview(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+
+        $response = $this->workflow->getRenewalPreview($token, $_GET);
+        echo json_encode($response);
+    }
+
+    /**
+     * POST /api/admin/subscriptions/renew
+     * POST /api/member/subscriptions/renew
+     */
+    public function renewSubscription(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+
+        $input = $this->getRequestInput();
+        $response = $this->workflow->renewSubscription($token, $input);
+        echo json_encode($response);
+    }
+
+    /**
      * PUT /api/admin/subscriptions/(\d+)
      */
     public function updateSubscription(int $subId): void

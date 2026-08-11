@@ -966,13 +966,13 @@ class MembershipModel
         }
 
         // Gatekeeper checks:
-        // 1. Prevent duplicate active Base Memberships
+        // 1. Prevent duplicate active Base Memberships (unless explicitly performing a Renewal)
         // 2. PT_UPGRADE and ADD_ON require an active Base Membership
         $planType = strtoupper(trim($plan['plan_type'] ?? 'BASE_MEMBERSHIP'));
         if (in_array($planType, ['BASE_MEMBERSHIP', 'MEMBERSHIP'])) {
             $activeBase = $this->getUserActiveBaseMembership($userId);
-            if ($activeBase) {
-                throw new Exception("Action Blocked: Member already has an active Base Membership (Subscription #" . $activeBase['subscription_id'] . ", Plan #" . $activeBase['plan_id'] . ", valid until " . $activeBase['end_date'] . "). Cannot purchase another Base Membership while current one is active.", 400);
+            if ($activeBase && empty($data['is_renewal'])) {
+                throw new Exception("Action Blocked: Member already has an active Base Membership (Subscription #" . $activeBase['subscription_id'] . ", Plan #" . $activeBase['plan_id'] . ", valid until " . $activeBase['end_date'] . "). Use the Renewal API to extend or stack subscription.", 400);
             }
         } elseif (in_array($planType, ['PT_UPGRADE', 'ADD_ON'])) {
             $activeBase = $this->getUserActiveBaseMembership($userId);
@@ -1146,5 +1146,90 @@ class MembershipModel
         $stmt->execute(['user_id' => $userId]);
         $sub = $stmt->fetch(PDO::FETCH_ASSOC);
         return $sub ?: null;
+    }
+
+    /**
+     * Preview projected start_date, end_date, and renewal_type before renewing a subscription.
+     */
+    public function getSubscriptionRenewalPreview(int $userId, int $planId): array
+    {
+        if (!$userId || !$this->userExists($userId)) {
+            throw new Exception("User with ID $userId does not exist", 404);
+        }
+
+        $plan = $this->getPlanById($planId);
+        if (!$plan || (int)$plan['status'] !== 1) {
+            throw new Exception("Invalid or inactive membership plan", 404);
+        }
+
+        $durationMonths = (int)($plan['duration_months'] ?: 1);
+        $planType = strtoupper(trim($plan['plan_type'] ?? 'BASE_MEMBERSHIP'));
+
+        $activeSub = null;
+        if (in_array($planType, ['BASE_MEMBERSHIP', 'MEMBERSHIP'])) {
+            $activeSub = $this->getUserActiveBaseMembership($userId);
+        } else {
+            $stmt = $this->db->prepare("
+                SELECT * FROM subscriptions 
+                WHERE user_id = :user_id AND plan_id = :plan_id AND status = 1 AND end_date >= CURDATE()
+                ORDER BY end_date DESC LIMIT 1
+            ");
+            $stmt->execute(['user_id' => $userId, 'plan_id' => $planId]);
+            $activeSub = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        }
+
+        if ($activeSub) {
+            $startDate = date('Y-m-d', strtotime($activeSub['end_date'] . ' + 1 day'));
+            $endDate = date('Y-m-d', strtotime($startDate . " + {$durationMonths} months"));
+            $renewalType = 'STACKED_EXTENSION';
+            $daysRemainingCurrent = (int)round((strtotime($activeSub['end_date']) - strtotime(date('Y-m-d'))) / 86400);
+        } else {
+            $startDate = date('Y-m-d');
+            $endDate = date('Y-m-d', strtotime($startDate . " + {$durationMonths} months"));
+            $renewalType = 'FRESH_REACTIVATION';
+            $daysRemainingCurrent = 0;
+        }
+
+        return [
+            'user_id'                => $userId,
+            'plan_id'                => $planId,
+            'plan_name'              => $plan['plan_name'],
+            'plan_type'              => $planType,
+            'duration_months'        => $durationMonths,
+            'price'                  => (float)$plan['price'],
+            'renewal_type'           => $renewalType,
+            'start_date'             => $startDate,
+            'end_date'               => $endDate,
+            'current_active_sub_id'  => $activeSub ? (int)$activeSub['subscription_id'] : null,
+            'current_active_end_date'=> $activeSub ? $activeSub['end_date'] : null,
+            'current_days_remaining' => max(0, $daysRemainingCurrent)
+        ];
+    }
+
+    /**
+     * Execute subscription renewal with auto-calculated start_date and end_date.
+     */
+    public function renewSubscriptionWithInvoice(array $data): array
+    {
+        $userId = (int)($data['user_id'] ?? 0);
+        $planId = (int)($data['plan_id'] ?? 0);
+
+        if (!$userId || !$planId) {
+            throw new Exception("user_id and plan_id are required for subscription renewal", 400);
+        }
+
+        // Get projected dates via preview
+        $preview = $this->getSubscriptionRenewalPreview($userId, $planId);
+
+        $data['start_date'] = $preview['start_date'];
+        $data['end_date']   = $preview['end_date'];
+        $data['is_renewal'] = true;
+
+        $result = $this->purchaseSubscriptionWithInvoice($data);
+
+        return array_merge($result, [
+            'renewal_type'            => $preview['renewal_type'],
+            'previous_active_end_date'=> $preview['current_active_end_date']
+        ]);
     }
 }
