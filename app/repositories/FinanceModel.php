@@ -68,9 +68,9 @@ class FinanceModel
         // Format registration number consistently as FG-REG-XXXX
         $rawReg = $invoice['raw_reg_no'] ?? null;
         if (!empty($rawReg)) {
-            $formattedReg = (strpos((string)$rawReg, 'FG-') === 0) ? (string)$rawReg : 'FG-REG-' . str_pad((string)$rawReg, 4, '0', STR_PAD_LEFT);
+            $formattedReg = (strpos((string) $rawReg, 'FG-') === 0) ? (string) $rawReg : 'FG-REG-' . str_pad((string) $rawReg, 4, '0', STR_PAD_LEFT);
         } else {
-            $formattedReg = 'FG-REG-' . str_pad((string)$invoice['user_id'], 4, '0', STR_PAD_LEFT);
+            $formattedReg = 'FG-REG-' . str_pad((string) $invoice['user_id'], 4, '0', STR_PAD_LEFT);
         }
         $invoice['reg_no'] = $formattedReg;
         $invoice['registration_no'] = $formattedReg;
@@ -88,8 +88,8 @@ class FinanceModel
         $payments = $stmtPayments->fetchAll(PDO::FETCH_ASSOC);
 
         return [
-            'invoice'  => $invoice,
-            'items'    => $items,
+            'invoice' => $invoice,
+            'items' => $items,
             'payments' => $payments
         ];
     }
@@ -141,7 +141,7 @@ class FinanceModel
         if (!in_array(strtoupper($invoice['status']), ['PAID', 'COMPLETED'])) {
             return ['eligible' => false, 'reason' => 'Invoice is not in a paid/completed status (Current status: ' . $invoice['status'] . ')'];
         }
-        if ((int)$invoice['hours_elapsed'] > 24) {
+        if ((int) $invoice['hours_elapsed'] > 24) {
             return ['eligible' => false, 'reason' => 'Subscription purchase is older than 24 hours (' . $invoice['hours_elapsed'] . ' hours elapsed)'];
         }
 
@@ -168,8 +168,8 @@ class FinanceModel
         $branchId = 1;
         $payMethod = 'BANK_TRANSFER';
         if (!empty($payments)) {
-            $gymId = (int)$payments[0]['gym_id'];
-            $branchId = (int)$payments[0]['branch_id'];
+            $gymId = (int) $payments[0]['gym_id'];
+            $branchId = (int) $payments[0]['branch_id'];
             $payMethod = strtoupper($payments[0]['payment_mode']);
         }
 
@@ -183,15 +183,15 @@ class FinanceModel
 
         // 3. Write OUTFLOW row in financial_ledger safely
         $this->insertLedgerRecord([
-            'gym_id'           => $gymId,
-            'branch_id'        => $branchId,
+            'gym_id' => $gymId,
+            'branch_id' => $branchId,
             'transaction_type' => 'OUTFLOW',
-            'category'         => 'REFUND',
-            'amount'           => (float)$invoice['final_amount'],
-            'reference_table'  => 'invoices',
-            'reference_id'     => $invoiceId,
-            'payment_method'   => $payMethod,
-            'description'      => "24hr Subscription Reversal - Accidental Purchase (Invoice #{$invoiceId}): {$reason}"
+            'category' => 'REFUND',
+            'amount' => (float) $invoice['final_amount'],
+            'reference_table' => 'invoices',
+            'reference_id' => $invoiceId,
+            'payment_method' => $payMethod,
+            'description' => "24hr Subscription Reversal - Accidental Purchase (Invoice #{$invoiceId}): {$reason}"
         ]);
 
         // 4. Void unpaid trainer commissions
@@ -358,16 +358,16 @@ class FinanceModel
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($rows as &$row) {
-            $row['invoice_item_id'] = (int)$row['invoice_item_id'];
-            $row['invoice_id'] = (int)$row['invoice_id'];
-            $row['quantity'] = (int)$row['quantity'];
-            $row['unit_price'] = (float)$row['unit_price'];
-            $row['tax_percentage'] = (float)$row['tax_percentage'];
-            $row['tax_amount'] = (float)$row['tax_amount'];
-            $row['total_price'] = (float)$row['total_price'];
-            $row['invoice_subtotal'] = (float)$row['invoice_subtotal'];
-            $row['invoice_tax'] = (float)$row['invoice_tax'];
-            $row['invoice_total'] = (float)$row['invoice_total'];
+            $row['invoice_item_id'] = (int) $row['invoice_item_id'];
+            $row['invoice_id'] = (int) $row['invoice_id'];
+            $row['quantity'] = (int) $row['quantity'];
+            $row['unit_price'] = (float) $row['unit_price'];
+            $row['tax_percentage'] = (float) $row['tax_percentage'];
+            $row['tax_amount'] = (float) $row['tax_amount'];
+            $row['total_price'] = (float) $row['total_price'];
+            $row['invoice_subtotal'] = (float) $row['invoice_subtotal'];
+            $row['invoice_tax'] = (float) $row['invoice_tax'];
+            $row['invoice_total'] = (float) $row['invoice_total'];
 
             // Parse tax breakdown
             $taxBreakdown = [];
@@ -385,9 +385,9 @@ class FinanceModel
             $stmtPay->execute(['id' => $row['invoice_id']]);
             $payments = $stmtPay->fetchAll(PDO::FETCH_ASSOC);
             foreach ($payments as &$p) {
-                $p['transaction_id'] = (int)$p['transaction_id'];
-                $p['payment_id'] = (int)$p['payment_id'];
-                $p['amount'] = (float)$p['amount'];
+                $p['transaction_id'] = (int) $p['transaction_id'];
+                $p['payment_id'] = (int) $p['payment_id'];
+                $p['amount'] = (float) $p['amount'];
             }
 
             $paymentMode = !empty($payments) ? $payments[0]['payment_mode'] : 'Cash';
@@ -398,17 +398,17 @@ class FinanceModel
 
             // Attach nested complete invoice object
             $row['invoice'] = [
-                'invoice_id'      => $row['invoice_id'],
-                'invoice_number'  => $row['invoice_number'],
-                'subtotal'        => $row['invoice_subtotal'],
-                'tax_amount'      => $row['invoice_tax'],
-                'tax_breakdown'   => $taxBreakdown,
-                'final_amount'    => $row['invoice_total'],
-                'status'          => $row['invoice_status'],
-                'issued_at'       => $row['invoice_date'],
-                'payment_mode'    => $paymentMode,
+                'invoice_id' => $row['invoice_id'],
+                'invoice_number' => $row['invoice_number'],
+                'subtotal' => $row['invoice_subtotal'],
+                'tax_amount' => $row['invoice_tax'],
+                'tax_breakdown' => $taxBreakdown,
+                'final_amount' => $row['invoice_total'],
+                'status' => $row['invoice_status'],
+                'issued_at' => $row['invoice_date'],
+                'payment_mode' => $paymentMode,
                 'transaction_ref' => $transactionRef,
-                'payments'        => $payments
+                'payments' => $payments
             ];
 
             unset($row['invoice_tax_breakdown']);
@@ -437,10 +437,10 @@ class FinanceModel
             GROUP BY DATE(i.issued_at), ii.item_type
         ");
         $stmt->execute([
-            'gym_id'     => $gymId,
-            'branch_id'  => $branchId,
+            'gym_id' => $gymId,
+            'branch_id' => $branchId,
             'start_date' => $startDate,
-            'end_date'   => $endDate
+            'end_date' => $endDate
         ]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -469,7 +469,7 @@ class FinanceModel
               AND u.branch_id = :branch_id
         ");
         $stmt->execute([
-            'gym_id'    => $gymId,
+            'gym_id' => $gymId,
             'branch_id' => $branchId
         ]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -518,11 +518,26 @@ class FinanceModel
             ");
 
             // Ensure columns exist and nullability on financial_ledger if table existed prior
-            try { $this->db->exec("ALTER TABLE financial_ledger ADD description TEXT NULL"); } catch (\Throwable $t) {}
-            try { $this->db->exec("ALTER TABLE financial_ledger MODIFY reference_table VARCHAR(100) NULL"); } catch (\Throwable $t) {}
-            try { $this->db->exec("ALTER TABLE financial_ledger MODIFY reference_id INT NULL"); } catch (\Throwable $t) {}
-            try { $this->db->exec("ALTER TABLE financial_ledger MODIFY category VARCHAR(50) NOT NULL"); } catch (\Throwable $t) {}
-            try { $this->db->exec("ALTER TABLE financial_ledger MODIFY payment_method VARCHAR(50) DEFAULT 'CASH'"); } catch (\Throwable $t) {}
+            try {
+                $this->db->exec("ALTER TABLE financial_ledger ADD description TEXT NULL");
+            } catch (\Throwable $t) {
+            }
+            try {
+                $this->db->exec("ALTER TABLE financial_ledger MODIFY reference_table VARCHAR(100) NULL");
+            } catch (\Throwable $t) {
+            }
+            try {
+                $this->db->exec("ALTER TABLE financial_ledger MODIFY reference_id INT NULL");
+            } catch (\Throwable $t) {
+            }
+            try {
+                $this->db->exec("ALTER TABLE financial_ledger MODIFY category VARCHAR(50) NOT NULL");
+            } catch (\Throwable $t) {
+            }
+            try {
+                $this->db->exec("ALTER TABLE financial_ledger MODIFY payment_method VARCHAR(50) DEFAULT 'CASH'");
+            } catch (\Throwable $t) {
+            }
 
             $hasDesc = $this->hasLedgerDescriptionColumn();
 
@@ -551,7 +566,8 @@ class FinanceModel
                             AND fl.reference_id = oe.opex_id
                       )
                 ");
-            } catch (\Throwable $t) {}
+            } catch (\Throwable $t) {
+            }
 
             // Auto-sync unrecorded Payroll Disbursed entries into financial_ledger
             try {
@@ -578,7 +594,8 @@ class FinanceModel
                             AND fl.reference_id = pr.payroll_id
                       )
                 ");
-            } catch (\Throwable $t) {}
+            } catch (\Throwable $t) {
+            }
 
             // Auto-sync unrecorded COGS (Purchase Orders) entries into financial_ledger
             try {
@@ -605,7 +622,8 @@ class FinanceModel
                             AND fl.reference_id = po.po_id
                       )
                 ");
-            } catch (\Throwable $t) {}
+            } catch (\Throwable $t) {
+            }
         } catch (\Throwable $e) {
             // Ignore DDL errors
         }
@@ -631,16 +649,16 @@ class FinanceModel
     {
         $hasDesc = $this->hasLedgerDescriptionColumn();
 
-        $gymId           = (int)($data['gym_id'] ?? 1);
-        $branchId        = (int)($data['branch_id'] ?? 1);
-        $txnType         = strtoupper(trim($data['transaction_type'] ?? 'OUTFLOW'));
-        $category        = strtoupper(trim($data['category'] ?? 'OPEX'));
-        $amount          = (float)($data['amount'] ?? 0.0);
-        $refTable        = !empty($data['reference_table']) ? trim($data['reference_table']) : 'manual_adjustment';
-        $refId           = isset($data['reference_id']) && $data['reference_id'] !== null ? (int)$data['reference_id'] : 0;
-        $payMethod       = !empty($data['payment_method']) ? strtoupper(trim($data['payment_method'])) : 'CASH';
-        $description     = !empty($data['description']) ? trim($data['description']) : '';
-        $createdAt       = !empty($data['created_at']) ? $data['created_at'] : date('Y-m-d H:i:s');
+        $gymId = (int) ($data['gym_id'] ?? 1);
+        $branchId = (int) ($data['branch_id'] ?? 1);
+        $txnType = strtoupper(trim($data['transaction_type'] ?? 'OUTFLOW'));
+        $category = strtoupper(trim($data['category'] ?? 'OPEX'));
+        $amount = (float) ($data['amount'] ?? 0.0);
+        $refTable = !empty($data['reference_table']) ? trim($data['reference_table']) : 'manual_adjustment';
+        $refId = isset($data['reference_id']) && $data['reference_id'] !== null ? (int) $data['reference_id'] : 0;
+        $payMethod = !empty($data['payment_method']) ? strtoupper(trim($data['payment_method'])) : 'CASH';
+        $description = !empty($data['description']) ? trim($data['description']) : '';
+        $createdAt = !empty($data['created_at']) ? $data['created_at'] : date('Y-m-d H:i:s');
 
         if ($hasDesc) {
             $stmt = $this->db->prepare("
@@ -651,16 +669,16 @@ class FinanceModel
                 )
             ");
             return $stmt->execute([
-                'gym_id'           => $gymId,
-                'branch_id'        => $branchId,
+                'gym_id' => $gymId,
+                'branch_id' => $branchId,
                 'transaction_type' => $txnType,
-                'category'         => $category,
-                'amount'           => $amount,
-                'reference_table'  => $refTable,
-                'reference_id'     => $refId,
-                'payment_method'   => $payMethod,
-                'description'      => $description,
-                'created_at'       => $createdAt
+                'category' => $category,
+                'amount' => $amount,
+                'reference_table' => $refTable,
+                'reference_id' => $refId,
+                'payment_method' => $payMethod,
+                'description' => $description,
+                'created_at' => $createdAt
             ]);
         } else {
             $stmt = $this->db->prepare("
@@ -671,15 +689,15 @@ class FinanceModel
                 )
             ");
             return $stmt->execute([
-                'gym_id'           => $gymId,
-                'branch_id'        => $branchId,
+                'gym_id' => $gymId,
+                'branch_id' => $branchId,
                 'transaction_type' => $txnType,
-                'category'         => $category,
-                'amount'           => $amount,
-                'reference_table'  => $refTable,
-                'reference_id'     => $refId,
-                'payment_method'   => $payMethod,
-                'created_at'       => $createdAt
+                'category' => $category,
+                'amount' => $amount,
+                'reference_table' => $refTable,
+                'reference_id' => $refId,
+                'payment_method' => $payMethod,
+                'created_at' => $createdAt
             ]);
         }
     }
@@ -696,11 +714,11 @@ class FinanceModel
         $this->ensureTablesExist();
 
         $startDate = !empty($filters['start_date']) ? $filters['start_date'] : date('Y-m-01');
-        $endDate   = !empty($filters['end_date']) ? $filters['end_date'] : date('Y-m-t');
-        $branchId  = !empty($filters['branch_id']) ? (int)$filters['branch_id'] : null;
+        $endDate = !empty($filters['end_date']) ? $filters['end_date'] : date('Y-m-t');
+        $branchId = !empty($filters['branch_id']) ? (int) $filters['branch_id'] : null;
 
         $startDateTime = $startDate . ' 00:00:00';
-        $endDateTime   = $endDate . ' 23:59:59';
+        $endDateTime = $endDate . ' 23:59:59';
 
         // 1. Revenue Breakdown from paid invoices
         $membershipPtSales = 0.0;
@@ -729,7 +747,7 @@ class FinanceModel
 
             foreach ($revRows as $r) {
                 $type = strtoupper($r['item_type']);
-                $val  = (float)$r['total_amount'];
+                $val = (float) $r['total_amount'];
                 if ($type === 'SUBSCRIPTION' || $type === 'PT_PACKAGE') {
                     $membershipPtSales += $val;
                 } elseif ($type === 'PRODUCT') {
@@ -759,7 +777,7 @@ class FinanceModel
                 {$flWhere} AND transaction_type = 'INFLOW' AND category = 'ADJUSTMENT'
             ");
             $stmtInflowAdj->execute($flParams);
-            $adjustmentsInflow = (float)$stmtInflowAdj->fetchColumn();
+            $adjustmentsInflow = (float) $stmtInflowAdj->fetchColumn();
         } catch (\Throwable $t) {
             $adjustmentsInflow = 0.0;
         }
@@ -776,7 +794,7 @@ class FinanceModel
                 {$flWhere} AND category = 'COGS'
             ");
             $stmtCogs->execute($flParams);
-            $cogs = (float)$stmtCogs->fetchColumn();
+            $cogs = (float) $stmtCogs->fetchColumn();
         } catch (\Throwable $t) {
             $cogs = 0.0;
         }
@@ -797,7 +815,7 @@ class FinanceModel
                 {$payrollWhere} AND status IN ('PAID', 'DISBURSED')
             ");
             $stmtPay->execute($payrollParams);
-            $payroll = (float)$stmtPay->fetchColumn();
+            $payroll = (float) $stmtPay->fetchColumn();
         } catch (\Throwable $t) {
             $payroll = 0.0;
         }
@@ -813,7 +831,7 @@ class FinanceModel
             }
             $stmtOpex = $this->db->prepare("SELECT COALESCE(SUM(amount), 0.0) FROM operating_expenses {$opexWhere}");
             $stmtOpex->execute($opexParams);
-            $opex = (float)$stmtOpex->fetchColumn();
+            $opex = (float) $stmtOpex->fetchColumn();
         } catch (\Throwable $t) {
             $opex = 0.0;
         }
@@ -827,7 +845,7 @@ class FinanceModel
                 {$flWhere} AND category = 'REFUND'
             ");
             $stmtRefund->execute($flParams);
-            $refunds = (float)$stmtRefund->fetchColumn();
+            $refunds = (float) $stmtRefund->fetchColumn();
         } catch (\Throwable $t) {
             $refunds = 0.0;
         }
@@ -841,7 +859,7 @@ class FinanceModel
                 {$flWhere} AND transaction_type = 'OUTFLOW' AND category = 'ADJUSTMENT'
             ");
             $stmtOutflowAdj->execute($flParams);
-            $adjustmentsOutflow = (float)$stmtOutflowAdj->fetchColumn();
+            $adjustmentsOutflow = (float) $stmtOutflowAdj->fetchColumn();
         } catch (\Throwable $t) {
             $adjustmentsOutflow = 0.0;
         }
@@ -856,25 +874,25 @@ class FinanceModel
         return [
             "period" => [
                 "start_date" => $startDate,
-                "end_date"   => $endDate,
-                "branch_id"  => $branchId
+                "end_date" => $endDate,
+                "branch_id" => $branchId
             ],
             "revenue_breakdown" => [
                 "membership_and_pt_sales" => number_format($membershipPtSales, 2, '.', ''),
-                "store_product_sales"     => number_format($storeProductSales, 2, '.', ''),
-                "adjustments_inflow"      => number_format($adjustmentsInflow, 2, '.', ''),
-                "gross_revenue"           => number_format($grossRevenue, 2, '.', '')
+                "store_product_sales" => number_format($storeProductSales, 2, '.', ''),
+                "adjustments_inflow" => number_format($adjustmentsInflow, 2, '.', ''),
+                "gross_revenue" => number_format($grossRevenue, 2, '.', '')
             ],
             "expense_breakdown" => [
                 "cogs_inventory_procurement" => number_format($cogs, 2, '.', ''),
-                "staff_and_trainer_payroll"  => number_format($payroll, 2, '.', ''),
-                "operating_expenses_opex"    => number_format($opex, 2, '.', ''),
-                "refunds_issued"             => number_format($refunds, 2, '.', ''),
-                "adjustments_outflow"        => number_format($adjustmentsOutflow, 2, '.', ''),
-                "total_expenses"             => number_format($totalExpenses, 2, '.', '')
+                "staff_and_trainer_payroll" => number_format($payroll, 2, '.', ''),
+                "operating_expenses_opex" => number_format($opex, 2, '.', ''),
+                "refunds_issued" => number_format($refunds, 2, '.', ''),
+                "adjustments_outflow" => number_format($adjustmentsOutflow, 2, '.', ''),
+                "total_expenses" => number_format($totalExpenses, 2, '.', '')
             ],
             "net_position" => [
-                "net_operating_profit"     => number_format($netOperatingProfit, 2, '.', ''),
+                "net_operating_profit" => number_format($netOperatingProfit, 2, '.', ''),
                 "profit_margin_percentage" => number_format($marginPct, 2, '.', '')
             ]
         ];
@@ -900,7 +918,7 @@ class FinanceModel
         }
         if (!empty($filters['branch_id'])) {
             $where[] = "branch_id = :branch_id";
-            $params['branch_id'] = (int)$filters['branch_id'];
+            $params['branch_id'] = (int) $filters['branch_id'];
         }
         if (!empty($filters['start_date'])) {
             $where[] = "expense_date >= :start_date";
@@ -925,11 +943,11 @@ class FinanceModel
         $stmtCount->execute($params);
         $countRow = $stmtCount->fetch(PDO::FETCH_ASSOC);
 
-        $totalRecords = (int)($countRow['total_cnt'] ?? 0);
-        $totalAmount  = (float)($countRow['total_amt'] ?? 0.0);
+        $totalRecords = (int) ($countRow['total_cnt'] ?? 0);
+        $totalAmount = (float) ($countRow['total_amt'] ?? 0.0);
 
-        $page  = max(1, (int)($filters['page'] ?? 1));
-        $limit = max(1, min(100, (int)($filters['limit'] ?? 20)));
+        $page = max(1, (int) ($filters['page'] ?? 1));
+        $limit = max(1, min(100, (int) ($filters['limit'] ?? 20)));
         $offset = ($page - 1) * $limit;
         $totalPages = ceil($totalRecords / $limit) ?: 1;
 
@@ -943,19 +961,19 @@ class FinanceModel
         $expenses = $stmtList->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($expenses as &$exp) {
-            $exp['opex_id']   = (int)$exp['opex_id'];
-            $exp['gym_id']    = (int)$exp['gym_id'];
-            $exp['branch_id'] = (int)$exp['branch_id'];
-            $exp['amount']    = number_format((float)$exp['amount'], 2, '.', '');
+            $exp['opex_id'] = (int) $exp['opex_id'];
+            $exp['gym_id'] = (int) $exp['gym_id'];
+            $exp['branch_id'] = (int) $exp['branch_id'];
+            $exp['amount'] = number_format((float) $exp['amount'], 2, '.', '');
         }
 
         return [
             "expenses" => $expenses,
             "pagination" => [
-                "current_page"  => $page,
-                "limit"         => $limit,
+                "current_page" => $page,
+                "limit" => $limit,
                 "total_records" => $totalRecords,
-                "total_pages"   => $totalPages
+                "total_pages" => $totalPages
             ],
             "summary_metrics" => [
                 "filtered_total_opex_amount" => number_format($totalAmount, 2, '.', '')
@@ -970,16 +988,16 @@ class FinanceModel
     {
         $this->ensureTablesExist();
 
-        $title         = !empty($data['title']) ? trim((string)$data['title']) : 'Operational Expense';
-        $categoryTag   = !empty($data['category_tag']) ? strtoupper(trim((string)$data['category_tag'])) : 'OPERATING';
-        $amount        = isset($data['amount']) ? (float)$data['amount'] : 0.0;
-        $paymentMethod = !empty($data['payment_method']) ? strtoupper(trim((string)$data['payment_method'])) : 'UPI';
-        $vendorName    = !empty($data['vendor_name']) ? trim((string)$data['vendor_name']) : null;
-        $receiptRef    = !empty($data['receipt_ref']) ? trim((string)$data['receipt_ref']) : null;
-        $receiptUrl    = !empty($data['receipt_url']) ? trim((string)$data['receipt_url']) : null;
-        $expenseDate   = !empty($data['expense_date']) ? (string)$data['expense_date'] : date('Y-m-d');
-        $gymId         = isset($data['gym_id']) ? (int)$data['gym_id'] : 1;
-        $branchId      = isset($data['branch_id']) ? (int)$data['branch_id'] : 1;
+        $title = !empty($data['title']) ? trim((string) $data['title']) : 'Operational Expense';
+        $categoryTag = !empty($data['category_tag']) ? strtoupper(trim((string) $data['category_tag'])) : 'OPERATING';
+        $amount = isset($data['amount']) ? (float) $data['amount'] : 0.0;
+        $paymentMethod = !empty($data['payment_method']) ? strtoupper(trim((string) $data['payment_method'])) : 'UPI';
+        $vendorName = !empty($data['vendor_name']) ? trim((string) $data['vendor_name']) : null;
+        $receiptRef = !empty($data['receipt_ref']) ? trim((string) $data['receipt_ref']) : null;
+        $receiptUrl = !empty($data['receipt_url']) ? trim((string) $data['receipt_url']) : null;
+        $expenseDate = !empty($data['expense_date']) ? (string) $data['expense_date'] : date('Y-m-d');
+        $gymId = isset($data['gym_id']) ? (int) $data['gym_id'] : 1;
+        $branchId = isset($data['branch_id']) ? (int) $data['branch_id'] : 1;
 
         $stmt = $this->db->prepare("
             INSERT INTO operating_expenses (
@@ -992,34 +1010,34 @@ class FinanceModel
         ");
 
         $stmt->execute([
-            'gym_id'         => $gymId,
-            'branch_id'      => $branchId,
-            'title'          => $title,
-            'category_tag'   => $categoryTag,
-            'amount'         => $amount,
+            'gym_id' => $gymId,
+            'branch_id' => $branchId,
+            'title' => $title,
+            'category_tag' => $categoryTag,
+            'amount' => $amount,
             'payment_method' => $paymentMethod,
-            'vendor_name'    => $vendorName,
-            'receipt_ref'    => $receiptRef,
-            'receipt_url'    => $receiptUrl,
-            'expense_date'   => $expenseDate
+            'vendor_name' => $vendorName,
+            'receipt_ref' => $receiptRef,
+            'receipt_url' => $receiptUrl,
+            'expense_date' => $expenseDate
         ]);
 
-        $opexId = (int)$this->db->lastInsertId();
+        $opexId = (int) $this->db->lastInsertId();
 
         // Also record in financial_ledger if ledger table is ready
         try {
             $ledgerCreatedAt = $expenseDate . ' ' . date('H:i:s');
             $this->insertLedgerRecord([
-                'gym_id'           => $gymId,
-                'branch_id'        => $branchId,
+                'gym_id' => $gymId,
+                'branch_id' => $branchId,
                 'transaction_type' => 'OUTFLOW',
-                'category'         => 'OPEX',
-                'amount'           => $amount,
-                'reference_table'  => 'operating_expenses',
-                'reference_id'     => $opexId,
-                'payment_method'   => $paymentMethod,
-                'description'      => "OpEx: " . $title,
-                'created_at'       => $ledgerCreatedAt
+                'category' => 'OPEX',
+                'amount' => $amount,
+                'reference_table' => 'operating_expenses',
+                'reference_id' => $opexId,
+                'payment_method' => $paymentMethod,
+                'description' => "OpEx: " . $title,
+                'created_at' => $ledgerCreatedAt
             ]);
         } catch (\Throwable $t) {
             // Ignore financial_ledger insert error if ledger table is missing
@@ -1049,15 +1067,15 @@ class FinanceModel
 
         // Record offsetting INFLOW in financial_ledger
         $this->insertLedgerRecord([
-            'gym_id'           => (int)$exp['gym_id'],
-            'branch_id'        => (int)$exp['branch_id'],
+            'gym_id' => (int) $exp['gym_id'],
+            'branch_id' => (int) $exp['branch_id'],
             'transaction_type' => 'INFLOW',
-            'category'         => 'ADJUSTMENT',
-            'amount'           => (float)$exp['amount'],
-            'reference_table'  => 'operating_expenses',
-            'reference_id'     => $opexId,
-            'payment_method'   => $exp['payment_method'],
-            'description'      => "Voided OpEx #{$opexId}: " . trim($reason)
+            'category' => 'ADJUSTMENT',
+            'amount' => (float) $exp['amount'],
+            'reference_table' => 'operating_expenses',
+            'reference_id' => $opexId,
+            'payment_method' => $exp['payment_method'],
+            'description' => "Voided OpEx #{$opexId}: " . trim($reason)
         ]);
 
         return true;
@@ -1087,7 +1105,7 @@ class FinanceModel
         }
         if (!empty($filters['branch_id'])) {
             $where[] = "branch_id = :branch_id";
-            $params['branch_id'] = (int)$filters['branch_id'];
+            $params['branch_id'] = (int) $filters['branch_id'];
         }
         if (!empty($filters['start_date'])) {
             $where[] = "created_at >= :start_date";
@@ -1112,13 +1130,13 @@ class FinanceModel
         $stmtTotals->execute($params);
         $totalsRow = $stmtTotals->fetch(PDO::FETCH_ASSOC);
 
-        $totalRecords = (int)($totalsRow['total_cnt'] ?? 0);
-        $totalInflow  = (float)($totalsRow['total_inflow'] ?? 0.0);
-        $totalOutflow = (float)($totalsRow['total_outflow'] ?? 0.0);
-        $netCashflow  = $totalInflow - $totalOutflow;
+        $totalRecords = (int) ($totalsRow['total_cnt'] ?? 0);
+        $totalInflow = (float) ($totalsRow['total_inflow'] ?? 0.0);
+        $totalOutflow = (float) ($totalsRow['total_outflow'] ?? 0.0);
+        $netCashflow = $totalInflow - $totalOutflow;
 
-        $page  = max(1, (int)($filters['page'] ?? 1));
-        $limit = max(1, min(100, (int)($filters['limit'] ?? 50)));
+        $page = max(1, (int) ($filters['page'] ?? 1));
+        $limit = max(1, min(100, (int) ($filters['limit'] ?? 50)));
         $offset = ($page - 1) * $limit;
         $totalPages = ceil($totalRecords / $limit) ?: 1;
 
@@ -1132,11 +1150,11 @@ class FinanceModel
         $entries = $stmtList->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($entries as &$entry) {
-            $entry['ledger_id']    = (int)$entry['ledger_id'];
-            $entry['gym_id']       = (int)$entry['gym_id'];
-            $entry['branch_id']    = (int)$entry['branch_id'];
-            $entry['reference_id'] = $entry['reference_id'] !== null ? (int)$entry['reference_id'] : null;
-            $entry['amount']       = number_format((float)$entry['amount'], 2, '.', '');
+            $entry['ledger_id'] = (int) $entry['ledger_id'];
+            $entry['gym_id'] = (int) $entry['gym_id'];
+            $entry['branch_id'] = (int) $entry['branch_id'];
+            $entry['reference_id'] = $entry['reference_id'] !== null ? (int) $entry['reference_id'] : null;
+            $entry['amount'] = number_format((float) $entry['amount'], 2, '.', '');
             if (!isset($entry['description'])) {
                 $entry['description'] = $entry['category'] . ' Transaction';
             }
@@ -1145,15 +1163,15 @@ class FinanceModel
         return [
             "ledger_entries" => $entries,
             "pagination" => [
-                "current_page"  => $page,
-                "limit"         => $limit,
+                "current_page" => $page,
+                "limit" => $limit,
                 "total_records" => $totalRecords,
-                "total_pages"   => $totalPages
+                "total_pages" => $totalPages
             ],
             "summary_metrics" => [
-                "period_total_inflow"  => number_format($totalInflow, 2, '.', ''),
+                "period_total_inflow" => number_format($totalInflow, 2, '.', ''),
                 "period_total_outflow" => number_format($totalOutflow, 2, '.', ''),
-                "period_net_cashflow"  => number_format($netCashflow, 2, '.', '')
+                "period_net_cashflow" => number_format($netCashflow, 2, '.', '')
             ]
         ];
     }
@@ -1165,23 +1183,23 @@ class FinanceModel
     {
         $this->ensureTablesExist();
 
-        $transactionType = !empty($data['transaction_type']) ? strtoupper(trim((string)$data['transaction_type'])) : 'OUTFLOW';
-        $paymentMethod   = !empty($data['payment_method']) ? strtoupper(trim((string)$data['payment_method'])) : 'CASH';
-        $description     = !empty($data['description']) ? trim((string)$data['description']) : 'Manual adjustment';
-        $amount          = isset($data['amount']) ? (float)$data['amount'] : 0.0;
-        $gymId           = isset($data['gym_id']) ? (int)$data['gym_id'] : 1;
-        $branchId        = isset($data['branch_id']) ? (int)$data['branch_id'] : 1;
+        $transactionType = !empty($data['transaction_type']) ? strtoupper(trim((string) $data['transaction_type'])) : 'OUTFLOW';
+        $paymentMethod = !empty($data['payment_method']) ? strtoupper(trim((string) $data['payment_method'])) : 'CASH';
+        $description = !empty($data['description']) ? trim((string) $data['description']) : 'Manual adjustment';
+        $amount = isset($data['amount']) ? (float) $data['amount'] : 0.0;
+        $gymId = isset($data['gym_id']) ? (int) $data['gym_id'] : 1;
+        $branchId = isset($data['branch_id']) ? (int) $data['branch_id'] : 1;
 
         return $this->insertLedgerRecord([
-            'gym_id'           => $gymId,
-            'branch_id'        => $branchId,
+            'gym_id' => $gymId,
+            'branch_id' => $branchId,
             'transaction_type' => $transactionType,
-            'category'         => 'ADJUSTMENT',
-            'amount'           => $amount,
-            'reference_table'  => 'manual_adjustment',
-            'reference_id'     => 0,
-            'payment_method'   => $paymentMethod,
-            'description'      => $description
+            'category' => 'ADJUSTMENT',
+            'amount' => $amount,
+            'reference_table' => 'manual_adjustment',
+            'reference_id' => 0,
+            'payment_method' => $paymentMethod,
+            'description' => $description
         ]);
     }
 
