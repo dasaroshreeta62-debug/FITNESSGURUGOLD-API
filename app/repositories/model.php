@@ -14,13 +14,21 @@ class Model
 
     }
 
-    private function toValidFkId($val): ?int
+    private function toValidFkId($val, string $table = 'cities', string $pk = 'city_id'): ?int
     {
         if ($val === null || $val === '' || $val === '0' || $val === 0 || $val === 'null' || $val === 'undefined' || $val === 'N/A' || $val === 'Not specified') {
             return null;
         }
         $intVal = (int)$val;
-        return $intVal > 0 ? $intVal : null;
+        if ($intVal <= 0) return null;
+
+        try {
+            $stmt = $this->db->prepare("SELECT COUNT(*) FROM `{$table}` WHERE `{$pk}` = :id");
+            $stmt->execute(['id' => $intVal]);
+            return ((int)$stmt->fetchColumn() > 0) ? $intVal : null;
+        } catch (\Throwable $t) {
+            return null;
+        }
     }
 
     private function toNullableString($val): ?string
@@ -987,34 +995,6 @@ class Model
             $row['registration_number'] = $row['registration_number'] !== null ? (int)$row['registration_number'] : null;
             return $row;
         }, $rows);
-    }
-    private function toNullableString($val): ?string
-    {
-        if ($val === null) return null;
-        $str = trim((string)$val);
-        return ($str === '') ? null : $str;
-    }
-
-    private function toNullableFloat($val): ?float
-    {
-        if ($val === null || $val === '') return null;
-        $f = (float)$val;
-        return ($f <= 0) ? null : $f;
-    }
-
-    private function toValidFkId($val, string $table = 'cities', string $pk = 'city_id'): ?int
-    {
-        if (empty($val)) return null;
-        $id = (int)$val;
-        if ($id <= 0) return null;
-
-        try {
-            $stmt = $this->db->prepare("SELECT COUNT(*) FROM `{$table}` WHERE `{$pk}` = :id");
-            $stmt->execute(['id' => $id]);
-            return ((int)$stmt->fetchColumn() > 0) ? $id : null;
-        } catch (\Throwable $t) {
-            return null;
-        }
     }
 
     public function updateMember(array $data): void
