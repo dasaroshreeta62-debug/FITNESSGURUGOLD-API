@@ -988,6 +988,35 @@ class Model
             return $row;
         }, $rows);
     }
+    private function toNullableString($val): ?string
+    {
+        if ($val === null) return null;
+        $str = trim((string)$val);
+        return ($str === '') ? null : $str;
+    }
+
+    private function toNullableFloat($val): ?float
+    {
+        if ($val === null || $val === '') return null;
+        $f = (float)$val;
+        return ($f <= 0) ? null : $f;
+    }
+
+    private function toValidFkId($val, string $table = 'cities', string $pk = 'city_id'): ?int
+    {
+        if (empty($val)) return null;
+        $id = (int)$val;
+        if ($id <= 0) return null;
+
+        try {
+            $stmt = $this->db->prepare("SELECT COUNT(*) FROM `{$table}` WHERE `{$pk}` = :id");
+            $stmt->execute(['id' => $id]);
+            return ((int)$stmt->fetchColumn() > 0) ? $id : null;
+        } catch (\Throwable $t) {
+            return null;
+        }
+    }
+
     public function updateMember(array $data): void
     {
         $this->db->beginTransaction();
@@ -1076,10 +1105,10 @@ class Model
                 'weight'        => $this->toNullableFloat($data['weight'] ?? null),
                 'fitness_level' => $this->toNullableString($data['fitness_level'] ?? null),
                 'goal_focus'    => $this->toNullableString($data['goal_focus'] ?? null),
-                'country'       => $this->toValidFkId($data['country'] ?? ($data['country_id'] ?? null)),
-                'state'         => $this->toValidFkId($data['state'] ?? ($data['state_id'] ?? null)),
-                'district'      => $this->toValidFkId($data['district'] ?? ($data['district_id'] ?? null)),
-                'city'          => $this->toValidFkId($data['city'] ?? ($data['city_id'] ?? null)),
+                'country'       => $this->toValidFkId($data['country'] ?? ($data['country_id'] ?? null), 'countries', 'country_id'),
+                'state'         => $this->toValidFkId($data['state'] ?? ($data['state_id'] ?? null), 'states', 'state_id'),
+                'district'      => $this->toValidFkId($data['district'] ?? ($data['district_id'] ?? null), 'districts', 'district_id'),
+                'city'          => $this->toValidFkId($data['city'] ?? ($data['city_id'] ?? null), 'cities', 'city_id'),
                 'address1'      => $this->toNullableString($data['address_line1'] ?? null),
                 'address2'      => $this->toNullableString($data['address_line2'] ?? null),
                 'emergency'     => $this->toNullableString($data['emergency_contact'] ?? null),
