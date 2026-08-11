@@ -14,6 +14,34 @@ class Model
 
     }
 
+    private function toValidFkId($val): ?int
+    {
+        if ($val === null || $val === '' || $val === '0' || $val === 0 || $val === 'null' || $val === 'undefined' || $val === 'N/A' || $val === 'Not specified') {
+            return null;
+        }
+        $intVal = (int)$val;
+        return $intVal > 0 ? $intVal : null;
+    }
+
+    private function toNullableString($val): ?string
+    {
+        if ($val === null) return null;
+        $str = trim((string)$val);
+        if ($str === '' || $str === 'null' || $str === 'undefined' || $str === 'N/A' || $str === 'Not provided' || $str === 'Not specified') {
+            return null;
+        }
+        return $str;
+    }
+
+    private function toNullableFloat($val): ?float
+    {
+        if ($val === null || $val === '' || $val === 'null' || $val === 'undefined' || $val === 'N/A' || $val === 'Not specified') {
+            return null;
+        }
+        $floatVal = (float)$val;
+        return $floatVal > 0 ? $floatVal : null;
+    }
+
     public function getUserByEmail(string $email): ?array
     {
         $stmt = $this->db->prepare(
@@ -661,10 +689,10 @@ class Model
                 : (int)$user_id;
 
             $gender = !empty($data['gender']) ? ucfirst(strtolower($data['gender'])) : null;
-            $countryId = !empty($data['country']) ? (int)$data['country'] : 1;
-            $stateId = !empty($data['state']) ? (int)$data['state'] : 1;
-            $districtId = !empty($data['district']) ? (int)$data['district'] : 19;
-            $cityId = !empty($data['city']) ? (int)$data['city'] : 1;
+            $countryId  = $this->toValidFkId($data['country'] ?? ($data['country_id'] ?? null)) ?? 1;
+            $stateId    = $this->toValidFkId($data['state'] ?? ($data['state_id'] ?? null)) ?? 1;
+            $districtId = $this->toValidFkId($data['district'] ?? ($data['district_id'] ?? null)) ?? 19;
+            $cityId     = $this->toValidFkId($data['city'] ?? ($data['city_id'] ?? null)) ?? 1;
 
             $stmtProfile = $this->db->prepare("
                 INSERT INTO member_profiles (
@@ -1040,22 +1068,22 @@ class Model
                 WHERE user_id = :user_id
             ")->execute([
                 'registration_number' => $regNo,
-                'join_date' => $data['join_date'] ?? null,
-                'dob' => $data['dob'] ?? null,
-                'gender' => $data['gender'] ?? null,
-                'blood_group' => $data['blood_group'] ?? null,
-                'height' => $data['height'] ?? null,
-                'weight' => $data['weight'] ?? null,
-                'fitness_level' => $data['fitness_level'] ?? null,
-                'goal_focus' => $data['goal_focus'] ?? null,
-                'country' => $data['country'] ?? null,
-                'state' => $data['state'] ?? null,
-                'district' => $data['district'] ?? null,
-                'city' => $data['city'] ?? null,
-                'address1' => $data['address_line1'] ?? null,
-                'address2' => $data['address_line2'] ?? null,
-                'emergency' => $data['emergency_contact'] ?? null,
-                'user_id' => $data['user_id']
+                'join_date'     => $this->toNullableString($data['join_date'] ?? null),
+                'dob'           => $this->toNullableString($data['dob'] ?? null),
+                'gender'        => $this->toNullableString($data['gender'] ?? null),
+                'blood_group'   => $this->toNullableString($data['blood_group'] ?? null),
+                'height'        => $this->toNullableFloat($data['height'] ?? null),
+                'weight'        => $this->toNullableFloat($data['weight'] ?? null),
+                'fitness_level' => $this->toNullableString($data['fitness_level'] ?? null),
+                'goal_focus'    => $this->toNullableString($data['goal_focus'] ?? null),
+                'country'       => $this->toValidFkId($data['country'] ?? ($data['country_id'] ?? null)),
+                'state'         => $this->toValidFkId($data['state'] ?? ($data['state_id'] ?? null)),
+                'district'      => $this->toValidFkId($data['district'] ?? ($data['district_id'] ?? null)),
+                'city'          => $this->toValidFkId($data['city'] ?? ($data['city_id'] ?? null)),
+                'address1'      => $this->toNullableString($data['address_line1'] ?? null),
+                'address2'      => $this->toNullableString($data['address_line2'] ?? null),
+                'emergency'     => $this->toNullableString($data['emergency_contact'] ?? null),
+                'user_id'       => (int)$data['user_id']
             ]);
 
             // /* ========= updating the SUBSCRIPTIONS table ========= */
