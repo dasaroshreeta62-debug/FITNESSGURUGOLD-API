@@ -1131,16 +1131,20 @@ class MembershipModel
     /**
      * Get user active base membership subscription if present.
      */
+    /**
+     * Get user active base membership subscription with the furthest end_date.
+     */
     public function getUserActiveBaseMembership(int $userId): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT s.* 
+            SELECT s.*, mp.plan_name, mp.duration_months
             FROM subscriptions s
             JOIN membership_plans mp ON s.plan_id = mp.plan_id
             WHERE s.user_id = :user_id 
               AND s.status = 1 
               AND mp.plan_type IN ('BASE_MEMBERSHIP', 'MEMBERSHIP')
               AND s.end_date >= CURDATE()
+            ORDER BY s.end_date DESC 
             LIMIT 1
         ");
         $stmt->execute(['user_id' => $userId]);
@@ -1149,7 +1153,27 @@ class MembershipModel
     }
 
     /**
+     * Get all active base membership subscriptions for a user ordered by start_date ASC.
+     */
+    public function getUserActiveBaseSubscriptions(int $userId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT s.subscription_id, s.plan_id, s.start_date, s.end_date, mp.plan_name, mp.duration_months
+            FROM subscriptions s
+            JOIN membership_plans mp ON s.plan_id = mp.plan_id
+            WHERE s.user_id = :user_id 
+              AND s.status = 1 
+              AND mp.plan_type IN ('BASE_MEMBERSHIP', 'MEMBERSHIP')
+              AND s.end_date >= CURDATE()
+            ORDER BY s.start_date ASC
+        ");
+        $stmt->execute(['user_id' => $userId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
      * Preview projected start_date, end_date, and renewal_type before renewing a subscription.
+     * Starts after the latest/furthest end_date among all stacked active subscriptions.
      */
     public function getSubscriptionRenewalPreview(int $userId, int $planId): array
     {
@@ -1165,24 +1189,38 @@ class MembershipModel
         $durationMonths = (int)($plan['duration_months'] ?: 1);
         $planType = strtoupper(trim($plan['plan_type'] ?? 'BASE_MEMBERSHIP'));
 
-        $activeSub = null;
+        $stackedSubs = [];
+        $latestSub = null;
+
         if (in_array($planType, ['BASE_MEMBERSHIP', 'MEMBERSHIP'])) {
-            $activeSub = $this->getUserActiveBaseMembership($userId);
+            $stackedSubs = $this->getUserActiveBaseSubscriptions($userId);
+            if (!empty($stackedSubs)) {
+                $latestSub = end($stackedSubs);
+            }
         } else {
             $stmt = $this->db->prepare("
-                SELECT * FROM subscriptions 
-                WHERE user_id = :user_id AND plan_id = :plan_id AND status = 1 AND end_date >= CURDATE()
-                ORDER BY end_date DESC LIMIT 1
+                SELECT s.subscription_id, s.plan_id, s.start_date, s.end_date, mp.plan_name, mp.duration_months
+                FROM subscriptions s
+                JOIN membership_plans mp ON s.plan_id = mp.plan_id
+                WHERE s.user_id = :user_id 
+                  AND s.plan_id = :plan_id 
+                  AND s.status = 1 
+                  AND s.end_date >= CURDATE()
+                ORDER BY s.end_date DESC 
+                LIMIT 1
             ");
             $stmt->execute(['user_id' => $userId, 'plan_id' => $planId]);
-            $activeSub = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            $latestSub = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            if ($latestSub) {
+                $stackedSubs = [$latestSub];
+            }
         }
 
-        if ($activeSub) {
-            $startDate = date('Y-m-d', strtotime($activeSub['end_date'] . ' + 1 day'));
+        if ($latestSub) {
+            $startDate = date('Y-m-d', strtotime($latestSub['end_date'] . ' + 1 day'));
             $endDate = date('Y-m-d', strtotime($startDate . " + {$durationMonths} months"));
             $renewalType = 'STACKED_EXTENSION';
-            $daysRemainingCurrent = (int)round((strtotime($activeSub['end_date']) - strtotime(date('Y-m-d'))) / 86400);
+            $daysRemainingCurrent = (int)round((strtotime($latestSub['end_date']) - strtotime(date('Y-m-d'))) / 86400);
             $isExpiringSoon = ($daysRemainingCurrent <= 7 && $daysRemainingCurrent >= 0);
             $membershipState = $isExpiringSoon ? 'EXPIRING_SOON' : 'ACTIVE';
         } else {
@@ -1207,9 +1245,11 @@ class MembershipModel
             'expiring_soon_threshold_days' => 7,
             'start_date'                   => $startDate,
             'end_date'                     => $endDate,
-            'current_active_sub_id'        => $activeSub ? (int)$activeSub['subscription_id'] : null,
-            'current_active_end_date'      => $activeSub ? $activeSub['end_date'] : null,
-            'current_days_remaining'       => max(0, $daysRemainingCurrent)
+            'current_active_sub_id'        => $latestSub ? (int)$latestSub['subscription_id'] : null,
+            'current_active_end_date'      => $latestSub ? $latestSub['end_date'] : null,
+            'current_days_remaining'       => max(0, $daysRemainingCurrent),
+            'stacked_subscriptions'        => $stackedSubs,
+            'total_stacked_count'          => count($stackedSubs)
         ];
     }
 
