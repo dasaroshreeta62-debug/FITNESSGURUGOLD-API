@@ -1183,26 +1183,33 @@ class MembershipModel
             $endDate = date('Y-m-d', strtotime($startDate . " + {$durationMonths} months"));
             $renewalType = 'STACKED_EXTENSION';
             $daysRemainingCurrent = (int)round((strtotime($activeSub['end_date']) - strtotime(date('Y-m-d'))) / 86400);
+            $isExpiringSoon = ($daysRemainingCurrent <= 7 && $daysRemainingCurrent >= 0);
+            $membershipState = $isExpiringSoon ? 'EXPIRING_SOON' : 'ACTIVE';
         } else {
             $startDate = date('Y-m-d');
             $endDate = date('Y-m-d', strtotime($startDate . " + {$durationMonths} months"));
             $renewalType = 'FRESH_REACTIVATION';
             $daysRemainingCurrent = 0;
+            $isExpiringSoon = false;
+            $membershipState = 'EXPIRED';
         }
 
         return [
-            'user_id'                => $userId,
-            'plan_id'                => $planId,
-            'plan_name'              => $plan['plan_name'],
-            'plan_type'              => $planType,
-            'duration_months'        => $durationMonths,
-            'price'                  => (float)$plan['price'],
-            'renewal_type'           => $renewalType,
-            'start_date'             => $startDate,
-            'end_date'               => $endDate,
-            'current_active_sub_id'  => $activeSub ? (int)$activeSub['subscription_id'] : null,
-            'current_active_end_date'=> $activeSub ? $activeSub['end_date'] : null,
-            'current_days_remaining' => max(0, $daysRemainingCurrent)
+            'user_id'                      => $userId,
+            'plan_id'                      => $planId,
+            'plan_name'                    => $plan['plan_name'],
+            'plan_type'                    => $planType,
+            'duration_months'              => $durationMonths,
+            'price'                        => (float)$plan['price'],
+            'renewal_type'                 => $renewalType,
+            'membership_state'             => $membershipState,
+            'is_expiring_soon'             => $isExpiringSoon,
+            'expiring_soon_threshold_days' => 7,
+            'start_date'                   => $startDate,
+            'end_date'                     => $endDate,
+            'current_active_sub_id'        => $activeSub ? (int)$activeSub['subscription_id'] : null,
+            'current_active_end_date'      => $activeSub ? $activeSub['end_date'] : null,
+            'current_days_remaining'       => max(0, $daysRemainingCurrent)
         ];
     }
 
