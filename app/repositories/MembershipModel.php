@@ -965,9 +965,16 @@ class MembershipModel
             throw new Exception("Invalid or inactive membership plan", 404);
         }
 
-        // Gatekeeper check: PT_UPGRADE and ADD_ON require an active Base Membership
+        // Gatekeeper checks:
+        // 1. Prevent duplicate active Base Memberships
+        // 2. PT_UPGRADE and ADD_ON require an active Base Membership
         $planType = strtoupper(trim($plan['plan_type'] ?? 'BASE_MEMBERSHIP'));
-        if (in_array($planType, ['PT_UPGRADE', 'ADD_ON'])) {
+        if (in_array($planType, ['BASE_MEMBERSHIP', 'MEMBERSHIP'])) {
+            $activeBase = $this->getUserActiveBaseMembership($userId);
+            if ($activeBase) {
+                throw new Exception("Action Blocked: Member already has an active Base Membership (Subscription #" . $activeBase['subscription_id'] . ", Plan #" . $activeBase['plan_id'] . ", valid until " . $activeBase['end_date'] . "). Cannot purchase another Base Membership while current one is active.", 400);
+            }
+        } elseif (in_array($planType, ['PT_UPGRADE', 'ADD_ON'])) {
             $activeBase = $this->getUserActiveBaseMembership($userId);
             if (!$activeBase) {
                 throw new Exception("Action Blocked: Member does not have an active Base Membership required to purchase a " . str_replace('_', ' ', $planType) . " plan", 403);
