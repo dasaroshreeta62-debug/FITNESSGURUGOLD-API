@@ -95,8 +95,8 @@ class FinanceModel
     public function getInvoice24HourRevertEligibility(int $invoiceId): array
     {
         $stmt = $this->db->prepare("
-            SELECT invoice_id, user_id, status, created_at, final_amount,
-                   TIMESTAMPDIFF(HOUR, created_at, NOW()) AS hours_elapsed
+            SELECT invoice_id, user_id, status, issued_at, final_amount,
+                   TIMESTAMPDIFF(HOUR, issued_at, NOW()) AS hours_elapsed
             FROM invoices
             WHERE invoice_id = :id
         ");
