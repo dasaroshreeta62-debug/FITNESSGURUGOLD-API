@@ -1,14 +1,17 @@
 <?php
 
 require_once __DIR__ . '/../services/workflow.php';
+require_once __DIR__ . '/../services/AttendanceWorkflow.php';
 
 class Controller
 {
     private Workflow $workflow;
+    private AttendanceWorkflow $attendanceWorkflow;
 
     public function __construct()
     {
         $this->workflow = new Workflow();
+        $this->attendanceWorkflow = new AttendanceWorkflow();
     }
 
     public function login(): void

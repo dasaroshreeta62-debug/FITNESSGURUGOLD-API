@@ -11,6 +11,8 @@ require_once __DIR__ . '/../controllers/ProductController.php';
 require_once __DIR__ . '/../controllers/TaxController.php';
 require_once __DIR__ . '/../controllers/FinanceController.php';
 require_once __DIR__ . '/../controllers/PayrollController.php';
+require_once __DIR__ . '/../controllers/AttendanceController.php';
+require_once __DIR__ . '/../controllers/DeviceController.php';
 
 function route(string $method, string $path): void
 {
@@ -29,6 +31,8 @@ function route(string $method, string $path): void
     $taxController = new TaxController();
     $financeController = new FinanceController();
     $payrollController = new PayrollController();
+    $attendanceController = new AttendanceController();
+    $deviceController = new DeviceController();
 
     switch (true) {
 
@@ -129,19 +133,50 @@ function route(string $method, string $path): void
             $controller->listMembershipPlan();
             return;
 
-        case $method === 'POST' && $path === '/api/attendance/checkIn':
-            $controller->addAttendance();
-            return;
-        case $method === 'PUT' && $path === '/api/attendance/checkOut':
-            $controller->checkOutAttendance();
+        // ================= ZKTECO BIOMETRIC PUSH PROTOCOL ROUTES (/iclock/*) =================
+        case $method === 'GET' && $path === '/iclock/cdata':
+            $deviceController->cdata();
             return;
 
-        case $method === 'PUT' && $path === '/api/attendance/viewAttendanceList':
-            $controller->listAttendance();
+        case $method === 'POST' && $path === '/iclock/cdata':
+            $deviceController->cdata();
             return;
 
-        case $method === 'GET' && $path === '/api/attendance/userSessions':
-            $controller->viewUserAttendanceWithSessions();
+        case $method === 'POST' && $path === '/iclock/registry':
+            $deviceController->registry();
+            return;
+
+        case ($method === 'GET' || $method === 'POST') && $path === '/iclock/push':
+            $deviceController->pushConfig();
+            return;
+
+        case ($method === 'GET' || $method === 'POST') && $path === '/iclock/ping':
+            $deviceController->ping();
+            return;
+
+        case $method === 'GET' && $path === '/iclock/getrequest':
+            $deviceController->getrequest();
+            return;
+
+        case $method === 'POST' && $path === '/iclock/devicecmd':
+            $deviceController->devicecmd();
+            return;
+
+        // ================= ATTENDANCE & DEVICE REST APIs (Unversioned) =================
+        case $method === 'POST' && ($path === '/api/attendance/manual/admin' || $path === '/api/v1/attendance/manual/admin'):
+            $attendanceController->adminManualEntry();
+            return;
+
+        case $method === 'POST' && ($path === '/api/attendance/manual/member' || $path === '/api/v1/attendance/manual/member'):
+            $attendanceController->memberManualEntry();
+            return;
+
+        case $method === 'GET' && ($path === '/api/attendance/logs' || $path === '/api/v1/attendance/logs'):
+            $attendanceController->getAttendanceLogs();
+            return;
+
+        case $method === 'POST' && (preg_match('#^/api/devices/([^/]+)/commands/sync-user$#', $path, $matches) || preg_match('#^/api/attendance/devices/([^/]+)/commands/sync-user$#', $path, $matches)):
+            $deviceController->syncUser($matches[1]);
             return;
 
         case $method === 'POST' && $path === '/api/addContactUs':
