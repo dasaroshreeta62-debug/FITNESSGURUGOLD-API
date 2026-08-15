@@ -175,6 +175,10 @@ function route(string $method, string $path): void
             $attendanceController->getAttendanceLogs();
             return;
 
+        case $method === 'GET' && ($path === '/api/attendance/today' || $path === '/api/attendance/my-today' || $path === '/api/member/attendance/today'):
+            $attendanceController->getTodayAttendance();
+            return;
+
         case $method === 'POST' && (preg_match('#^/api/devices/([^/]+)/commands/sync-user$#', $path, $matches) || preg_match('#^/api/attendance/devices/([^/]+)/commands/sync-user$#', $path, $matches)):
             $deviceController->syncUser($matches[1]);
             return;

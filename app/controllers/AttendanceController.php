@@ -156,5 +156,17 @@ class AttendanceController
         $response = $this->workflow->getAttendanceLogs($token, $filters);
         echo json_encode($response);
     }
+
+    public function getTodayAttendance(): void
+    {
+        $token = $this->getBearerToken();
+        if ($token === false) return;
+
+        $targetUserId = isset($_GET['user_id']) ? (int)$_GET['user_id'] : null;
+
+        $response = $this->workflow->getTodayAttendance($token, $targetUserId);
+        echo json_encode($response);
+    }
 }
+
 

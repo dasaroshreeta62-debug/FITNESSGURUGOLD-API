@@ -910,4 +910,58 @@ class AttendanceModel
             }
         }
     }
+
+    public function getTodayAttendance(int $userId): ?array
+    {
+        date_default_timezone_set('Asia/Kolkata');
+        $today = date('Y-m-d');
+
+        $stmt = $this->db->prepare("
+            SELECT
+                da.attendance_id,
+                da.user_id,
+                da.gym_id,
+                da.branch_id,
+                da.attendance_date,
+                da.check_in_time,
+                da.check_out_time,
+                da.duration_min,
+                da.source,
+                da.remarks,
+                da.created_at,
+                da.updated_at,
+                b.branch_name,
+                g.gym_name
+            FROM daily_attendance da
+            LEFT JOIN gym_branches b ON b.branch_id = da.branch_id
+            LEFT JOIN gyms g ON g.gym_id = da.gym_id
+            WHERE da.user_id = :user_id AND da.attendance_date = :today
+            LIMIT 1
+        ");
+        $stmt->execute(['user_id' => $userId, 'today' => $today]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            return null;
+        }
+
+        $status = !empty($row['check_out_time']) ? 'checked_out' : 'checked_in';
+
+        return [
+            "attendance_id"   => (int)$row['attendance_id'],
+            "user_id"         => (int)$row['user_id'],
+            "gym_id"          => (int)$row['gym_id'],
+            "branch_id"       => (int)$row['branch_id'],
+            "attendance_date" => $row['attendance_date'],
+            "check_in_time"   => $row['check_in_time'],
+            "check_out_time"  => $row['check_out_time'],
+            "duration_min"    => $row['duration_min'] !== null ? (int)$row['duration_min'] : null,
+            "status"          => $status,
+            "source"          => $row['source'],
+            "remarks"         => $row['remarks'],
+            "branch_name"     => $row['branch_name'] ?? '',
+            "gym_name"        => $row['gym_name'] ?? ''
+        ];
+    }
 }
+

@@ -374,5 +374,42 @@ class AttendanceWorkflow
             ];
         }
     }
+
+    public function getTodayAttendance(string $accessToken, ?int $targetUserId = null): array
+    {
+        try {
+            $decoded = $this->authenticate($accessToken);
+            $userIdFromToken = (int)($decoded->sub ?? 0);
+            $userRole        = strtoupper($decoded->role ?? '');
+
+            $userId = ($userRole !== 'MEMBER' && $targetUserId) ? $targetUserId : $userIdFromToken;
+
+            if (!$userId) {
+                http_response_code(400);
+                return [
+                    "success" => false,
+                    "message" => "user_id could not be determined"
+                ];
+            }
+
+            $record = $this->model->getTodayAttendance($userId);
+
+            return [
+                "success" => true,
+                "data"    => $record,
+                "message" => $record ? "Today's attendance retrieved successfully." : "No attendance record found for today."
+            ];
+
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            return [
+                "success" => false,
+                "code"    => "SERVER_ERROR",
+                "message" => "Failed to retrieve today's attendance",
+                "error"   => $e->getMessage()
+            ];
+        }
+    }
 }
+
 
