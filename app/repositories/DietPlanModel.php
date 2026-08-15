@@ -625,5 +625,203 @@ class DietPlanModel extends Model
         $val = $stmt->fetchColumn();
         return $val !== false ? (int)$val : null;
     }
+
+    /**
+     * Return 2 static diet plans for normal members without a PT plan.
+     */
+    public function getStaticDietPlans(): array
+    {
+        $fatLossPlan = [
+            'diet_plan_id'     => 901,
+            'member_id'        => 0,
+            'trainer_id'       => 0,
+            'goal'             => 'FAT_LOSS',
+            'plan_title'       => 'Standard Fat Loss Diet Plan',
+            'duration_days'    => 30,
+            'water_intake_l'   => 3.5,
+            'sleep_hours'      => 8.0,
+            'recommendations'  => [
+                "Drink at least 3.5 Liters of water daily",
+                "Avoid refined sugars, sodas, and fried foods",
+                "Maintain a slight calorie deficit",
+                "Perform 30 minutes of cardio daily alongside weight training"
+            ],
+            'trainer_comments' => "Standard Fat Loss Nutrition Guide for general gym members without personal training.",
+            'start_date'       => "2026-01-01",
+            'end_date'         => "2026-12-31",
+            'status'           => "ACTIVE",
+            'created_by'       => 1,
+            'created_at'       => "2026-01-01 00:00:00",
+            'updated_at'       => "2026-01-01 00:00:00",
+            'member_name'      => "Member",
+            'member_email'     => "",
+            'creator_name'     => "Fitness Guru System",
+            'trainer_name'     => "Fitness Guru Certified Trainer",
+            'is_static'        => true,
+            'meals'            => [
+                [
+                    'meal_id'      => 9001,
+                    'diet_plan_id' => 901,
+                    'meal_order'   => 1,
+                    'meal_title'   => "Breakfast",
+                    'meal_time'    => "08:00 AM",
+                    'meal_items'   => [
+                        ['name' => 'Oats with Skimmed Milk', 'quantity' => '1 bowl (50g oats)'],
+                        ['name' => 'Boiled Egg Whites', 'quantity' => '4 whites'],
+                        ['name' => 'Raw Almonds', 'quantity' => '5 pieces']
+                    ],
+                    'notes'        => "Drink 1 glass of warm water before breakfast."
+                ],
+                [
+                    'meal_id'      => 9002,
+                    'diet_plan_id' => 901,
+                    'meal_order'   => 2,
+                    'meal_title'   => "Mid-Morning Snack",
+                    'meal_time'    => "11:00 AM",
+                    'meal_items'   => [
+                        ['name' => 'Green Tea', 'quantity' => '1 cup'],
+                        ['name' => 'Apple or Papaya', 'quantity' => '1 medium bowl']
+                    ],
+                    'notes'        => "No added sugar."
+                ],
+                [
+                    'meal_id'      => 9003,
+                    'diet_plan_id' => 901,
+                    'meal_order'   => 3,
+                    'meal_title'   => "Lunch",
+                    'meal_time'    => "01:30 PM",
+                    'meal_items'   => [
+                        ['name' => 'Grilled Chicken / Tofu / Paneer', 'quantity' => '150g'],
+                        ['name' => 'Brown Rice or Multigrain Roti', 'quantity' => '1 small bowl / 1 roti'],
+                        ['name' => 'Mixed Salad (Cucumber, Tomato)', 'quantity' => '1 bowl']
+                    ],
+                    'notes'        => "Cook with minimal olive oil."
+                ],
+                [
+                    'meal_id'      => 9004,
+                    'diet_plan_id' => 901,
+                    'meal_order'   => 4,
+                    'meal_title'   => "Evening Snack",
+                    'meal_time'    => "05:00 PM",
+                    'meal_items'   => [
+                        ['name' => 'Sprouted Moong / Roasted Chana', 'quantity' => '1 small bowl'],
+                        ['name' => 'Black Coffee or Green Tea', 'quantity' => '1 cup']
+                    ],
+                    'notes'        => "Pre-workout energy booster."
+                ],
+                [
+                    'meal_id'      => 9005,
+                    'diet_plan_id' => 901,
+                    'meal_order'   => 5,
+                    'meal_title'   => "Dinner",
+                    'meal_time'    => "08:00 PM",
+                    'meal_items'   => [
+                        ['name' => 'Steamed Fish / Low-Fat Paneer', 'quantity' => '120g'],
+                        ['name' => 'Sautéed Vegetables (Broccoli, Capsicum)', 'quantity' => '1 bowl']
+                    ],
+                    'notes'        => "Keep dinner light at least 2 hours before sleep."
+                ]
+            ]
+        ];
+
+        $weightGainPlan = [
+            'diet_plan_id'     => 902,
+            'member_id'        => 0,
+            'trainer_id'       => 0,
+            'goal'             => 'WEIGHT_GAIN',
+            'plan_title'       => 'Standard Weight Gain Diet Plan',
+            'duration_days'    => 30,
+            'water_intake_l'   => 4.0,
+            'sleep_hours'      => 8.0,
+            'recommendations'  => [
+                "Maintain a caloric surplus with nutrient-dense foods",
+                "Drink at least 4 Liters of water daily",
+                "Include high-protein snacks between major meals",
+                "Focus on progressive overload strength training"
+            ],
+            'trainer_comments' => "Standard Muscle & Weight Gain Nutrition Guide for general gym members without personal training.",
+            'start_date'       => "2026-01-01",
+            'end_date'         => "2026-12-31",
+            'status'           => "ACTIVE",
+            'created_by'       => 1,
+            'created_at'       => "2026-01-01 00:00:00",
+            'updated_at'       => "2026-01-01 00:00:00",
+            'member_name'      => "Member",
+            'member_email'     => "",
+            'creator_name'     => "Fitness Guru System",
+            'trainer_name'     => "Fitness Guru Certified Trainer",
+            'is_static'        => true,
+            'meals'            => [
+                [
+                    'meal_id'      => 9006,
+                    'diet_plan_id' => 902,
+                    'meal_order'   => 1,
+                    'meal_title'   => "Breakfast",
+                    'meal_time'    => "08:00 AM",
+                    'meal_items'   => [
+                        ['name' => 'Oatmeal with Whole Milk & Honey', 'quantity' => '1 large bowl (80g oats)'],
+                        ['name' => 'Whole Eggs', 'quantity' => '3 whole + 2 whites'],
+                        ['name' => 'Peanut Butter Toast', 'quantity' => '2 slices brown bread'],
+                        ['name' => 'Banana', 'quantity' => '1 large']
+                    ],
+                    'notes'        => "High calorie energy start."
+                ],
+                [
+                    'meal_id'      => 9007,
+                    'diet_plan_id' => 902,
+                    'meal_order'   => 2,
+                    'meal_title'   => "Mid-Morning Shake",
+                    'meal_time'    => "11:00 AM",
+                    'meal_items'   => [
+                        ['name' => 'Banana Peanut Butter Protein Shake', 'quantity' => '350ml'],
+                        ['name' => 'Mixed Nuts (Cashews, Almonds, Walnuts)', 'quantity' => '30g']
+                    ],
+                    'notes'        => "Calorie-dense liquid meal."
+                ],
+                [
+                    'meal_id'      => 9008,
+                    'diet_plan_id' => 902,
+                    'meal_order'   => 3,
+                    'meal_title'   => "Lunch",
+                    'meal_time'    => "01:30 PM",
+                    'meal_items'   => [
+                        ['name' => 'Chicken / Fish / Paneer Curry', 'quantity' => '200g'],
+                        ['name' => 'White or Brown Rice / Rotis with Ghee', 'quantity' => '2 cups rice / 3 rotis'],
+                        ['name' => 'Dal / Rajma', 'quantity' => '1 bowl'],
+                        ['name' => 'Curd', 'quantity' => '1 cup']
+                    ],
+                    'notes'        => "Heavy protein & carb lunch."
+                ],
+                [
+                    'meal_id'      => 9009,
+                    'diet_plan_id' => 902,
+                    'meal_order'   => 4,
+                    'meal_title'   => "Pre-Workout Snack",
+                    'meal_time'    => "05:00 PM",
+                    'meal_items'   => [
+                        ['name' => 'Boiled Potatoes / Sweet Potato', 'quantity' => '200g'],
+                        ['name' => 'Boiled Eggs / Paneer Cubes', 'quantity' => '2 eggs / 50g paneer']
+                    ],
+                    'notes'        => "Fuel for intense workout."
+                ],
+                [
+                    'meal_id'      => 9010,
+                    'diet_plan_id' => 902,
+                    'meal_order'   => 5,
+                    'meal_title'   => "Dinner",
+                    'meal_time'    => "08:30 PM",
+                    'meal_items'   => [
+                        ['name' => 'Grilled Chicken / Tofu / Fish', 'quantity' => '180g'],
+                        ['name' => 'Multigrain Rotis', 'quantity' => '2 rotis'],
+                        ['name' => 'Mixed Vegetable Sabzi', 'quantity' => '1 bowl']
+                    ],
+                    'notes'        => "Protein rich meal for night muscle recovery."
+                ]
+            ]
+        ];
+
+        return [$fatLossPlan, $weightGainPlan];
+    }
 }
+
 

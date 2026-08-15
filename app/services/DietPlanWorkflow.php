@@ -1565,26 +1565,23 @@ class DietPlanWorkflow
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
             $memberUserId = (int)$decoded->sub;
 
-            if (!$this->model->checkDietPlanAccess($memberUserId)) {
-                @http_response_code(403);
-                return [
-                    "success" => false,
-                    "status" => "error",
-                    "message" => "Access Denied. Your current plan does not include personalized diet plans."
-                ];
-            }
-
             $memberProfileId = $this->model->getProfileIdFromUserId($memberUserId);
-            if (!$memberProfileId) {
-                throw new Exception("Member profile not found", 404);
-            }
+            $plan = $memberProfileId ? $this->model->getMemberActiveDietPlan($memberProfileId) : null;
 
-            $plan = $this->model->getMemberActiveDietPlan($memberProfileId);
             if ($plan) {
                 $plan['meals'] = $this->model->getDietPlanMeals($plan['diet_plan_id']);
+                $plan['is_static'] = false;
+                return ["status" => "success", "data" => $plan, "is_static" => false];
             }
 
-            return ["status" => "success", "data" => $plan];
+            // Normal members with no active PT plan get 2 static diet plans (Fat Loss & Weight Gain)
+            $staticPlans = $this->model->getStaticDietPlans();
+            return [
+                "status"       => "success",
+                "is_static"    => true,
+                "data"         => $staticPlans[0],
+                "static_plans" => $staticPlans
+            ];
         } catch (\Throwable $e) {
             http_response_code($e->getCode() === 403 ? 403 : 401);
             return ["status" => "error", "message" => $e->getMessage()];
@@ -1597,21 +1594,13 @@ class DietPlanWorkflow
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
             $memberUserId = (int)$decoded->sub;
 
-            if (!$this->model->checkDietPlanAccess($memberUserId)) {
-                @http_response_code(403);
-                return [
-                    "success" => false,
-                    "status" => "error",
-                    "message" => "Access Denied. Your current plan does not include personalized diet plans."
-                ];
-            }
-
             $memberProfileId = $this->model->getProfileIdFromUserId($memberUserId);
-            if (!$memberProfileId) {
-                throw new Exception("Member profile not found", 404);
+            $history = $memberProfileId ? $this->model->getMemberDietPlansHistory($memberProfileId) : [];
+
+            if (empty($history)) {
+                $history = $this->model->getStaticDietPlans();
             }
 
-            $history = $this->model->getMemberDietPlansHistory($memberProfileId);
             return ["status" => "success", "data" => $history];
         } catch (\Throwable $e) {
             http_response_code($e->getCode() === 403 ? 403 : 401);
@@ -1625,22 +1614,15 @@ class DietPlanWorkflow
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
             $memberUserId = (int)$decoded->sub;
 
-            if (!$this->model->checkDietPlanAccess($memberUserId)) {
-                @http_response_code(403);
-                return [
-                    "success" => false,
-                    "status" => "error",
-                    "message" => "Access Denied. Your current plan does not include personalized diet plans."
-                ];
-            }
-
             $memberProfileId = $this->model->getProfileIdFromUserId($memberUserId);
-            if (!$memberProfileId) {
-                throw new Exception("Member profile not found", 404);
+            $plans = $memberProfileId ? $this->model->getMemberDietPlans($memberProfileId) : [];
+
+            if (empty($plans)) {
+                $plans = $this->model->getStaticDietPlans();
+                return ["status" => "success", "data" => $plans, "is_static" => true];
             }
 
-            $plans = $this->model->getMemberDietPlans($memberProfileId);
-            return ["status" => "success", "data" => $plans];
+            return ["status" => "success", "data" => $plans, "is_static" => false];
         } catch (\Throwable $e) {
             http_response_code($e->getCode() === 403 ? 403 : 401);
             return ["status" => "error", "message" => $e->getMessage()];
@@ -1653,13 +1635,13 @@ class DietPlanWorkflow
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
             $memberUserId = (int)$decoded->sub;
 
-            if (!$this->model->checkDietPlanAccess($memberUserId)) {
-                @http_response_code(403);
-                return [
-                    "success" => false,
-                    "status" => "error",
-                    "message" => "Access Denied. Your current plan does not include personalized diet plans."
-                ];
+            if ($dietPlanId === 901 || $dietPlanId === 902) {
+                $staticPlans = $this->model->getStaticDietPlans();
+                foreach ($staticPlans as $sp) {
+                    if ($sp['diet_plan_id'] === $dietPlanId) {
+                        return ["status" => "success", "data" => $sp];
+                    }
+                }
             }
 
             $plan = $this->model->getDietPlan($dietPlanId);
@@ -1669,12 +1651,7 @@ class DietPlanWorkflow
             }
 
             $memberProfileId = $this->model->getProfileIdFromUserId($memberUserId);
-            if (!$memberProfileId) {
-                throw new Exception("Member profile not found", 404);
-            }
-
-            // Security check: must belong to this member
-            if ((int)$plan['member_id'] !== $memberProfileId) {
+            if (!$memberProfileId || (int)$plan['member_id'] !== $memberProfileId) {
                 http_response_code(403);
                 return ["status" => "error", "message" => "Access denied. You do not have access to this diet plan."];
             }
@@ -1692,13 +1669,13 @@ class DietPlanWorkflow
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
             $memberUserId = (int)$decoded->sub;
 
-            if (!$this->model->checkDietPlanAccess($memberUserId)) {
-                @http_response_code(403);
-                return [
-                    "success" => false,
-                    "status" => "error",
-                    "message" => "Access Denied. Your current plan does not include personalized diet plans."
-                ];
+            if ($dietPlanId === 901 || $dietPlanId === 902) {
+                $staticPlans = $this->model->getStaticDietPlans();
+                foreach ($staticPlans as $sp) {
+                    if ($sp['diet_plan_id'] === $dietPlanId) {
+                        return ["status" => "success", "data" => $sp['meals']];
+                    }
+                }
             }
 
             $plan = $this->model->getDietPlan($dietPlanId);
@@ -1708,11 +1685,7 @@ class DietPlanWorkflow
             }
 
             $memberProfileId = $this->model->getProfileIdFromUserId($memberUserId);
-            if (!$memberProfileId) {
-                throw new Exception("Member profile not found", 404);
-            }
-
-            if ((int)$plan['member_id'] !== $memberProfileId) {
+            if (!$memberProfileId || (int)$plan['member_id'] !== $memberProfileId) {
                 http_response_code(403);
                 return ["status" => "error", "message" => "Access denied. You do not have access to this diet plan."];
             }
@@ -1731,13 +1704,16 @@ class DietPlanWorkflow
             $decoded = $this->verifyRole($accessToken, ['MEMBER']);
             $memberUserId = (int)$decoded->sub;
 
-            if (!$this->model->checkDietPlanAccess($memberUserId)) {
-                @http_response_code(403);
-                return [
-                    "success" => false,
-                    "status" => "error",
-                    "message" => "Access Denied. Your current plan does not include personalized diet plans."
-                ];
+            // Check if requesting static meal (9001 to 9010)
+            if ($mealId >= 9001 && $mealId <= 9010) {
+                $staticPlans = $this->model->getStaticDietPlans();
+                foreach ($staticPlans as $sp) {
+                    foreach ($sp['meals'] as $meal) {
+                        if ($meal['meal_id'] === $mealId) {
+                            return ["status" => "success", "data" => $meal];
+                        }
+                    }
+                }
             }
 
             $meal = $this->model->getMeal($mealId);
@@ -1746,9 +1722,9 @@ class DietPlanWorkflow
                 return ["status" => "error", "message" => "Meal not found"];
             }
 
-            // Verify access to plan
             $plan = $this->model->getDietPlan((int)$meal['diet_plan_id']);
-            if (!$plan || (int)$plan['member_id'] !== $memberUserId) {
+            $memberProfileId = $this->model->getProfileIdFromUserId($memberUserId);
+            if (!$plan || !$memberProfileId || (int)$plan['member_id'] !== $memberProfileId) {
                 http_response_code(403);
                 return ["status" => "error", "message" => "Access denied. You do not have access to this meal."];
             }
@@ -1760,3 +1736,4 @@ class DietPlanWorkflow
         }
     }
 }
+
