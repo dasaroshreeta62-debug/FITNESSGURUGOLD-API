@@ -1,23 +1,10 @@
 <?php
 
-// // Always return JSON
-// header("Content-Type: application/json");
+$startTime = microtime(true);
+ob_start();
 
-// // Basic autoloader (simple & enough for now)
-// require_once __DIR__ . '/../app/routes/api.php';
-
-
-// // Get request details
-// $method = $_SERVER['REQUEST_METHOD'];
-// $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-
-// // Remove project base path
-// $basePath = '/fitness-guru';
-// $path = str_replace($basePath, '', $uri);
-
-// // Route the request
-// route($method, $path);
-
+require_once __DIR__ . '/../app/logs/logger.php';
+require_once __DIR__ . '/../app/routes/api.php';
 
 // Fix Authorization header
 if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
@@ -31,15 +18,15 @@ header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
+    ob_end_flush();
     exit;
 }
 
 header("Content-Type: application/json");
 
-require_once __DIR__ . '/../app/routes/api.php';
-
-$method = $_SERVER['REQUEST_METHOD'];
-$uri    = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$method     = $_SERVER['REQUEST_METHOD'];
+$requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+$uri        = parse_url($requestUri, PHP_URL_PATH);
 
 /**
  * Detect base path
@@ -58,8 +45,35 @@ if ($basePath && strpos($uri, $basePath) === 0) {
 
 $path = $path ?: '/';
 
+// Capture raw payload & query params
+$rawInput = file_get_contents("php://input");
+$payload  = !empty($_POST) ? $_POST : (json_decode($rawInput, true) ?: $rawInput);
+
 // Route request
-route($method, $path);
+try {
+    route($method, $path);
+} catch (\Throwable $e) {
+    Logger::error($e);
+    http_response_code(500);
+    echo json_encode(["success" => false, "message" => "Internal Server Error", "error" => $e->getMessage()]);
+}
+
+$durationMs     = (microtime(true) - $startTime) * 1000;
+$statusCode     = http_response_code() ?: 200;
+$responseOutput = ob_get_contents();
+
+Logger::logApiCall(
+    $method,
+    $requestUri,
+    $statusCode,
+    $durationMs,
+    $_GET,
+    $payload,
+    $responseOutput
+);
+
+ob_end_flush();
+
 
 
 
