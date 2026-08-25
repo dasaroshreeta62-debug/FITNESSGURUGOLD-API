@@ -9,7 +9,10 @@
 
 # Logs
 *.log
-logs/
+logs/*.log
+logs/.last_week
+!logs/.gitkeep
+
 
 # IDE and OS metadata
 .idea/

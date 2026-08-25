@@ -183,6 +183,12 @@ function route(string $method, string $path): void
             $deviceController->syncUser($matches[1]);
             return;
 
+        case $method === 'GET' && ($path === '/api/system/logs' || $path === '/api/logs/view'):
+            header("Content-Type: text/plain; charset=UTF-8");
+            echo Logger::readApiLogs();
+            return;
+
+
         case $method === 'POST' && $path === '/api/addContactUs':
             $controller->submitContactForm();
             return;

@@ -157,5 +157,15 @@ class Logger
         $cleanStr = str_replace(["\r\n", "\n", "\r"], ' ', trim($str));
         return strlen($cleanStr) > 300 ? substr($cleanStr, 0, 300) . '... [Truncated]' : $cleanStr;
     }
+
+    public static function readApiLogs(): string
+    {
+        self::checkAndRotateWeekly();
+        if (!file_exists(self::$apiLogFile)) {
+            return "No log file found.";
+        }
+        return (string)file_get_contents(self::$apiLogFile);
+    }
 }
+
 
