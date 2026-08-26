@@ -188,7 +188,6 @@ function route(string $method, string $path): void
             echo Logger::readApiLogs();
             return;
 
-
         case $method === 'POST' && $path === '/api/addContactUs':
             $controller->submitContactForm();
             return;
