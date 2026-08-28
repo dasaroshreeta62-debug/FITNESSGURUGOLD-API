@@ -158,10 +158,18 @@ class AttendanceWorkflow
         }
     }
 
-    public function getAttendanceDetails(string $accessToken, ?int $userId = null, ?string $date = null, ?int $attendanceId = null): array
+    public function getAttendanceDetails(string $accessToken, ?int $userId = null, ?string $date = null, ?int $attendanceId = null, ?string $regdNo = null): array
     {
         try {
             $decoded = $this->authenticate($accessToken);
+
+            // Resolve regd_no → user_id via member_profiles or employees
+            if ($regdNo !== null && $regdNo !== '') {
+                $resolvedUserId = $this->model->resolveUserIdByRegdNo($regdNo);
+                if ($resolvedUserId) {
+                    $userId = $resolvedUserId;
+                }
+            }
 
             if (!$userId && !$attendanceId) {
                 $userId = (int)($decoded->sub ?? 0);

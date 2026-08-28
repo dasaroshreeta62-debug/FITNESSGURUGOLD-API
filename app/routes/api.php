@@ -814,7 +814,36 @@ function route(string $method, string $path): void
             $payrollController->listPayrolls();
             return;
 
+        // ================= ATTENDANCE ROUTES =================
+
+        // Admin — query all attendance (paginated list)
+        case $method === 'GET' && $path === '/api/admin/attendance':
+            $attendanceController->listAttendance();
+            return;
+
+        // Admin — attendance logs (raw punch log view)
+        case $method === 'GET' && $path === '/api/admin/attendance/logs':
+            $attendanceController->getAttendanceLogs();
+            return;
+
+        // Admin — single record detail
+        case $method === 'GET' && $path === '/api/admin/attendance/details':
+            $attendanceController->getAttendanceDetails();
+            return;
+
+        // Admin — today's attendance for any user
+        case $method === 'GET' && $path === '/api/admin/attendance/today':
+            $attendanceController->getTodayAttendance();
+            return;
+
+        // Member — today's own attendance
+        case $method === 'GET' && $path === '/api/attendance/today':
+            $attendanceController->getTodayAttendance();
+            return;
+
         // ================= DEFAULT =================
+
+
         default:
             http_response_code(404);
             echo json_encode([

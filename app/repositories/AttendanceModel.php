@@ -176,6 +176,14 @@ class AttendanceModel
         $limit = isset($filters['limit']) ? max(1, (int)$filters['limit']) : 20;
         $offset = ($page - 1) * $limit;
 
+        // Resolve regd_no → user_id (member registration_number or employee_code)
+        if (!empty($filters['regd_no']) && empty($filters['user_id'])) {
+            $resolvedId = $this->resolveUserIdByRegdNo((string)$filters['regd_no']);
+            if ($resolvedId) {
+                $filters['user_id'] = $resolvedId;
+            }
+        }
+
         $where = [];
         $params = [];
 
@@ -354,6 +362,60 @@ class AttendanceModel
     public function getAttendanceById(int $attendanceId): ?array
     {
         return $this->getAttendanceDetails(null, null, $attendanceId);
+    }
+
+    /**
+     * Resolve a registration number / employee code to a user_id.
+     *
+     * Resolution order:
+     *   1. member_profiles.registration_number  (numeric)
+     *   2. employees.registration_number         (numeric)
+     *   3. employees.employee_code               (string)
+     *
+     * @param  string $regdNo  The registration number or employee code to look up.
+     * @return int|null        The resolved user_id, or null if not found.
+     */
+    public function resolveUserIdByRegdNo(string $regdNo): ?int
+    {
+        // 1. Try member_profiles.registration_number (numeric match)
+        if (is_numeric($regdNo)) {
+            $stmt = $this->db->prepare("
+                SELECT user_id FROM member_profiles
+                WHERE registration_number = :regd_no
+                LIMIT 1
+            ");
+            $stmt->execute(['regd_no' => (int)$regdNo]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                return (int)$row['user_id'];
+            }
+
+            // 2. Try employees.registration_number (numeric match)
+            $stmt = $this->db->prepare("
+                SELECT user_id FROM employees
+                WHERE registration_number = :regd_no
+                LIMIT 1
+            ");
+            $stmt->execute(['regd_no' => (int)$regdNo]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                return (int)$row['user_id'];
+            }
+        }
+
+        // 3. Try employees.employee_code (string match)
+        $stmt = $this->db->prepare("
+            SELECT user_id FROM employees
+            WHERE employee_code = :regd_no
+            LIMIT 1
+        ");
+        $stmt->execute(['regd_no' => $regdNo]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            return (int)$row['user_id'];
+        }
+
+        return null;
     }
 
     public function markOrUpdateAttendance(array $data): array
@@ -728,6 +790,14 @@ class AttendanceModel
         $page   = isset($filters['page']) ? max(1, (int)$filters['page']) : 1;
         $limit  = isset($filters['limit']) ? max(1, (int)$filters['limit']) : 20;
         $offset = ($page - 1) * $limit;
+
+        // Resolve regd_no → user_id (member registration_number or employee_code)
+        if (!empty($filters['regd_no']) && empty($filters['user_id'])) {
+            $resolvedId = $this->resolveUserIdByRegdNo((string)$filters['regd_no']);
+            if ($resolvedId) {
+                $filters['user_id'] = $resolvedId;
+            }
+        }
 
         $where  = [];
         $params = [];

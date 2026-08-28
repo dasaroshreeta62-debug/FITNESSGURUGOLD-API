@@ -67,6 +67,7 @@ class AttendanceController
 
         $filters = [
             'user_id'   => $_GET['user_id'] ?? null,
+            'regd_no'   => $_GET['regd_no'] ?? null,
             'gym_id'    => $_GET['gym_id'] ?? null,
             'branch_id' => $_GET['branch_id'] ?? null,
             'from_date' => $_GET['from_date'] ?? null,
@@ -89,10 +90,11 @@ class AttendanceController
         if ($token === false) return;
 
         $userId       = isset($_GET['user_id']) ? (int)$_GET['user_id'] : null;
+        $regd_no      = $_GET['regd_no'] ?? null;
         $date         = $_GET['date'] ?? null;
         $attendanceId = isset($_GET['attendance_id']) ? (int)$_GET['attendance_id'] : null;
 
-        $response = $this->workflow->getAttendanceDetails($token, $userId, $date, $attendanceId);
+        $response = $this->workflow->getAttendanceDetails($token, $userId, $date, $attendanceId, $regd_no);
         echo json_encode($response);
     }
 
@@ -146,6 +148,7 @@ class AttendanceController
         $filters = [
             'branch_id'  => $_GET['branch_id'] ?? null,
             'user_id'    => $_GET['user_id'] ?? null,
+            'regd_no'    => $_GET['regd_no'] ?? null,
             'start_date' => $_GET['start_date'] ?? null,
             'end_date'   => $_GET['end_date'] ?? null,
             'source'     => $_GET['source'] ?? null,
