@@ -176,20 +176,17 @@ class AttendanceModel
         $limit = isset($filters['limit']) ? max(1, (int)$filters['limit']) : 20;
         $offset = ($page - 1) * $limit;
 
-        // Resolve regd_no → user_id (member registration_number or employee_code)
-        if (!empty($filters['regd_no']) && empty($filters['user_id'])) {
-            $resolvedId = $this->resolveUserIdByRegdNo((string)$filters['regd_no']);
-            if ($resolvedId) {
-                $filters['user_id'] = $resolvedId;
-            }
-        }
-
         $where = [];
         $params = [];
 
         if (!empty($filters['user_id'])) {
-            $where[] = "da.user_id = :user_id";
+            $where[] = "(mp.user_id = :user_id OR emp.user_id = :user_id OR u.user_id = :user_id)";
             $params['user_id'] = $filters['user_id'];
+        }
+
+        if (!empty($filters['regd_no'])) {
+            $where[] = "(da.regd_no = :regd_no OR mp.registration_number = :regd_no OR emp.registration_number = :regd_no OR emp.employee_code = :regd_no)";
+            $params['regd_no'] = $filters['regd_no'];
         }
 
         if (!empty($filters['gym_id'])) {
@@ -231,7 +228,7 @@ class AttendanceModel
         }
 
         if (!empty($filters['search'])) {
-            $where[] = "(u.name LIKE :search OR u.phone LIKE :search OR u.email LIKE :search)";
+            $where[] = "(u.name LIKE :search OR u.phone LIKE :search OR u.email LIKE :search OR emp.full_name LIKE :search OR mp.name LIKE :search OR da.regd_no LIKE :search)";
             $params['search'] = '%' . $filters['search'] . '%';
         }
 
@@ -240,7 +237,9 @@ class AttendanceModel
         $countSql = "
             SELECT COUNT(*) AS total
             FROM daily_attendance da
-            LEFT JOIN users u ON u.user_id = da.user_id
+            LEFT JOIN member_profiles mp ON mp.registration_number = da.regd_no
+            LEFT JOIN employees emp ON (emp.registration_number = da.regd_no OR emp.employee_code = da.regd_no)
+            LEFT JOIN users u ON u.user_id = COALESCE(mp.user_id, emp.user_id)
             $whereSql
         ";
         $countStmt = $this->db->prepare($countSql);
@@ -253,7 +252,8 @@ class AttendanceModel
         $sql = "
             SELECT
                 da.attendance_id,
-                da.user_id,
+                da.regd_no,
+                COALESCE(u.user_id, mp.user_id, emp.user_id) AS user_id,
                 da.gym_id,
                 da.branch_id,
                 da.attendance_date,
@@ -264,14 +264,16 @@ class AttendanceModel
                 da.remarks,
                 da.created_at,
                 da.updated_at,
-                u.name AS user_name,
-                u.email AS user_email,
-                u.phone AS user_phone,
-                u.role AS user_role,
+                COALESCE(u.name, emp.full_name, mp.name) AS user_name,
+                COALESCE(u.email, emp.email) AS user_email,
+                COALESCE(u.phone, emp.phone) AS user_phone,
+                COALESCE(u.role, IF(emp.employee_id IS NOT NULL, 'EMPLOYEE', 'MEMBER')) AS user_role,
                 b.branch_name,
                 g.gym_name
             FROM daily_attendance da
-            LEFT JOIN users u ON u.user_id = da.user_id
+            LEFT JOIN member_profiles mp ON mp.registration_number = da.regd_no
+            LEFT JOIN employees emp ON (emp.registration_number = da.regd_no OR emp.employee_code = da.regd_no)
+            LEFT JOIN users u ON u.user_id = COALESCE(mp.user_id, emp.user_id)
             LEFT JOIN gym_branches b ON b.branch_id = da.branch_id
             LEFT JOIN gyms g ON g.gym_id = da.gym_id
             $whereSql
@@ -298,7 +300,7 @@ class AttendanceModel
         ];
     }
 
-    public function getAttendanceDetails(?int $userId = null, ?string $date = null, ?int $attendanceId = null): ?array
+    public function getAttendanceDetails(?int $userId = null, ?string $date = null, ?int $attendanceId = null, ?string $regdNo = null): ?array
     {
         $where = [];
         $params = [];
@@ -308,8 +310,12 @@ class AttendanceModel
             $params['attendance_id'] = $attendanceId;
         } else {
             if ($userId) {
-                $where[] = "da.user_id = :user_id";
+                $where[] = "(mp.user_id = :user_id OR emp.user_id = :user_id OR u.user_id = :user_id)";
                 $params['user_id'] = $userId;
+            }
+            if ($regdNo !== null && $regdNo !== '') {
+                $where[] = "(da.regd_no = :regd_no OR mp.registration_number = :regd_no OR emp.registration_number = :regd_no OR emp.employee_code = :regd_no)";
+                $params['regd_no'] = $regdNo;
             }
             if ($date) {
                 $where[] = "da.attendance_date = :date";
@@ -326,7 +332,8 @@ class AttendanceModel
         $sql = "
             SELECT
                 da.attendance_id,
-                da.user_id,
+                da.regd_no,
+                COALESCE(u.user_id, mp.user_id, emp.user_id) AS user_id,
                 da.gym_id,
                 da.branch_id,
                 da.attendance_date,
@@ -337,14 +344,16 @@ class AttendanceModel
                 da.remarks,
                 da.created_at,
                 da.updated_at,
-                u.name AS user_name,
-                u.email AS user_email,
-                u.phone AS user_phone,
-                u.role AS user_role,
+                COALESCE(u.name, emp.full_name, mp.name) AS user_name,
+                COALESCE(u.email, emp.email) AS user_email,
+                COALESCE(u.phone, emp.phone) AS user_phone,
+                COALESCE(u.role, IF(emp.employee_id IS NOT NULL, 'EMPLOYEE', 'MEMBER')) AS user_role,
                 b.branch_name,
                 g.gym_name
             FROM daily_attendance da
-            LEFT JOIN users u ON u.user_id = da.user_id
+            LEFT JOIN member_profiles mp ON mp.registration_number = da.regd_no
+            LEFT JOIN employees emp ON (emp.registration_number = da.regd_no OR emp.employee_code = da.regd_no)
+            LEFT JOIN users u ON u.user_id = COALESCE(mp.user_id, emp.user_id)
             LEFT JOIN gym_branches b ON b.branch_id = da.branch_id
             LEFT JOIN gyms g ON g.gym_id = da.gym_id
             $whereSql
@@ -791,14 +800,6 @@ class AttendanceModel
         $limit  = isset($filters['limit']) ? max(1, (int)$filters['limit']) : 20;
         $offset = ($page - 1) * $limit;
 
-        // Resolve regd_no → user_id (member registration_number or employee_code)
-        if (!empty($filters['regd_no']) && empty($filters['user_id'])) {
-            $resolvedId = $this->resolveUserIdByRegdNo((string)$filters['regd_no']);
-            if ($resolvedId) {
-                $filters['user_id'] = $resolvedId;
-            }
-        }
-
         $where  = [];
         $params = [];
 
@@ -808,8 +809,13 @@ class AttendanceModel
         }
 
         if (!empty($filters['user_id'])) {
-            $where[] = "da.user_id = :user_id";
+            $where[] = "(mp.user_id = :user_id OR emp.user_id = :user_id OR u.user_id = :user_id)";
             $params['user_id'] = (int)$filters['user_id'];
+        }
+
+        if (!empty($filters['regd_no'])) {
+            $where[] = "(da.regd_no = :regd_no OR mp.registration_number = :regd_no OR emp.registration_number = :regd_no OR emp.employee_code = :regd_no)";
+            $params['regd_no'] = $filters['regd_no'];
         }
 
         if (!empty($filters['start_date'])) {
@@ -829,7 +835,14 @@ class AttendanceModel
 
         $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        $countSql = "SELECT COUNT(*) AS total FROM daily_attendance da $whereSql";
+        $countSql = "
+            SELECT COUNT(*) AS total
+            FROM daily_attendance da
+            LEFT JOIN member_profiles mp ON mp.registration_number = da.regd_no
+            LEFT JOIN employees emp ON (emp.registration_number = da.regd_no OR emp.employee_code = da.regd_no)
+            LEFT JOIN users u ON u.user_id = COALESCE(mp.user_id, emp.user_id)
+            $whereSql
+        ";
         $countStmt = $this->db->prepare($countSql);
         foreach ($params as $k => $v) {
             $countStmt->bindValue(":$k", $v);
@@ -840,7 +853,8 @@ class AttendanceModel
         $sql = "
             SELECT
                 da.attendance_id,
-                da.user_id,
+                da.regd_no,
+                COALESCE(u.user_id, mp.user_id, emp.user_id) AS user_id,
                 da.branch_id,
                 da.attendance_date,
                 da.check_in_time,
@@ -849,6 +863,9 @@ class AttendanceModel
                 da.source,
                 da.remarks
             FROM daily_attendance da
+            LEFT JOIN member_profiles mp ON mp.registration_number = da.regd_no
+            LEFT JOIN employees emp ON (emp.registration_number = da.regd_no OR emp.employee_code = da.regd_no)
+            LEFT JOIN users u ON u.user_id = COALESCE(mp.user_id, emp.user_id)
             $whereSql
             ORDER BY da.attendance_date DESC, da.check_in_time DESC
             LIMIT :limit OFFSET :offset
@@ -867,8 +884,9 @@ class AttendanceModel
         $formattedRecords = array_map(function($row) {
             return [
                 "attendance_id"   => (int)$row['attendance_id'],
-                "user_id"         => (int)$row['user_id'],
-                "branch_id"       => (int)$row['branch_id'],
+                "user_id"         => $row['user_id'] !== null ? (int)$row['user_id'] : null,
+                "regd_no"         => $row['regd_no'] ?? null,
+                "branch_id"       => (int)($row['branch_id'] ?? 0),
                 "attendance_date" => $row['attendance_date'],
                 "check_in_time"   => $row['check_in_time'],
                 "check_out_time"  => $row['check_out_time'],
@@ -989,7 +1007,8 @@ class AttendanceModel
         $stmt = $this->db->prepare("
             SELECT
                 da.attendance_id,
-                da.user_id,
+                da.regd_no,
+                COALESCE(u.user_id, mp.user_id, emp.user_id) AS user_id,
                 da.gym_id,
                 da.branch_id,
                 da.attendance_date,
@@ -1003,9 +1022,12 @@ class AttendanceModel
                 b.branch_name,
                 g.gym_name
             FROM daily_attendance da
+            LEFT JOIN member_profiles mp ON mp.registration_number = da.regd_no
+            LEFT JOIN employees emp ON (emp.registration_number = da.regd_no OR emp.employee_code = da.regd_no)
+            LEFT JOIN users u ON u.user_id = COALESCE(mp.user_id, emp.user_id)
             LEFT JOIN gym_branches b ON b.branch_id = da.branch_id
             LEFT JOIN gyms g ON g.gym_id = da.gym_id
-            WHERE da.user_id = :user_id AND da.attendance_date = :today
+            WHERE (mp.user_id = :user_id OR emp.user_id = :user_id OR u.user_id = :user_id) AND da.attendance_date = :today
             LIMIT 1
         ");
         $stmt->execute(['user_id' => $userId, 'today' => $today]);
@@ -1019,9 +1041,10 @@ class AttendanceModel
 
         return [
             "attendance_id"   => (int)$row['attendance_id'],
-            "user_id"         => (int)$row['user_id'],
-            "gym_id"          => (int)$row['gym_id'],
-            "branch_id"       => (int)$row['branch_id'],
+            "user_id"         => $row['user_id'] !== null ? (int)$row['user_id'] : null,
+            "regd_no"         => $row['regd_no'] ?? null,
+            "gym_id"          => (int)($row['gym_id'] ?? 0),
+            "branch_id"       => (int)($row['branch_id'] ?? 0),
             "attendance_date" => $row['attendance_date'],
             "check_in_time"   => $row['check_in_time'],
             "check_out_time"  => $row['check_out_time'],
